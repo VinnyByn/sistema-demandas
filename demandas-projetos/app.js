@@ -10299,9 +10299,7 @@ function paintDashViabilidade(data) {
 
   const quando = formatComentarioData(data?.fetchedAt);
   if (countEl) {
-    countEl.textContent = quando
-      ? `${regionais.length} regional(is) · ${cidadesN} cidade(s) · ${formatQtd(total.portas)} portas · ${quando}.`
-      : `${regionais.length} regional(is) · ${cidadesN} cidade(s) · ${formatQtd(total.portas)} portas.`;
+    countEl.textContent = quando ? `${quando}.` : "";
   }
 }
 
