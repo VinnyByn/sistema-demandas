@@ -11460,6 +11460,10 @@ function updateEsteiraStatusLine() {
 let brandMigrateClicks = 0;
 document.querySelector(".brand h1")?.addEventListener("click", async () => {
   if (!persistenceApi?.migrateLegacyPayload) return;
+  if (!isAdminUser()) {
+    brandMigrateClicks = 0;
+    return;
+  }
   brandMigrateClicks += 1;
   if (brandMigrateClicks < 5) return;
   brandMigrateClicks = 0;
