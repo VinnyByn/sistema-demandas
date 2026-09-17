@@ -1,0 +1,20 @@
+node_modules/
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+database-debug.log
+ui-debug.log
+
+.env
+.env.*
+*serviceAccount*.json
+*service-account*.json
+
+# Export do Firebase Auth: contém hash de senha dos usuários. Nunca versionar.
+/-
+*.users.json
+
+Thumbs.db
+desktop.ini
+.DS_Store

@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userEmail() {
+      return signedIn() ? request.auth.token.email.lower() : '';
+    }
+
+    function isSeedAdmin() {
+      return userEmail() == 'vinicius.morais@soumaster.com.br';
+    }
+
+    function rolesDoc() {
+      return get(/databases/$(database)/documents/demandasSistema/roles).data;
+    }
+
+    function isMappedAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/demandasSistema/roles)
+        && rolesDoc().roles[userEmail()] == 'admin';
+    }
+
+    function isAdmin() {
+      return isSeedAdmin() || isMappedAdmin();
+    }
+
+    match /demandas/{demandaId} {
+      allow read, write: if signedIn();
+    }
+    match /demandasSistema/meta {
+      allow read, write: if signedIn();
+    }
+    match /demandasSistema/state {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+    /* Espelho opcional; a fonte usada pelo app é meta.roles (já coberta acima). */
+    match /demandasSistema/roles {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+  }
+}
