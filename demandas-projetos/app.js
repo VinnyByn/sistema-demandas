@@ -6891,10 +6891,6 @@ const DASH_REGIONAL_CHART_IDS = [
   "chartCidGastoRegional",
   "chartCidPortasCidade",
   "chartCidPortasRegional",
-  "chartCidProjetosCidade",
-  "chartCidProjetosRegional",
-  "chartCidPctCidade",
-  "chartCidPctRegional",
   "chartCidTipoCidade",
   "chartCidTipoRegional",
 ];
@@ -6904,10 +6900,6 @@ const DASH_REGIONAL_TABLE_IDS = [
   "tableCidGastoRegional",
   "tableCidPortasCidade",
   "tableCidPortasRegional",
-  "tableCidProjetosCidade",
-  "tableCidProjetosRegional",
-  "tableCidPctCidade",
-  "tableCidPctRegional",
   "tableCidTipoCidade",
   "tableCidTipoRegional",
 ];
@@ -7091,6 +7083,67 @@ function renderDashTipoPorGrupo(
       "Nenhum projeto neste agrupamento.",
       {
         geoListKind: rowHeader === "Regional" ? "regional" : rowHeader === "Cidade" ? "cidade" : "",
+      },
+    );
+  }
+}
+
+function renderDashTipoValorPorGrupo(
+  canvasId,
+  tableId,
+  demandas,
+  groupRows,
+  keyFn,
+  rowHeader,
+  {
+    valueFn,
+    sortValueFn,
+    topN = 12,
+    tipos = tiposOperacionalDash(),
+    chartOpts = {},
+    tableOpts = {},
+    emptyMsg = "Nenhum dado neste agrupamento.",
+  } = {},
+) {
+  const sortVal = sortValueFn || ((r) => r.valor);
+  const topRows = [...groupRows]
+    .sort((a, b) => numDash(sortVal(b)) - numDash(sortVal(a)) || b.projetos - a.projetos)
+    .slice(0, topN);
+  const groupKeys = topRows.map((r) => r.cidade);
+  const matrix = Object.fromEntries(groupKeys.map((k) => [k, Object.fromEntries(tipos.map((t) => [t, 0]))]));
+  demandas.forEach((d) => {
+    const key = keyFn(d);
+    if (!matrix[key]) return;
+    const t = normalizeTipo(d.tipo);
+    if (matrix[key][t] !== undefined) matrix[key][t] += numDash(valueFn(d));
+  });
+  const activeTipos = tipos.filter((tipo) => groupKeys.some((k) => (matrix[k]?.[tipo] || 0) > 0));
+  const datasets = activeTipos
+    .map((tipo) => ({
+      label: tipo,
+      data: groupKeys.map((k) => matrix[k][tipo] || 0),
+      backgroundColor: TIPO_CHART_COLORS[tipo] || "#94a3b8",
+      borderWidth: 0,
+    }))
+    .filter((ds) => ds.data.some((n) => n > 0));
+  makeDashChartProjetistaStacked(
+    canvasId,
+    groupKeys.map((k) => truncateChartLabel(k, 22)),
+    datasets,
+    chartOpts,
+  );
+  if (tableId) {
+    renderDashGrupoMatrixTable(
+      tableId,
+      rowHeader,
+      groupKeys,
+      activeTipos.length ? activeTipos : tipos,
+      (t) => t,
+      matrix,
+      emptyMsg,
+      {
+        geoListKind: rowHeader === "Regional" ? "regional" : rowHeader === "Cidade" ? "cidade" : "",
+        ...tableOpts,
       },
     );
   }
@@ -8477,8 +8530,6 @@ function renderDashCidades() {
   const todas = filterDemandasModoDash(filtradasGeo);
   const rows = buildStatsPorCidade(todas);
   const rowsRegional = buildStatsPorRegional(todas);
-  const rowsPct = buildStatsPorCidade(filtradasGeo);
-  const rowsRegionalPct = buildStatsPorRegional(filtradasGeo);
   const tiposDash = tiposOperacionalDash();
 
   if (!todasBase.length) {
@@ -8545,23 +8596,38 @@ function renderDashCidades() {
     countEl.textContent = `${rowsRegional.length} regional(is) · ${rows.length} cidade(s) · ${totais.projetos} projeto(s) · Esteira Projetos (sem B2B)${sufixo}`;
   }
 
-  renderGeoMetricDetalhamento(
-    {
-      gastoCidade: ["chartCidGastoCidade", "tableCidGastoCidade"],
-      gastoRegional: ["chartCidGastoRegional", "tableCidGastoRegional"],
-      portasCidade: ["chartCidPortasCidade", "tableCidPortasCidade"],
-      portasRegional: ["chartCidPortasRegional", "tableCidPortasRegional"],
-      projetosCidade: ["chartCidProjetosCidade", "tableCidProjetosCidade"],
-      projetosRegional: ["chartCidProjetosRegional", "tableCidProjetosRegional"],
-      pctCidade: ["chartCidPctCidade", "tableCidPctCidade"],
-      pctRegional: ["chartCidPctRegional", "tableCidPctRegional"],
-    },
-    rows,
-    rowsRegional,
-    rowsPct,
-    rowsRegionalPct,
-    { enableGeoList: true },
-  );
+  const nReg = Math.max(rowsRegional.length, 1);
+  const modo = getDashValorModo();
+  renderDashTipoValorPorGrupo("chartCidGastoRegional", "tableCidGastoRegional", todas, rowsRegional, (d) => labelRegionalDemanda(d), "Regional", {
+    valueFn: (d) => demandaValorDashPorModo(d, modo),
+    topN: nReg,
+    tipos: tiposDash,
+    chartOpts: { formatValue: (n) => formatBRL(n), yFormat: (v) => formatBRL(v) },
+    tableOpts: { formatCell: (n) => (n > 0 ? formatBRL(n) : "—"), formatTotal: (n) => (n > 0 ? formatBRL(n) : "—") },
+  });
+  renderDashTipoValorPorGrupo("chartCidPortasRegional", "tableCidPortasRegional", todas, rowsRegional, (d) => labelRegionalDemanda(d), "Regional", {
+    valueFn: (d) => demandaPortasDashPorModo(d, modo),
+    sortValueFn: (r) => r.portasNovas,
+    topN: nReg,
+    tipos: tiposDash,
+    chartOpts: { formatValue: (n) => formatQtd(n), stepSize: 1 },
+    tableOpts: { formatCell: (n) => (n > 0 ? formatQtd(n) : "—"), formatTotal: (n) => (n > 0 ? formatQtd(n) : "—") },
+  });
+  renderDashTipoValorPorGrupo("chartCidGastoCidade", "tableCidGastoCidade", todas, rows, (d) => labelCidade(d.cidade), "Cidade", {
+    valueFn: (d) => demandaValorDashPorModo(d, modo),
+    topN: 12,
+    tipos: tiposDash,
+    chartOpts: { formatValue: (n) => formatBRL(n), yFormat: (v) => formatBRL(v) },
+    tableOpts: { formatCell: (n) => (n > 0 ? formatBRL(n) : "—"), formatTotal: (n) => (n > 0 ? formatBRL(n) : "—") },
+  });
+  renderDashTipoValorPorGrupo("chartCidPortasCidade", "tableCidPortasCidade", todas, rows, (d) => labelCidade(d.cidade), "Cidade", {
+    valueFn: (d) => demandaPortasDashPorModo(d, modo),
+    sortValueFn: (r) => r.portasNovas,
+    topN: 12,
+    tipos: tiposDash,
+    chartOpts: { formatValue: (n) => formatQtd(n), stepSize: 1 },
+    tableOpts: { formatCell: (n) => (n > 0 ? formatQtd(n) : "—"), formatTotal: (n) => (n > 0 ? formatQtd(n) : "—") },
+  });
 
   renderDashTipoPorGrupo(
     "chartCidTipoCidade",
