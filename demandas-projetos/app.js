@@ -6831,6 +6831,68 @@ function renderKpiGeralBaseConclusao(list = demandasDashOperacionalList()) {
     );
 }
 
+/** Distribuição dos projetos pelas colunas da esteira — barras horizontais coloridas por fase. */
+function makeDashChartFasesEsteira(canvasId, rows) {
+  if (typeof Chart === "undefined") return;
+  const el = document.getElementById(canvasId);
+  if (!el) return;
+  if (dashCharts[canvasId]) {
+    dashCharts[canvasId].destroy();
+    delete dashCharts[canvasId];
+  }
+  if (!rows.length) return;
+  const total = rows.reduce((s, r) => s + r.n, 0);
+  dashCharts[canvasId] = new Chart(el, {
+    type: "bar",
+    data: {
+      labels: rows.map((r) => r.label),
+      datasets: [
+        {
+          label: "Projetos",
+          data: rows.map((r) => r.n),
+          backgroundColor: rows.map((r) => STATUS_CHART_COLORS[r.key] || "#94a3b8"),
+          borderWidth: 0,
+        },
+      ],
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const pct = total > 0 ? Math.round((ctx.raw / total) * 1000) / 10 : 0;
+              return `${formatQtd(ctx.raw)} projeto(s) · ${formatPct(pct)} do total`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: { color: "#94a3b8", precision: 0, font: { size: 10 } },
+          grid: { color: "rgba(148,163,184,0.12)" },
+        },
+        y: { ticks: { color: "#cbd5e1", font: { size: 11 } }, grid: { display: false } },
+      },
+    },
+  });
+}
+
+function renderDashGeralFases(list = demandasDashOperacionalList()) {
+  const rows = countByStatus(list);
+  const totalEl = document.getElementById("dashGeralFasesTotal");
+  if (totalEl) {
+    totalEl.textContent = list.length
+      ? `${formatQtd(list.length)} projeto(s) no total, distribuídos pelas colunas da esteira.`
+      : "Nenhum projeto cadastrado.";
+  }
+  makeDashChartFasesEsteira("chartGeralFases", rows);
+}
+
 function isDemandaConcluidaComparavel(d) {
   return isStatusConcluidoDemanda(migrateDemanda(d));
 }
@@ -10236,6 +10298,7 @@ function renderDashboard() {
   const naEsteira = demandasAteDocumentacao(todas);
   const semDirEsteira = naEsteira.filter((d) => normalizeResponsavel(d.responsavel) === "").length;
 
+  renderDashGeralFases(todas);
   renderKpiGeralBaseConclusao(todas);
 
   document.getElementById("kpiGeral").innerHTML =

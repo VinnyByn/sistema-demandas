@@ -1033,6 +1033,7 @@ textarea {
 .chart-card h4 { margin: 0 0 0.75rem; font-size: 0.88rem; font-weight: 600; color: var(--muted); }
 .chart-wrap { position: relative; height: 220px; width: 100%; }
 .chart-wrap--tall { height: 260px; }
+.chart-wrap--fases { height: 420px; }
 .dashboard-charts--cf { grid-template-columns: 1fr; margin-bottom: 0.75rem; }
 .chart-card--wide { grid-column: 1 / -1; }
 .dash-cf-toolbar {
