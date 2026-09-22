@@ -6949,6 +6949,22 @@ function dashChartBarInteractOptions(options = {}) {
   };
 }
 
+function dashChartBarScales(options, { valueTicks, categoryTicks }) {
+  const horizontal = Boolean(options.horizontal);
+  const valueScale = {
+    beginAtZero: true,
+    ticks: valueTicks,
+    grid: { color: "rgba(148,163,184,0.12)" },
+  };
+  const categoryScale = {
+    ticks: categoryTicks,
+    grid: horizontal ? { display: false } : { color: "rgba(148,163,184,0.12)" },
+  };
+  return horizontal
+    ? { indexAxis: "y", scales: { x: valueScale, y: categoryScale } }
+    : { scales: { x: categoryScale, y: valueScale } };
+}
+
 function makeDashChartMoneyBar(canvasId, labels, data, color = "#22c55e", options = {}) {
   if (typeof Chart === "undefined") return;
   const el = document.getElementById(canvasId);
@@ -6970,26 +6986,16 @@ function makeDashChartMoneyBar(canvasId, labels, data, color = "#22c55e", option
       responsive: true,
       maintainAspectRatio: false,
       ...dashChartBarInteractOptions(options),
+      ...dashChartBarScales(options, {
+        valueTicks: { color: "#94a3b8", callback: (v) => formatBRL(v) },
+        categoryTicks: { color: "#94a3b8", maxRotation: 45, minRotation: 0, font: { size: 10 } },
+      }),
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
             label: (ctx) => formatBRL(ctx.raw) + (options.showPct ? dashChartPctSuffix(ctx) : ""),
           },
-        },
-      },
-      scales: {
-        x: {
-          ticks: { color: "#94a3b8", maxRotation: 45, minRotation: 0, font: { size: 10 } },
-          grid: { color: "rgba(148,163,184,0.12)" },
-        },
-        y: {
-          beginAtZero: true,
-          ticks: {
-            color: "#94a3b8",
-            callback: (v) => formatBRL(v),
-          },
-          grid: { color: "rgba(148,163,184,0.12)" },
         },
       },
     },
@@ -7017,6 +7023,14 @@ function makeDashChartMetricBar(canvasId, labels, data, options = {}) {
       responsive: true,
       maintainAspectRatio: false,
       ...dashChartBarInteractOptions(options),
+      ...dashChartBarScales(options, {
+        valueTicks: {
+          color: "#94a3b8",
+          stepSize: options.stepSize,
+          callback: options.yFormat || ((v) => formatValue(v)),
+        },
+        categoryTicks: { color: "#94a3b8", font: { size: 11 } },
+      }),
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -7026,21 +7040,6 @@ function makeDashChartMetricBar(canvasId, labels, data, options = {}) {
               return base + (options.showPct ? dashChartPctSuffix(ctx) : "");
             },
           },
-        },
-      },
-      scales: {
-        x: {
-          ticks: { color: "#94a3b8", font: { size: 11 } },
-          grid: { color: "rgba(148,163,184,0.12)" },
-        },
-        y: {
-          beginAtZero: true,
-          ticks: {
-            color: "#94a3b8",
-            stepSize: options.stepSize,
-            callback: options.yFormat || ((v) => formatValue(v)),
-          },
-          grid: { color: "rgba(148,163,184,0.12)" },
         },
       },
     },
@@ -7558,7 +7557,7 @@ function renderDashB2cSegmentoCharts(list) {
     return;
   }
   const onBarClick = (seg) => openDashGeoProjetosLista("segmento", seg);
-  const interact = { showPct: true, onBarClick };
+  const interact = { showPct: true, onBarClick, horizontal: true };
   makeDashChartMetricBar("chartB2cSegProjetos", labels, rows.map((r) => r.projetos), {
     colors,
     datasetLabel: "Projetos",
