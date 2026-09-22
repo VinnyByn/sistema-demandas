@@ -6615,15 +6615,6 @@ function formatBRL(n) {
   return numDash(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-/** Valor abreviado para rótulos de eixo — evita eixos cheios de zeros. */
-function formatBRLCompacto(n) {
-  const v = numDash(n);
-  const abs = Math.abs(v);
-  if (abs >= 1e6) return `R$ ${(v / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
-  if (abs >= 1e3) return `R$ ${(v / 1e3).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} mil`;
-  return `R$ ${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
-}
-
 function formatMetros(n) {
   return `${numDash(n).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m`;
 }
@@ -6840,129 +6831,6 @@ function renderKpiGeralBaseConclusao(list = demandasDashOperacionalList()) {
     );
 }
 
-/** Faixa de destaque do bloco Indicadores gerais — os quatro números que resumem a operação. */
-function renderKpiGeralDestaque(list = demandasDashOperacionalList()) {
-  const el = document.getElementById("kpiGeralDestaque");
-  if (!el) return;
-  const mode = DASH_BASE_CONCLUSAO;
-  const m = calcMediasIndicadoresGeral(list, mode);
-  const valor = sumValorDashboard(list, mode);
-  const portas = sumPortasDashboard(list, mode);
-  el.innerHTML =
-    kpiCard("Total de projetos", m.totalCadastro, m.totalCadastro ? "ok" : "warn", "Esteira Projetos (sem B2B)") +
-    kpiCard("Projetos concluídos", m.n, m.n ? "ok" : "warn", "Na coluna Conclusão") +
-    kpiCard(
-      "% de conclusão",
-      formatPct(m.pctConclusao),
-      m.pctConclusao != null ? "ok" : "warn",
-      `${m.n} de ${m.totalCadastro} cadastrados`,
-    ) +
-    kpiCard("Valor final", formatBRL(valor), valor ? "ok" : "warn", "Projetos na coluna Conclusão") +
-    kpiCard("Portas novas", formatQtd(portas), portas ? "ok" : "warn", "Somadas na Conclusão");
-}
-
-function dashGeralAlertaHtml(label, valor, tone) {
-  const classe = valor ? tone : "ok";
-  return (
-    `<div class="dash-geral-alerta dash-geral-alerta--${classe}">` +
-    `<span class="dash-geral-alerta__valor">${valor}</span>` +
-    `<span class="dash-geral-alerta__label">${escapeHtml(label)}</span></div>`
-  );
-}
-
-/**
- * Barras horizontais comparando os tipos de projeto.
- * `stacked` empilha as séries; `money` formata valores em reais.
- */
-function makeDashChartComparaTipos(canvasId, labels, datasets, { stacked = false, money = false } = {}) {
-  if (typeof Chart === "undefined") return;
-  const el = document.getElementById(canvasId);
-  if (!el) return;
-  if (dashCharts[canvasId]) {
-    dashCharts[canvasId].destroy();
-    delete dashCharts[canvasId];
-  }
-  if (!labels.length) return;
-  const formatValor = money ? formatBRL : formatQtd;
-  dashCharts[canvasId] = new Chart(el, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: datasets.map((ds) => ({ ...ds, borderWidth: 0 })),
-    },
-    options: {
-      indexAxis: "y",
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: true, position: "bottom", labels: { color: "#cbd5e1", boxWidth: 12 } },
-        tooltip: {
-          callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatValor(ctx.raw)}` },
-        },
-      },
-      scales: {
-        x: {
-          stacked,
-          beginAtZero: true,
-          ticks: {
-            color: "#94a3b8",
-            callback: (v) => (money ? formatBRLCompacto(v) : formatQtd(v)),
-            font: { size: 10 },
-            maxTicksLimit: 5,
-            maxRotation: 0,
-          },
-          grid: { color: "rgba(148,163,184,0.12)" },
-        },
-        y: { stacked, ticks: { color: "#cbd5e1", font: { size: 11 } }, grid: { display: false } },
-      },
-    },
-  });
-}
-
-function renderDashGeralCharts(list = demandasDashOperacionalList()) {
-  const g = countDemandas(list);
-  const naEsteira = demandasAteDocumentacao(list);
-
-  const situacao = [
-    { label: "Na esteira", valor: naEsteira.length, cor: "#3b82f6" },
-    { label: "Concluídos", valor: g.concluidas, cor: "#22c55e" },
-    { label: "Pausados", valor: g.pausadas, cor: "#64748b" },
-    { label: "Reprovados", valor: g.reprovadas, cor: "#dc2626" },
-  ].filter((s) => s.valor > 0);
-  makeDashChart(
-    "chartGeralSituacao",
-    "doughnut",
-    situacao.map((s) => s.label),
-    situacao.map((s) => s.valor),
-    { colors: situacao.map((s) => s.cor) },
-  );
-
-  const alertasEl = document.getElementById("dashGeralAlertas");
-  if (alertasEl) {
-    const semResp = naEsteira.filter((d) => normalizeResponsavel(d.responsavel) === "").length;
-    alertasEl.innerHTML =
-      dashGeralAlertaHtml("Em atraso", g.atraso, "bad") +
-      dashGeralAlertaHtml("Não atribuídas", semResp, "warn");
-  }
-
-  const r = calcResumoIndicadoresDashboard(list);
-  const fases = ["Aprovação", "Execução", "Conclusão"];
-  const coresFase = ["#f59e0b", "#ef4444", "#22c55e"];
-  makeDashChartMoneyBar(
-    "chartGeralValorFase",
-    fases,
-    [r.aprovacao.valor, r.execucao.valor, r.concluido.valor],
-    coresFase,
-    { datasetLabel: "Valor (R$)", yTickFormat: formatBRLCompacto },
-  );
-  makeDashChartMetricBar("chartGeralQtdFase", fases, [r.aprovacao.n, r.execucao.n, r.concluido.n], {
-    colors: coresFase,
-    datasetLabel: "Projetos",
-    formatValue: (v) => formatQtd(v),
-    stepSize: 1,
-  });
-}
-
 function isDemandaConcluidaComparavel(d) {
   return isStatusConcluidoDemanda(migrateDemanda(d));
 }
@@ -7090,7 +6958,7 @@ function makeDashChartMoneyBar(canvasId, labels, data, color = "#22c55e", option
           beginAtZero: true,
           ticks: {
             color: "#94a3b8",
-            callback: (v) => (options.yTickFormat || formatBRL)(v),
+            callback: (v) => formatBRL(v),
           },
           grid: { color: "rgba(148,163,184,0.12)" },
         },
@@ -7814,47 +7682,49 @@ function kpiMediasIndicadoresHtml(m, { includePortas = true } = {}) {
   return html;
 }
 
-function buildLinhasIndicadoresPorTipo(list) {
-  return tiposFiltroEsteiraProjetos().map((tipo) => {
-    const doTipo = list.filter((d) => normalizeTipo(d.tipo) === tipo);
-    const r = calcResumoIndicadoresDashboard(doTipo);
-    return {
-      tipo,
-      total: countDemandas(doTipo).total,
-      concluidos: r.concluido.n,
-      valorAprovacao: r.aprovacao.valor,
-      valorExecucao: r.execucao.valor,
-      valorConcluido: r.concluido.valor,
-    };
-  });
-}
-
-/** Gráficos comparativos do sub-bloco «Por tipo». */
 function renderKpiGeralPorTipo(list = demandasDashOperacionalList()) {
-  const rows = buildLinhasIndicadoresPorTipo(list).filter(
-    (r) => r.total || r.valorAprovacao || r.valorExecucao || r.valorConcluido,
-  );
-  const labels = rows.map((r) => r.tipo);
-
-  makeDashChartComparaTipos(
-    "chartGeralTipoQtd",
-    labels,
-    [
-      { label: "Cadastrados", data: rows.map((r) => r.total), backgroundColor: "#3b82f6" },
-      { label: "Concluídos", data: rows.map((r) => r.concluidos), backgroundColor: "#22c55e" },
-    ],
-  );
-
-  makeDashChartComparaTipos(
-    "chartGeralTipoValor",
-    labels,
-    [
-      { label: "Aprovação", data: rows.map((r) => r.valorAprovacao), backgroundColor: "#f59e0b" },
-      { label: "Execução", data: rows.map((r) => r.valorExecucao), backgroundColor: "#ef4444" },
-      { label: "Conclusão", data: rows.map((r) => r.valorConcluido), backgroundColor: "#22c55e" },
-    ],
-    { stacked: true, money: true },
-  );
+  const el = document.getElementById("kpiGeralPorTipo");
+  if (!el) return;
+  let html = "";
+  for (const tipo of tiposFiltroEsteiraProjetos()) {
+    const doTipo = list.filter((d) => normalizeTipo(d.tipo) === tipo);
+    const g = countDemandas(doTipo);
+    const r = calcResumoIndicadoresDashboard(doTipo);
+    const m = calcMediasIndicadoresGeral(doTipo, DASH_BASE_CONCLUSAO);
+    const color = TIPO_CHART_COLORS[tipo] || "#94a3b8";
+    const showPortas = !["SWAP", "Backbone", "Licenciamento", "Mapeamento"].includes(tipo);
+    html +=
+      `<div class="kpi dash-tipo-card" style="border-left-color:${color}">` +
+      `<div class="kpi__label dash-tipo-card__nome"><span>${escapeHtml(tipo)}</span>` +
+      `<span class="dash-tipo-card__meta">${g.total} cadastrados</span></div>` +
+      `<div class="dash-pj-grid kpi-grid">` +
+      kpiCard("Total de projetos", g.total, g.total ? "ok" : "warn") +
+      kpiCard("Valor concluído", formatBRL(r.concluido.valor), r.concluido.valor ? "ok" : "warn") +
+      kpiCard(
+        `${r.concluido.n} na Conclusão`,
+        r.concluido.n ? String(r.concluido.n) : "—",
+        r.concluido.n ? "ok" : "warn",
+      ) +
+      kpiCard("Valor em execução", formatBRL(r.execucao.valor), r.execucao.valor ? "ok" : "warn") +
+      kpiCard(
+        `${r.execucao.n} em execução`,
+        r.execucao.n ? String(r.execucao.n) : "—",
+        r.execucao.n ? "ok" : "warn",
+      ) +
+      kpiCard("Valor em aprovação", formatBRL(r.aprovacao.valor), r.aprovacao.valor ? "ok" : "warn") +
+      kpiCard(
+        `${r.aprovacao.n} em aprovação`,
+        r.aprovacao.n ? String(r.aprovacao.n) : "—",
+        r.aprovacao.n ? "ok" : "warn",
+      ) +
+      (showPortas
+        ? kpiCard("Portas novas (Conclusão)", formatQtd(m.portasTotal), m.portasTotal ? "ok" : "warn")
+        : "") +
+      kpiCard("Metragem lanç. (Conclusão)", formatMetros(m.metragemTotal), m.metragemTotal ? "ok" : "warn") +
+      kpiMediasIndicadoresHtml(m, { includePortas: showPortas }) +
+      `</div></div>`;
+  }
+  el.innerHTML = html;
 }
 
 function labelSolicitante(raw) {
@@ -10366,8 +10236,6 @@ function renderDashboard() {
   const naEsteira = demandasAteDocumentacao(todas);
   const semDirEsteira = naEsteira.filter((d) => normalizeResponsavel(d.responsavel) === "").length;
 
-  renderKpiGeralDestaque(todas);
-  renderDashGeralCharts(todas);
   renderKpiGeralBaseConclusao(todas);
 
   document.getElementById("kpiGeral").innerHTML =
