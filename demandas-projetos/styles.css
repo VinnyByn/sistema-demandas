@@ -1242,6 +1242,79 @@ textarea {
   color: var(--muted);
 }
 .dash-tipo-card .kpi-grid { margin-top: 0.35rem; }
+
+/* Indicadores gerais — faixa de destaque, gráficos e tabela por tipo */
+.kpi-grid--destaque {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+.kpi-grid--destaque .kpi { padding: 1.1rem 1.15rem; }
+.kpi-grid--destaque .kpi__value { font-size: clamp(1.1rem, 14cqi, 2.1rem); }
+@media (max-width: 900px) {
+  .kpi-grid--destaque { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .kpi-grid--destaque { grid-template-columns: 1fr; }
+}
+.dashboard-charts--geral { margin-bottom: 1rem; }
+.dash-geral-alertas {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.dash-geral-alerta {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: calc(var(--radius) - 2px);
+  border-left: 3px solid var(--border);
+  background: rgba(148, 163, 184, 0.08);
+}
+.dash-geral-alerta__valor {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.dash-geral-alerta__label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.dash-geral-alerta--bad {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+.dash-geral-alerta--bad .dash-geral-alerta__valor { color: #fca5a5; }
+.dash-geral-alerta--warn {
+  border-left-color: var(--warn);
+  background: rgba(245, 158, 11, 0.1);
+}
+.dash-geral-alerta--warn .dash-geral-alerta__valor { color: var(--warn); }
+.dash-geral-alerta--ok .dash-geral-alerta__valor { color: var(--accent2); }
+.dash-tipo-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 0.45rem;
+  vertical-align: baseline;
+}
+.dash-table--tipos { min-width: 860px; font-size: 0.82rem; }
+.dash-table--tipos td:first-child,
+.dash-table--tipos th:first-child { white-space: nowrap; }
+.dash-table--tipos td:not(:first-child),
+.dash-table--tipos th:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.dash-table--tipos tfoot td {
+  border-top: 1px solid var(--border);
+  font-weight: 700;
+}
 .dash-tempo-toolbar {
   display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: flex-end;
   margin-bottom: 0.35rem; padding: 0.75rem; border: 1px solid var(--border);
