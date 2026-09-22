@@ -7156,9 +7156,11 @@ function renderDashSegmentoB2cValorPorGrupo(
   tableOpts,
   chartOpts,
   topN = 12,
+  sortValueFn,
 ) {
+  const sortVal = sortValueFn || ((r) => r.valor);
   const topRows = [...groupRows]
-    .sort((a, b) => b.valor - a.valor || b.projetos - a.projetos)
+    .sort((a, b) => numDash(sortVal(b)) - numDash(sortVal(a)) || b.projetos - a.projetos)
     .slice(0, topN);
   const rowKeys = topRows.map((r) => r.cidade);
   const matrix = buildSegmentoB2cValueMatrix(demandas, rowKeys, keyFn, valueFn);
@@ -7218,6 +7220,36 @@ function renderDashSegmentoB2cInvestPorGrupo(
   );
 }
 
+function renderDashSegmentoB2cPortasPorGrupo(
+  canvasId,
+  tableId,
+  tableRowHeader,
+  demandas,
+  groupRows,
+  keyFn,
+  topN = 12,
+) {
+  renderDashSegmentoB2cValorPorGrupo(
+    canvasId,
+    tableId,
+    tableRowHeader,
+    demandas,
+    groupRows,
+    keyFn,
+    (d) => demandaPortasDashPorModo(d, getDashValorModo()),
+    {
+      formatCell: (n) => (n > 0 ? formatQtd(n) : "—"),
+      formatTotal: (n) => (n > 0 ? formatQtd(n) : "—"),
+    },
+    {
+      formatValue: (n) => formatQtd(n),
+      stepSize: 1,
+    },
+    topN,
+    (r) => r.portasNovas,
+  );
+}
+
 function renderDashSegmentoB2cPorGrupo(canvasId, tableId, tableRowHeader, demandas, groupRows, keyFn, topN = 12) {
   const topRows = groupRows.slice(0, topN);
   const rowKeys = topRows.map((r) => r.cidade);
@@ -7253,10 +7285,6 @@ const B2C_GEO_CHART_IDS = [
   "chartB2cGastoRegional",
   "chartB2cPortasCidade",
   "chartB2cPortasRegional",
-  "chartB2cProjetosCidade",
-  "chartB2cProjetosRegional",
-  "chartB2cPctCidade",
-  "chartB2cPctRegional",
 ];
 
 const B2C_SEGMENTO_CHART_IDS = [
@@ -7288,10 +7316,6 @@ function destroyDashB2cExtraCharts() {
     "tableB2cGastoRegional",
     "tableB2cPortasCidade",
     "tableB2cPortasRegional",
-    "tableB2cProjetosCidade",
-    "tableB2cProjetosRegional",
-    "tableB2cPctCidade",
-    "tableB2cPctRegional",
   ].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = "";
@@ -7371,22 +7395,43 @@ function renderB2cGeoMetricPanel(canvasId, tableId, rowHeader, rows, opts) {
   renderB2cGeoMetricTable(tableId, rowHeader, rows, opts);
 }
 
-function renderDashB2cGeoDetalhamento(rowsCidade, rowsRegional, rowsCidadePct, rowsRegionalPct) {
-  renderGeoMetricDetalhamento(
-    {
-      gastoCidade: ["chartB2cGastoCidade", "tableB2cGastoCidade"],
-      gastoRegional: ["chartB2cGastoRegional", "tableB2cGastoRegional"],
-      portasCidade: ["chartB2cPortasCidade", "tableB2cPortasCidade"],
-      portasRegional: ["chartB2cPortasRegional", "tableB2cPortasRegional"],
-      projetosCidade: ["chartB2cProjetosCidade", "tableB2cProjetosCidade"],
-      projetosRegional: ["chartB2cProjetosRegional", "tableB2cProjetosRegional"],
-      pctCidade: ["chartB2cPctCidade", "tableB2cPctCidade"],
-      pctRegional: ["chartB2cPctRegional", "tableB2cPctRegional"],
-    },
-    rowsCidade,
+function renderDashB2cGeoDetalhamento(demandas, rowsCidade, rowsRegional) {
+  const nReg = Math.max(rowsRegional.length, 1);
+  renderDashSegmentoB2cInvestPorGrupo(
+    "chartB2cGastoRegional",
+    "tableB2cGastoRegional",
+    "Regional",
+    demandas,
     rowsRegional,
-    rowsCidadePct,
-    rowsRegionalPct,
+    (d) => labelRegionalDemanda(d),
+    nReg,
+  );
+  renderDashSegmentoB2cPortasPorGrupo(
+    "chartB2cPortasRegional",
+    "tableB2cPortasRegional",
+    "Regional",
+    demandas,
+    rowsRegional,
+    (d) => labelRegionalDemanda(d),
+    nReg,
+  );
+  renderDashSegmentoB2cInvestPorGrupo(
+    "chartB2cGastoCidade",
+    "tableB2cGastoCidade",
+    "Cidade",
+    demandas,
+    rowsCidade,
+    (d) => labelCidade(d.cidade),
+    12,
+  );
+  renderDashSegmentoB2cPortasPorGrupo(
+    "chartB2cPortasCidade",
+    "tableB2cPortasCidade",
+    "Cidade",
+    demandas,
+    rowsCidade,
+    (d) => labelCidade(d.cidade),
+    12,
   );
 }
 
@@ -10543,12 +10588,7 @@ function renderDashIndicadoresB2c() {
   renderDashB2cSegmentoCharts(listModo);
   renderKpiB2cSegmentos(listModo);
   renderDashB2cMetricasSegmento(listModo);
-  renderDashB2cGeoDetalhamento(
-    rowsCidade,
-    rowsRegional,
-    buildStatsPorCidade(list),
-    buildStatsPorRegional(list),
-  );
+  renderDashB2cGeoDetalhamento(listModo, rowsCidade, rowsRegional);
 }
 
 function collectAnosDemandasB2b(demandas = demandasB2bDashboardList()) {

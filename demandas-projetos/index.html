@@ -578,22 +578,12 @@
             <h3 class="dash-subhead">Operação B2C</h3>
             <div class="kpi-grid" id="kpiB2c"></div>
 
-            <h3 class="dash-subhead">Gráficos e detalhamento</h3>
-            <p class="muted small dash-block__hint">Gastos, portas, projetos e % de conclusão por <strong>cidade</strong> e <strong>regional</strong>. Clique em <strong>Tabela</strong> sob cada gráfico para expandir ou recolher.</p>
+            <h3 class="dash-subhead">Onde está o B2C</h3>
+            <p class="muted small dash-block__hint">Gastos e portas por <strong>regional</strong> e <strong>cidade</strong>, empilhados por <strong>MDU / TCR / TCT</strong>. Clique em <strong>Tabela</strong> para o detalhe numérico.</p>
             <div class="dashboard-charts dashboard-charts--cols2">
-              <div class="chart-card chart-card--wide">
-                <h4>Gastos por cidade</h4>
-                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cGastoCidade"></canvas></div>
-                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-gasto-cidade">
-                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cGastoCidade">
-                    <span>Tabela</span>
-                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
-                  </button>
-                  <div class="dash-chart-table__body" id="tableB2cGastoCidade"></div>
-                </div>
-              </div>
-              <div class="chart-card chart-card--wide">
+              <div class="chart-card">
                 <h4>Gastos por regional</h4>
+                <p class="muted small chart-card__sub">Onde o investimento está concentrado.</p>
                 <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cGastoRegional"></canvas></div>
                 <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-gasto-regional">
                   <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cGastoRegional">
@@ -603,19 +593,9 @@
                   <div class="dash-chart-table__body" id="tableB2cGastoRegional"></div>
                 </div>
               </div>
-              <div class="chart-card chart-card--wide">
-                <h4>Portas por cidade</h4>
-                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cPortasCidade"></canvas></div>
-                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-portas-cidade">
-                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cPortasCidade">
-                    <span>Tabela</span>
-                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
-                  </button>
-                  <div class="dash-chart-table__body" id="tableB2cPortasCidade"></div>
-                </div>
-              </div>
-              <div class="chart-card chart-card--wide">
+              <div class="chart-card">
                 <h4>Portas por regional</h4>
+                <p class="muted small chart-card__sub">Onde a rede está crescendo.</p>
                 <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cPortasRegional"></canvas></div>
                 <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-portas-regional">
                   <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cPortasRegional">
@@ -625,48 +605,28 @@
                   <div class="dash-chart-table__body" id="tableB2cPortasRegional"></div>
                 </div>
               </div>
-              <div class="chart-card chart-card--wide">
-                <h4>Projetos por cidade</h4>
-                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cProjetosCidade"></canvas></div>
-                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-projetos-cidade">
-                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cProjetosCidade">
+              <div class="chart-card">
+                <h4>Gastos por cidade</h4>
+                <p class="muted small chart-card__sub">Até 12 cidades com maior gasto.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cGastoCidade"></canvas></div>
+                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-gasto-cidade">
+                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cGastoCidade">
                     <span>Tabela</span>
                     <span class="dash-chart-table__chevron" aria-hidden="true"></span>
                   </button>
-                  <div class="dash-chart-table__body" id="tableB2cProjetosCidade"></div>
+                  <div class="dash-chart-table__body" id="tableB2cGastoCidade"></div>
                 </div>
               </div>
-              <div class="chart-card chart-card--wide">
-                <h4>Projetos por regional</h4>
-                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cProjetosRegional"></canvas></div>
-                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-projetos-regional">
-                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cProjetosRegional">
+              <div class="chart-card">
+                <h4>Portas por cidade</h4>
+                <p class="muted small chart-card__sub">Até 12 cidades com mais portas novas.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cPortasCidade"></canvas></div>
+                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-portas-cidade">
+                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cPortasCidade">
                     <span>Tabela</span>
                     <span class="dash-chart-table__chevron" aria-hidden="true"></span>
                   </button>
-                  <div class="dash-chart-table__body" id="tableB2cProjetosRegional"></div>
-                </div>
-              </div>
-              <div class="chart-card chart-card--wide">
-                <h4>% de conclusão por cidade</h4>
-                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cPctCidade"></canvas></div>
-                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-pct-cidade">
-                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cPctCidade">
-                    <span>Tabela</span>
-                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
-                  </button>
-                  <div class="dash-chart-table__body" id="tableB2cPctCidade"></div>
-                </div>
-              </div>
-              <div class="chart-card chart-card--wide">
-                <h4>% de conclusão por regional</h4>
-                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cPctRegional"></canvas></div>
-                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-pct-regional">
-                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cPctRegional">
-                    <span>Tabela</span>
-                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
-                  </button>
-                  <div class="dash-chart-table__body" id="tableB2cPctRegional"></div>
+                  <div class="dash-chart-table__body" id="tableB2cPortasCidade"></div>
                 </div>
               </div>
             </div>
