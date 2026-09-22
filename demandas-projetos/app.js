@@ -7047,6 +7047,7 @@ function renderDashTipoPorGrupo(
   rowHeader = "Cidade",
   topN = 12,
   tipos = tiposOperacionalDash(),
+  onBarClick,
 ) {
   const topRows = groupRows.slice(0, topN);
   const groupKeys = topRows.map((r) => r.cidade);
@@ -7070,7 +7071,7 @@ function renderDashTipoPorGrupo(
     canvasId,
     groupKeys.map((k) => truncateChartLabel(k, 22)),
     datasets,
-    { stepSize: 1 },
+    { stepSize: 1, onBarClick: onBarClick ? (_label, i) => onBarClick(groupKeys[i], i) : undefined },
   );
   if (tableId) {
     renderDashGrupoMatrixTable(
@@ -7126,11 +7127,16 @@ function renderDashTipoValorPorGrupo(
       borderWidth: 0,
     }))
     .filter((ds) => ds.data.some((n) => n > 0));
+  const userClick = chartOpts.onBarClick;
+  const maxLabel = chartOpts.truncateLabel ?? 22;
   makeDashChartProjetistaStacked(
     canvasId,
-    groupKeys.map((k) => truncateChartLabel(k, 22)),
+    groupKeys.map((k) => truncateChartLabel(k, maxLabel)),
     datasets,
-    chartOpts,
+    {
+      ...chartOpts,
+      onBarClick: userClick ? (_label, i) => userClick(groupKeys[i], i) : undefined,
+    },
   );
   if (tableId) {
     renderDashGrupoMatrixTable(
@@ -8519,6 +8525,43 @@ function initDashGeoProjetosLista() {
   });
 }
 
+let dashCidadesDrillRegional = "";
+
+const DASH_CIDADES_DRILL_CHART_IDS = ["chartCidGastoCidade", "chartCidPortasCidade", "chartCidTipoCidade"];
+const DASH_CIDADES_DRILL_TABLE_IDS = ["tableCidGastoCidade", "tableCidPortasCidade", "tableCidTipoCidade"];
+
+function hideDashCidadesDrill() {
+  const drillEl = document.getElementById("dashCidadesDrill");
+  if (drillEl) drillEl.hidden = true;
+  DASH_CIDADES_DRILL_CHART_IDS.forEach((id) => {
+    if (dashCharts[id]) {
+      dashCharts[id].destroy();
+      delete dashCharts[id];
+    }
+  });
+  DASH_CIDADES_DRILL_TABLE_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = "";
+  });
+}
+
+function setDashCidadesDrillRegional(regional) {
+  dashCidadesDrillRegional = String(regional || "");
+  renderDashCidades();
+  if (!dashCidadesDrillRegional) return;
+  requestAnimationFrame(() => {
+    document.getElementById("dashCidadesDrill")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+}
+
+function initDashCidadesDrill() {
+  if (initDashCidadesDrill._done) return;
+  initDashCidadesDrill._done = true;
+  document.getElementById("btnDashCidadesDrillFechar")?.addEventListener("click", () => {
+    setDashCidadesDrillRegional("");
+  });
+}
+
 function renderDashCidades() {
   const kpiEl = document.getElementById("dashCidadesKpis");
   const tiposKpiEl = document.getElementById("dashCidadesTiposKpis");
@@ -8534,6 +8577,7 @@ function renderDashCidades() {
 
   if (!todasBase.length) {
     destroyDashRegionalCharts();
+    hideDashCidadesDrill();
     if (kpiEl) kpiEl.innerHTML = "";
     if (tiposKpiEl) tiposKpiEl.innerHTML = "";
     if (countEl) countEl.textContent = "Nenhum projeto cadastrado.";
@@ -8542,6 +8586,7 @@ function renderDashCidades() {
 
   if (!todas.length) {
     destroyDashRegionalCharts();
+    hideDashCidadesDrill();
     if (kpiEl) kpiEl.innerHTML = "";
     if (tiposKpiEl) tiposKpiEl.innerHTML = "";
     const modoLabel = labelValorDashModo().toLowerCase();
@@ -8598,11 +8643,17 @@ function renderDashCidades() {
 
   const nReg = Math.max(rowsRegional.length, 1);
   const modo = getDashValorModo();
+  const onRegionalClick = (regional) => setDashCidadesDrillRegional(regional);
   renderDashTipoValorPorGrupo("chartCidGastoRegional", "tableCidGastoRegional", todas, rowsRegional, (d) => labelRegionalDemanda(d), "Regional", {
     valueFn: (d) => demandaValorDashPorModo(d, modo),
     topN: nReg,
     tipos: tiposDash,
-    chartOpts: { formatValue: (n) => formatBRL(n), yFormat: (v) => formatBRL(v) },
+    chartOpts: {
+      formatValue: (n) => formatBRL(n),
+      yFormat: (v) => formatBRL(v),
+      truncateLabel: 40,
+      onBarClick: onRegionalClick,
+    },
     tableOpts: { formatCell: (n) => (n > 0 ? formatBRL(n) : "—"), formatTotal: (n) => (n > 0 ? formatBRL(n) : "—") },
   });
   renderDashTipoValorPorGrupo("chartCidPortasRegional", "tableCidPortasRegional", todas, rowsRegional, (d) => labelRegionalDemanda(d), "Regional", {
@@ -8610,35 +8661,9 @@ function renderDashCidades() {
     sortValueFn: (r) => r.portasNovas,
     topN: nReg,
     tipos: tiposDash,
-    chartOpts: { formatValue: (n) => formatQtd(n), stepSize: 1 },
+    chartOpts: { formatValue: (n) => formatQtd(n), stepSize: 1, truncateLabel: 40, onBarClick: onRegionalClick },
     tableOpts: { formatCell: (n) => (n > 0 ? formatQtd(n) : "—"), formatTotal: (n) => (n > 0 ? formatQtd(n) : "—") },
   });
-  renderDashTipoValorPorGrupo("chartCidGastoCidade", "tableCidGastoCidade", todas, rows, (d) => labelCidade(d.cidade), "Cidade", {
-    valueFn: (d) => demandaValorDashPorModo(d, modo),
-    topN: 12,
-    tipos: tiposDash,
-    chartOpts: { formatValue: (n) => formatBRL(n), yFormat: (v) => formatBRL(v) },
-    tableOpts: { formatCell: (n) => (n > 0 ? formatBRL(n) : "—"), formatTotal: (n) => (n > 0 ? formatBRL(n) : "—") },
-  });
-  renderDashTipoValorPorGrupo("chartCidPortasCidade", "tableCidPortasCidade", todas, rows, (d) => labelCidade(d.cidade), "Cidade", {
-    valueFn: (d) => demandaPortasDashPorModo(d, modo),
-    sortValueFn: (r) => r.portasNovas,
-    topN: 12,
-    tipos: tiposDash,
-    chartOpts: { formatValue: (n) => formatQtd(n), stepSize: 1 },
-    tableOpts: { formatCell: (n) => (n > 0 ? formatQtd(n) : "—"), formatTotal: (n) => (n > 0 ? formatQtd(n) : "—") },
-  });
-
-  renderDashTipoPorGrupo(
-    "chartCidTipoCidade",
-    "tableCidTipoCidade",
-    todas,
-    rows,
-    (d) => labelCidade(d.cidade),
-    "Cidade",
-    12,
-    tiposDash,
-  );
   renderDashTipoPorGrupo(
     "chartCidTipoRegional",
     "tableCidTipoRegional",
@@ -8646,8 +8671,57 @@ function renderDashCidades() {
     rowsRegional,
     labelRegionalDemanda,
     "Regional",
-    Math.max(rowsRegional.length, 1),
+    nReg,
     tiposDash,
+    onRegionalClick,
+  );
+
+  const drillEl = document.getElementById("dashCidadesDrill");
+  const regionaisValidas = new Set(rowsRegional.map((r) => r.cidade));
+  if (dashCidadesDrillRegional && !regionaisValidas.has(dashCidadesDrillRegional)) {
+    dashCidadesDrillRegional = "";
+  }
+  if (!dashCidadesDrillRegional) {
+    hideDashCidadesDrill();
+    return;
+  }
+
+  const dasCidades = todas.filter((d) => labelRegionalDemanda(d) === dashCidadesDrillRegional);
+  const rowsCidade = buildStatsPorCidade(dasCidades);
+  if (drillEl) drillEl.hidden = false;
+  const titleEl = document.getElementById("dashCidadesDrillTitle");
+  const hintEl = document.getElementById("dashCidadesDrillHint");
+  if (titleEl) titleEl.textContent = `Cidades — ${dashCidadesDrillRegional}`;
+  if (hintEl) {
+    hintEl.textContent = `${rowsCidade.length} cidade(s) nesta regional. Clique na barra ou no nome na tabela para abrir os projetos.`;
+  }
+
+  const onCidadeClick = (cidade) => openDashGeoProjetosLista("cidade", cidade);
+  renderDashTipoValorPorGrupo("chartCidGastoCidade", "tableCidGastoCidade", dasCidades, rowsCidade, (d) => labelCidade(d.cidade), "Cidade", {
+    valueFn: (d) => demandaValorDashPorModo(d, modo),
+    topN: 12,
+    tipos: tiposDash,
+    chartOpts: { formatValue: (n) => formatBRL(n), yFormat: (v) => formatBRL(v), onBarClick: onCidadeClick },
+    tableOpts: { formatCell: (n) => (n > 0 ? formatBRL(n) : "—"), formatTotal: (n) => (n > 0 ? formatBRL(n) : "—") },
+  });
+  renderDashTipoValorPorGrupo("chartCidPortasCidade", "tableCidPortasCidade", dasCidades, rowsCidade, (d) => labelCidade(d.cidade), "Cidade", {
+    valueFn: (d) => demandaPortasDashPorModo(d, modo),
+    sortValueFn: (r) => r.portasNovas,
+    topN: 12,
+    tipos: tiposDash,
+    chartOpts: { formatValue: (n) => formatQtd(n), stepSize: 1, onBarClick: onCidadeClick },
+    tableOpts: { formatCell: (n) => (n > 0 ? formatQtd(n) : "—"), formatTotal: (n) => (n > 0 ? formatQtd(n) : "—") },
+  });
+  renderDashTipoPorGrupo(
+    "chartCidTipoCidade",
+    "tableCidTipoCidade",
+    dasCidades,
+    rowsCidade,
+    (d) => labelCidade(d.cidade),
+    "Cidade",
+    12,
+    tiposDash,
+    onCidadeClick,
   );
 }
 
@@ -8942,6 +9016,7 @@ function makeDashChartProjetistaStacked(canvasId, labels, datasets, chartOpts = 
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      ...dashChartBarInteractOptions(chartOpts),
       plugins: {
         legend: { display: true, labels: { color: "#cbd5e1", boxWidth: 12, font: { size: 11 } } },
         tooltip: {
@@ -11688,6 +11763,7 @@ document.querySelector(".brand h1")?.addEventListener("click", async () => {
 
 initDashBlocks();
 initDashGeoProjetosLista();
+initDashCidadesDrill();
 initDashPjTipos();
 
 /* ---------- Login / bootstrap ---------- */

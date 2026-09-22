@@ -1281,6 +1281,23 @@ textarea {
   outline-offset: 2px;
   border-radius: 4px;
 }
+.dash-cidades-drill {
+  margin: 0.85rem 0 1rem;
+  padding: 0.85rem 0.95rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.dash-cidades-drill[hidden] { display: none; }
+.dash-cidades-drill__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+.dash-cidades-drill__head .dash-subhead { margin: 0; }
 .dash-valor-toolbar .field--dash-date { min-width: 150px; flex: 0 1 170px; }
 .dash-valor-toolbar #btnDashPeriodoLimpar { flex: 0 0 auto; align-self: flex-end; margin-bottom: 0.1rem; }
 .dash-valor-toolbar .muted.small { margin: 0; flex: 1 1 100%; }
