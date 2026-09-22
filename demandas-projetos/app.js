@@ -7223,7 +7223,24 @@ const B2C_GEO_CHART_IDS = [
   "chartB2cPctRegional",
 ];
 
+const B2C_SEGMENTO_CHART_IDS = [
+  "chartB2cSegProjetos",
+  "chartB2cSegGastos",
+  "chartB2cSegPortas",
+  "chartB2cSegMetragem",
+];
+
+function destroyDashB2cSegmentoCharts() {
+  B2C_SEGMENTO_CHART_IDS.forEach((id) => {
+    if (dashCharts[id]) {
+      dashCharts[id].destroy();
+      delete dashCharts[id];
+    }
+  });
+}
+
 function destroyDashB2cExtraCharts() {
+  destroyDashB2cSegmentoCharts();
   B2C_GEO_CHART_IDS.forEach((id) => {
     if (dashCharts[id]) {
       dashCharts[id].destroy();
@@ -7493,6 +7510,39 @@ function withB2cSegmentoPcts(rows) {
 
 function formatPctShare(pct) {
   return pct == null ? "—" : formatPct(pct);
+}
+
+function renderDashB2cSegmentoCharts(list) {
+  const rows = buildB2cMetricasPorSegmento(list).filter((r) => SEGMENTOS_B2C.includes(r.segmento));
+  const labels = rows.map((r) => r.segmento);
+  const colors = rows.map((r) => SEGMENTO_B2C_CHART_COLORS[r.segmento] || "#94a3b8");
+  if (!labels.length) {
+    destroyDashB2cSegmentoCharts();
+    return;
+  }
+  makeDashChartMetricBar("chartB2cSegProjetos", labels, rows.map((r) => r.projetos), {
+    colors,
+    datasetLabel: "Projetos",
+    formatValue: (v) => formatQtd(v),
+    stepSize: 1,
+  });
+  makeDashChartMoneyBar(
+    "chartB2cSegGastos",
+    labels,
+    rows.map((r) => r.investimento),
+    colors,
+    { datasetLabel: "Gastos (R$)" },
+  );
+  makeDashChartMetricBar("chartB2cSegPortas", labels, rows.map((r) => r.portas), {
+    colors,
+    datasetLabel: "Portas",
+    formatValue: (v) => formatQtd(v),
+  });
+  makeDashChartMetricBar("chartB2cSegMetragem", labels, rows.map((r) => r.metragem), {
+    colors,
+    datasetLabel: "Metragem",
+    formatValue: (v) => formatMetros(v),
+  });
 }
 
 function renderKpiB2cSegmentos(list) {
@@ -10445,6 +10495,7 @@ function renderDashIndicadoresB2c() {
     return;
   }
 
+  renderDashB2cSegmentoCharts(listModo);
   renderKpiB2cSegmentos(listModo);
   renderDashB2cMetricasSegmento(listModo);
   renderDashB2cGeoDetalhamento(

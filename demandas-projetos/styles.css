@@ -1313,6 +1313,7 @@ textarea {
 .dash-table--b2c-seg th:nth-child(n+2),
 .dash-table--b2c-seg td:nth-child(n+2) { text-align: right; }
 #dashB2cMetricSegmentoTable { margin: 0.75rem 0 1.25rem; }
+#dashB2cSegmentoCharts { margin-top: 0.35rem; margin-bottom: 0.85rem; }
 #kpiB2cSegmentos { margin-bottom: 0.35rem; }
 .dash-table--fase-resumo td:nth-child(3),
 .dash-table--fase-resumo td:nth-child(4),

@@ -549,6 +549,28 @@
             <p class="muted small" id="dashB2cCount" aria-live="polite"></p>
 
             <h3 class="dash-subhead">Por segmento (MDU / TCR / TCT)</h3>
+            <div class="dashboard-charts dashboard-charts--cols2" id="dashB2cSegmentoCharts">
+              <div class="chart-card">
+                <h4>Projetos</h4>
+                <p class="muted small chart-card__sub">Quantidade por tipo de projeto B2C.</p>
+                <div class="chart-wrap"><canvas id="chartB2cSegProjetos"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <h4>Gastos</h4>
+                <p class="muted small chart-card__sub">Conforme a base de indicadores no topo.</p>
+                <div class="chart-wrap"><canvas id="chartB2cSegGastos"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <h4>Portas</h4>
+                <p class="muted small chart-card__sub">Portas novas por tipo de projeto.</p>
+                <div class="chart-wrap"><canvas id="chartB2cSegPortas"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <h4>Metragem</h4>
+                <p class="muted small chart-card__sub">Metragem de lançamento por tipo de projeto.</p>
+                <div class="chart-wrap"><canvas id="chartB2cSegMetragem"></canvas></div>
+              </div>
+            </div>
             <div class="kpi-grid kpi-grid--split" id="kpiB2cSegmentos"></div>
             <div class="dashboard-table-wrap" id="dashB2cMetricSegmentoTable"></div>
 
