@@ -6925,6 +6925,30 @@ function destroyDashRegionalCharts() {
   });
 }
 
+function dashChartDatasetTotal(ctx) {
+  return (ctx?.dataset?.data || []).reduce((s, n) => s + numDash(n), 0);
+}
+
+function dashChartPctSuffix(ctx) {
+  const pct = pctShare(ctx.raw, dashChartDatasetTotal(ctx));
+  return pct == null ? "" : ` · ${formatPctShare(pct)}`;
+}
+
+function dashChartBarInteractOptions(options = {}) {
+  if (!options.onBarClick) return {};
+  return {
+    onClick: (_evt, els, chart) => {
+      if (!els.length) return;
+      const i = els[0].index;
+      options.onBarClick(chart.data.labels[i], i);
+    },
+    onHover: (evt, els) => {
+      const canvas = evt.chart?.canvas;
+      if (canvas) canvas.style.cursor = els.length ? "pointer" : "default";
+    },
+  };
+}
+
 function makeDashChartMoneyBar(canvasId, labels, data, color = "#22c55e", options = {}) {
   if (typeof Chart === "undefined") return;
   const el = document.getElementById(canvasId);
@@ -6945,9 +6969,14 @@ function makeDashChartMoneyBar(canvasId, labels, data, color = "#22c55e", option
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      ...dashChartBarInteractOptions(options),
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => formatBRL(ctx.raw) } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => formatBRL(ctx.raw) + (options.showPct ? dashChartPctSuffix(ctx) : ""),
+          },
+        },
       },
       scales: {
         x: {
@@ -6987,9 +7016,17 @@ function makeDashChartMetricBar(canvasId, labels, data, options = {}) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      ...dashChartBarInteractOptions(options),
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => `${options.datasetLabel || ""}: ${formatValue(ctx.raw)}`.trim() } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const base = `${options.datasetLabel || ""}: ${formatValue(ctx.raw)}`.trim();
+              return base + (options.showPct ? dashChartPctSuffix(ctx) : "");
+            },
+          },
+        },
       },
       scales: {
         x: {
@@ -7520,28 +7557,33 @@ function renderDashB2cSegmentoCharts(list) {
     destroyDashB2cSegmentoCharts();
     return;
   }
+  const onBarClick = (seg) => openDashGeoProjetosLista("segmento", seg);
+  const interact = { showPct: true, onBarClick };
   makeDashChartMetricBar("chartB2cSegProjetos", labels, rows.map((r) => r.projetos), {
     colors,
     datasetLabel: "Projetos",
     formatValue: (v) => formatQtd(v),
     stepSize: 1,
+    ...interact,
   });
   makeDashChartMoneyBar(
     "chartB2cSegGastos",
     labels,
     rows.map((r) => r.investimento),
     colors,
-    { datasetLabel: "Gastos (R$)" },
+    { datasetLabel: "Gastos (R$)", ...interact },
   );
   makeDashChartMetricBar("chartB2cSegPortas", labels, rows.map((r) => r.portas), {
     colors,
     datasetLabel: "Portas",
     formatValue: (v) => formatQtd(v),
+    ...interact,
   });
   makeDashChartMetricBar("chartB2cSegMetragem", labels, rows.map((r) => r.metragem), {
     colors,
     datasetLabel: "Metragem",
     formatValue: (v) => formatMetros(v),
+    ...interact,
   });
 }
 
@@ -8276,8 +8318,11 @@ function dashCidadesFiltroAtivo() {
 }
 
 function listDemandasDashGeo(kind, key) {
-  const list = filterDemandasModoDash(filterDemandasDashCidades(demandasDashOperacionalList()));
   const alvo = String(key || "");
+  if (kind === "segmento") {
+    return filterDemandasModoDash(demandasB2cDashboardList()).filter((d) => segmentoB2cBucket(d) === alvo);
+  }
+  const list = filterDemandasModoDash(filterDemandasDashCidades(demandasDashOperacionalList()));
   if (kind === "regional") {
     return list.filter((d) => labelRegionalDemanda(d) === alvo);
   }
@@ -8305,7 +8350,7 @@ function openDashGeoProjetosLista(kind, key) {
   const tableEl = document.getElementById("modalDashGeoProjetosTable");
   if (!dlg || !tableEl) return;
 
-  const kindLabel = kind === "regional" ? "Regional" : "Cidade";
+  const kindLabel = kind === "regional" ? "Regional" : kind === "segmento" ? "Segmento" : "Cidade";
   dashGeoListaCtx = { kind: String(kind || ""), key: String(key || "") };
   dashGeoListaReturnOnClose = false;
   const list = listDemandasDashGeo(kind, key).sort((a, b) =>
@@ -8315,7 +8360,8 @@ function openDashGeoProjetosLista(kind, key) {
   if (titleEl) titleEl.textContent = `Projetos — ${kindLabel}: ${key}`;
   if (subEl) {
     const periodo = labelDashPeriodoFiltro();
-    subEl.textContent = `${list.length} projeto(s) · Esteira Projetos (sem B2B) · ${periodo}`;
+    const origem = kind === "segmento" ? "B2C" : "Esteira Projetos (sem B2B)";
+    subEl.textContent = `${list.length} projeto(s) · ${origem} · ${periodo}`;
   }
 
   if (!list.length) {
