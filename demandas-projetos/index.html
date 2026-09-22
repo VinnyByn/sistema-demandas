@@ -264,9 +264,10 @@
           <div class="dash-block__body" id="dashBlockKpiGeral">
             <p class="muted small dash-block__hint">Esteira Projetos (sem B2B). A base é a coluna <strong>Conclusão</strong>: quantidade, valor, portas, metragem e médias usam só os projetos nessa coluna. % de conclusão = concluídos ÷ total cadastrados.</p>
             <div class="kpi-grid kpi-grid--destaque" id="kpiGeralDestaque"></div>
-            <div class="dashboard-charts dashboard-charts--cols2 dashboard-charts--geral">
+            <div class="dashboard-charts dashboard-charts--cols3 dashboard-charts--geral">
               <div class="chart-card">
                 <h4>Situação da esteira</h4>
+                <p class="muted small chart-card__sub">Onde estão os projetos cadastrados.</p>
                 <div class="chart-wrap"><canvas id="chartGeralSituacao"></canvas></div>
                 <div class="dash-geral-alertas" id="dashGeralAlertas"></div>
               </div>
@@ -280,11 +281,6 @@
                 <p class="muted small chart-card__sub">Volume de projetos nas mesmas fases.</p>
                 <div class="chart-wrap"><canvas id="chartGeralQtdFase"></canvas></div>
               </div>
-              <div class="chart-card">
-                <h4>Valor por tipo</h4>
-                <p class="muted small chart-card__sub">Base de indicadores selecionada no topo.</p>
-                <div class="chart-wrap"><canvas id="chartGeralValorTipo"></canvas></div>
-              </div>
             </div>
             <div class="dash-sub-block" data-dash-sub-block="kpi-geral-por-tipo">
               <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockKpiGeralPorTipo">
@@ -292,7 +288,18 @@
                 <span class="dash-sub-block__chevron" aria-hidden="true"></span>
               </button>
               <div class="dash-sub-block__body" id="dashSubBlockKpiGeralPorTipo">
-                <div class="dashboard-table-wrap" id="kpiGeralPorTipo"></div>
+                <div class="dashboard-charts dashboard-charts--cols2">
+                  <div class="chart-card">
+                    <h4>Cadastrados × concluídos</h4>
+                    <p class="muted small chart-card__sub">Comparação do total cadastrado com o que chegou à Conclusão.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartGeralTipoQtd"></canvas></div>
+                  </div>
+                  <div class="chart-card">
+                    <h4>Valor por fase em cada tipo</h4>
+                    <p class="muted small chart-card__sub">Barras empilhadas: aprovação, execução e conclusão.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartGeralTipoValor"></canvas></div>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="dash-sub-block" data-dash-sub-block="kpi-geral-numeros" data-default-collapsed="true">

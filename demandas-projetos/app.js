@@ -6850,11 +6850,12 @@ function renderKpiGeralDestaque(list = demandasDashOperacionalList()) {
   const portas = sumPortasDashboard(list, mode);
   el.innerHTML =
     kpiCard("Total de projetos", m.totalCadastro, m.totalCadastro ? "ok" : "warn", "Esteira Projetos (sem B2B)") +
+    kpiCard("Projetos concluídos", m.n, m.n ? "ok" : "warn", "Na coluna Conclusão") +
     kpiCard(
       "% de conclusão",
       formatPct(m.pctConclusao),
       m.pctConclusao != null ? "ok" : "warn",
-      `${m.n} de ${m.totalCadastro} na Conclusão`,
+      `${m.n} de ${m.totalCadastro} cadastrados`,
     ) +
     kpiCard("Valor final", formatBRL(valor), valor ? "ok" : "warn", "Projetos na coluna Conclusão") +
     kpiCard("Portas novas", formatQtd(portas), portas ? "ok" : "warn", "Somadas na Conclusão");
@@ -6869,8 +6870,11 @@ function dashGeralAlertaHtml(label, valor, tone) {
   );
 }
 
-/** Barras horizontais de valor por tipo — cores iguais às do resto do dashboard. */
-function makeDashChartValorPorTipo(canvasId, rows) {
+/**
+ * Barras horizontais comparando os tipos de projeto.
+ * `stacked` empilha as séries; `money` formata valores em reais.
+ */
+function makeDashChartComparaTipos(canvasId, labels, datasets, { stacked = false, money = false } = {}) {
   if (typeof Chart === "undefined") return;
   const el = document.getElementById(canvasId);
   if (!el) return;
@@ -6878,41 +6882,38 @@ function makeDashChartValorPorTipo(canvasId, rows) {
     dashCharts[canvasId].destroy();
     delete dashCharts[canvasId];
   }
-  if (!rows.length) return;
+  if (!labels.length) return;
+  const formatValor = money ? formatBRL : formatQtd;
   dashCharts[canvasId] = new Chart(el, {
     type: "bar",
     data: {
-      labels: rows.map((r) => r.tipo),
-      datasets: [
-        {
-          label: "Valor (R$)",
-          data: rows.map((r) => r.valor),
-          backgroundColor: rows.map((r) => r.cor),
-          borderWidth: 0,
-        },
-      ],
+      labels,
+      datasets: datasets.map((ds) => ({ ...ds, borderWidth: 0 })),
     },
     options: {
       indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => formatBRL(ctx.raw) } },
+        legend: { display: true, position: "bottom", labels: { color: "#cbd5e1", boxWidth: 12 } },
+        tooltip: {
+          callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatValor(ctx.raw)}` },
+        },
       },
       scales: {
         x: {
+          stacked,
           beginAtZero: true,
           ticks: {
             color: "#94a3b8",
-            callback: (v) => formatBRLCompacto(v),
+            callback: (v) => (money ? formatBRLCompacto(v) : formatQtd(v)),
             font: { size: 10 },
             maxTicksLimit: 5,
             maxRotation: 0,
           },
           grid: { color: "rgba(148,163,184,0.12)" },
         },
-        y: { ticks: { color: "#cbd5e1", font: { size: 11 } }, grid: { display: false } },
+        y: { stacked, ticks: { color: "#cbd5e1", font: { size: 11 } }, grid: { display: false } },
       },
     },
   });
@@ -6960,20 +6961,6 @@ function renderDashGeralCharts(list = demandasDashOperacionalList()) {
     formatValue: (v) => formatQtd(v),
     stepSize: 1,
   });
-
-  const modo = getDashValorModo();
-  const porTipo = tiposFiltroEsteiraProjetos()
-    .map((tipo) => ({
-      tipo,
-      cor: TIPO_CHART_COLORS[tipo] || "#94a3b8",
-      valor: sumValorDashboard(
-        list.filter((d) => normalizeTipo(d.tipo) === tipo),
-        modo,
-      ),
-    }))
-    .filter((t) => t.valor > 0)
-    .sort((a, b) => b.valor - a.valor);
-  makeDashChartValorPorTipo("chartGeralValorTipo", porTipo);
 }
 
 function isDemandaConcluidaComparavel(d) {
@@ -7827,88 +7814,47 @@ function kpiMediasIndicadoresHtml(m, { includePortas = true } = {}) {
   return html;
 }
 
-/** Tipos cujo indicador de portas novas não se aplica. */
-const TIPOS_SEM_PORTAS_DASH = ["SWAP", "Backbone", "Licenciamento", "Mapeamento"];
-
-function dashNumCell(valor, format) {
-  return `<td>${valor ? format(valor) : "—"}</td>`;
-}
-
 function buildLinhasIndicadoresPorTipo(list) {
   return tiposFiltroEsteiraProjetos().map((tipo) => {
     const doTipo = list.filter((d) => normalizeTipo(d.tipo) === tipo);
-    const g = countDemandas(doTipo);
     const r = calcResumoIndicadoresDashboard(doTipo);
-    const m = calcMediasIndicadoresGeral(doTipo, DASH_BASE_CONCLUSAO);
     return {
       tipo,
-      cor: TIPO_CHART_COLORS[tipo] || "#94a3b8",
-      temPortas: !TIPOS_SEM_PORTAS_DASH.includes(tipo),
-      total: g.total,
+      total: countDemandas(doTipo).total,
       concluidos: r.concluido.n,
-      pctConclusao: m.pctConclusao,
-      valorConcluido: r.concluido.valor,
-      valorExecucao: r.execucao.valor,
       valorAprovacao: r.aprovacao.valor,
-      portas: m.portasTotal,
-      metragem: m.metragemTotal,
-      mediaGastos: m.mediaGastos,
+      valorExecucao: r.execucao.valor,
+      valorConcluido: r.concluido.valor,
     };
   });
 }
 
+/** Gráficos comparativos do sub-bloco «Por tipo». */
 function renderKpiGeralPorTipo(list = demandasDashOperacionalList()) {
-  const el = document.getElementById("kpiGeralPorTipo");
-  if (!el) return;
-  const rows = buildLinhasIndicadoresPorTipo(list);
-  const totais = rows.reduce(
-    (acc, r) => {
-      acc.total += r.total;
-      acc.concluidos += r.concluidos;
-      acc.valorConcluido += r.valorConcluido;
-      acc.valorExecucao += r.valorExecucao;
-      acc.valorAprovacao += r.valorAprovacao;
-      acc.portas += r.portas;
-      acc.metragem += r.metragem;
-      return acc;
-    },
-    { total: 0, concluidos: 0, valorConcluido: 0, valorExecucao: 0, valorAprovacao: 0, portas: 0, metragem: 0 },
+  const rows = buildLinhasIndicadoresPorTipo(list).filter(
+    (r) => r.total || r.valorAprovacao || r.valorExecucao || r.valorConcluido,
   );
-  const pctTotal = totais.total > 0 ? Math.round((totais.concluidos / totais.total) * 10000) / 100 : null;
-  const mediaTotal = totais.concluidos > 0 ? totais.valorConcluido / totais.concluidos : null;
+  const labels = rows.map((r) => r.tipo);
 
-  const body = rows
-    .map(
-      (r) =>
-        `<tr><td><span class="dash-tipo-dot" style="background:${r.cor}"></span>${escapeHtml(r.tipo)}</td>` +
-        `<td>${r.total || "—"}</td>` +
-        `<td>${r.concluidos || "—"}</td>` +
-        `<td>${formatPct(r.pctConclusao)}</td>` +
-        dashNumCell(r.valorConcluido, formatBRL) +
-        dashNumCell(r.valorExecucao, formatBRL) +
-        dashNumCell(r.valorAprovacao, formatBRL) +
-        `<td>${r.temPortas ? (r.portas ? formatQtd(r.portas) : "—") : "n/a"}</td>` +
-        dashNumCell(r.metragem, formatMetros) +
-        dashNumCell(r.mediaGastos, formatBRL) +
-        `</tr>`,
-    )
-    .join("");
+  makeDashChartComparaTipos(
+    "chartGeralTipoQtd",
+    labels,
+    [
+      { label: "Cadastrados", data: rows.map((r) => r.total), backgroundColor: "#3b82f6" },
+      { label: "Concluídos", data: rows.map((r) => r.concluidos), backgroundColor: "#22c55e" },
+    ],
+  );
 
-  el.innerHTML =
-    `<table class="dash-table dash-table--tipos" aria-label="Indicadores por tipo de projeto">` +
-    `<thead><tr><th>Tipo</th><th>Cadastrados</th><th>Na Conclusão</th><th>% conclusão</th>` +
-    `<th>Valor concluído</th><th>Em execução</th><th>Em aprovação</th><th>Portas novas</th>` +
-    `<th>Metragem</th><th>Média / projeto</th></tr></thead>` +
-    `<tbody>${body || `<tr><td colspan="10">Nenhum projeto cadastrado.</td></tr>`}</tbody>` +
-    `<tfoot><tr><td><strong>Total</strong></td><td>${totais.total || "—"}</td><td>${totais.concluidos || "—"}</td>` +
-    `<td>${formatPct(pctTotal)}</td>` +
-    dashNumCell(totais.valorConcluido, formatBRL) +
-    dashNumCell(totais.valorExecucao, formatBRL) +
-    dashNumCell(totais.valorAprovacao, formatBRL) +
-    dashNumCell(totais.portas, formatQtd) +
-    dashNumCell(totais.metragem, formatMetros) +
-    dashNumCell(mediaTotal, formatBRL) +
-    `</tr></tfoot></table>`;
+  makeDashChartComparaTipos(
+    "chartGeralTipoValor",
+    labels,
+    [
+      { label: "Aprovação", data: rows.map((r) => r.valorAprovacao), backgroundColor: "#f59e0b" },
+      { label: "Execução", data: rows.map((r) => r.valorExecucao), backgroundColor: "#ef4444" },
+      { label: "Conclusão", data: rows.map((r) => r.valorConcluido), backgroundColor: "#22c55e" },
+    ],
+    { stacked: true, money: true },
+  );
 }
 
 function labelSolicitante(raw) {

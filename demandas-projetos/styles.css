@@ -1245,8 +1245,11 @@ textarea {
 
 /* Indicadores gerais — faixa de destaque, gráficos e tabela por tipo */
 .kpi-grid--destaque {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   margin-bottom: 1rem;
+}
+@media (max-width: 1200px) {
+  .kpi-grid--destaque { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 .kpi-grid--destaque .kpi { padding: 1.1rem 1.15rem; }
 .kpi-grid--destaque .kpi__value { font-size: clamp(1.1rem, 14cqi, 2.1rem); }
@@ -1295,26 +1298,6 @@ textarea {
 }
 .dash-geral-alerta--warn .dash-geral-alerta__valor { color: var(--warn); }
 .dash-geral-alerta--ok .dash-geral-alerta__valor { color: var(--accent2); }
-.dash-tipo-dot {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  margin-right: 0.45rem;
-  vertical-align: baseline;
-}
-.dash-table--tipos { min-width: 860px; font-size: 0.82rem; }
-.dash-table--tipos td:first-child,
-.dash-table--tipos th:first-child { white-space: nowrap; }
-.dash-table--tipos td:not(:first-child),
-.dash-table--tipos th:not(:first-child) {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.dash-table--tipos tfoot td {
-  border-top: 1px solid var(--border);
-  font-weight: 700;
-}
 .dash-tempo-toolbar {
   display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: flex-end;
   margin-bottom: 0.35rem; padding: 0.75rem; border: 1px solid var(--border);
