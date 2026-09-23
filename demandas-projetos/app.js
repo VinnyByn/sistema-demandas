@@ -8616,15 +8616,16 @@ function filterDemandasPjSlice(list, slice) {
   const s = String(slice || "").trim();
   if (!s || s === "total") return list;
   const mode = getDashValorModo();
-  if (s === "ativas") {
+  if (s === "ativas") return list.filter((d) => isDemandaAtivaCount(d));
+  if (s === "concluidas") return list.filter((d) => isDemandaConcluidaCount(d));
+  if (s === "pausadas") return list.filter((d) => d.status === "pausado");
+  if (s === "reprovadas") {
     return list.filter((d) => {
       const dm = migrateDemanda(d);
-      return !isStatusConcluidoDemanda(dm) && dm.status !== "reprovado" && dm.status !== "pausado";
+      if (inferLinhaEsteira(dm) === LINHA_ESTEIRA_B2B) return false;
+      return dm.status === "reprovado";
     });
   }
-  if (s === "concluidas") return list.filter((d) => isStatusConcluidoDemanda(migrateDemanda(d)));
-  if (s === "pausadas") return list.filter((d) => migrateDemanda(d).status === "pausado");
-  if (s === "reprovadas") return list.filter((d) => migrateDemanda(d).status === "reprovado");
   if (s === "atraso") return list.filter(isAtraso);
   if (s === "valor") return list.filter((d) => demandaValorDashPorModo(d, mode) > 0);
   if (s === "portas") return list.filter((d) => demandaPortasDashPorModo(d, mode) > 0);
@@ -8665,10 +8666,7 @@ function listDemandasDashGeo(kind, key, slice) {
     return filterDemandasModoDash(demandasB2cDashboardList()).filter((d) => segmentoB2cBucket(d) === alvo);
   }
   if (kind === "projetista") {
-    return filterDemandasPjSlice(
-      filterDemandasModoDash(demandasDoProjetista(alvo, demandasDashOperacionalList())),
-      slice,
-    );
+    return filterDemandasPjSlice(demandasDoProjetista(alvo, demandasDashOperacionalList()), slice);
   }
   const list = filterDemandasModoDash(filterDemandasDashCidades(demandasDashOperacionalList()));
   if (kind === "regional") {
@@ -9069,7 +9067,14 @@ function initDashPjDrill() {
     setDashPjDrill("");
   });
   document.getElementById("btnDashPjVerProjetos")?.addEventListener("click", () => {
-    if (dashPjDrillNome) openDashGeoProjetosLista("projetista", dashPjDrillNome);
+    if (dashPjDrillNome) openDashGeoProjetosLista("projetista", dashPjDrillNome, "total");
+  });
+  document.getElementById("dashPjDrill")?.addEventListener("click", (e) => {
+    const btn = e.target.closest?.("[data-dash-pj-slice]");
+    if (!btn) return;
+    e.preventDefault();
+    const nome = btn.getAttribute("data-dash-pj-nome") || dashPjDrillNome;
+    if (nome) openDashGeoProjetosLista("projetista", nome, btn.getAttribute("data-dash-pj-slice") || "total");
   });
 }
 
@@ -9153,7 +9158,6 @@ function renderDashPjDrill(nome, baseList) {
   const list = s.list || [];
   const valorModoLabel = labelValorDashModo();
   const periodo = labelDashPeriodoFiltro();
-  const geoAttrs = `data-dash-geo-list data-dash-geo-kind="projetista" data-dash-geo-key="${escapeHtml(nome)}"`;
   drillEl.hidden = false;
   if (titleEl) titleEl.textContent = nome;
   if (hintEl) {
@@ -9161,7 +9165,7 @@ function renderDashPjDrill(nome, baseList) {
   }
   if (kpisEl) {
     const kpiBtn = (label, value, tone, slice) =>
-      `<button type="button" class="kpi kpi--${tone} kpi--click" ${geoAttrs} data-dash-geo-slice="${escapeHtml(slice)}" title="Ver ${escapeHtml(label)}">` +
+      `<button type="button" class="kpi kpi--${tone} kpi--click" data-dash-pj-nome="${escapeHtml(nome)}" data-dash-pj-slice="${escapeHtml(slice)}" title="Ver ${escapeHtml(label)}">` +
       `<div class="kpi__label">${label}</div><div class="kpi__value">${value}</div></button>`;
     kpisEl.innerHTML =
       kpiBtn("Total", s.total, "ok", "total") +
@@ -9358,15 +9362,20 @@ function initDashPjTipos() {
   });
 }
 
+function isDemandaConcluidaCount(d, linha) {
+  if (linha === LINHA_ESTEIRA_B2B) return STATUS_B2B_CONCLUIDOS.has(d.status);
+  if (linha === LINHA_ESTEIRA_OPERACIONAL) return d.status === "conclusao";
+  return isStatusConcluidoDemanda(migrateDemanda(d));
+}
+
+function isDemandaAtivaCount(d, linha) {
+  return !isDemandaConcluidaCount(d, linha) && d.status !== "reprovado" && d.status !== "pausado";
+}
+
 function countDemandas(list, linha) {
-  const isConcl = (d) => {
-    if (linha === LINHA_ESTEIRA_B2B) return STATUS_B2B_CONCLUIDOS.has(d.status);
-    if (linha === LINHA_ESTEIRA_OPERACIONAL) return d.status === "conclusao";
-    return isStatusConcluidoDemanda(migrateDemanda(d));
-  };
   const pausadas = list.filter((d) => d.status === "pausado");
-  const ativas = list.filter((d) => !isConcl(d) && d.status !== "reprovado" && d.status !== "pausado");
-  const concl = list.filter(isConcl);
+  const ativas = list.filter((d) => isDemandaAtivaCount(d, linha));
+  const concl = list.filter((d) => isDemandaConcluidaCount(d, linha));
   const rep =
     linha === LINHA_ESTEIRA_B2B
       ? []
