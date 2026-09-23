@@ -1125,6 +1125,35 @@
           </div>
         </fieldset>
 
+        <fieldset class="fieldset fieldset--segment fieldset--checklist">
+          <legend>Checklist</legend>
+          <p class="muted small">Etapas do projeto. O card da esteira mostra só o avanço.</p>
+          <div class="checklist-progress" id="demChecklistProgress" aria-label="Avanço do checklist">
+            <span class="card__checklist-frac" id="demChecklistFrac">0/0</span>
+            <span class="card__checklist-dots" id="demChecklistDots" aria-hidden="true"></span>
+          </div>
+          <p class="muted small checklist-next" id="demChecklistNext"></p>
+          <button type="button" class="btn btn--ghost btn--sm" id="btnChecklistExpand" aria-expanded="false" aria-controls="demChecklistDetails">Expandir detalhes</button>
+          <div id="demChecklistDetails" hidden>
+            <ul class="checklist-list" id="demChecklistList"></ul>
+            <div class="checklist-add">
+              <label class="field">
+                <span>Etapa</span>
+                <input id="demChecklistEtapa" maxlength="80" placeholder="PDF do levantamento" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Responsável</span>
+                <input id="demChecklistWho" maxlength="80" placeholder="Nome do responsável" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Data</span>
+                <input id="demChecklistDate" type="date" />
+              </label>
+              <button type="button" class="btn btn--primary btn--sm" id="btnChecklistAdd">Adicionar etapa</button>
+            </div>
+          </div>
+        </fieldset>
+
         <fieldset class="fieldset fieldset--segment fieldset--timeline">
           <legend>Tempo na esteira</legend>
           <p class="muted small">Ajuste <strong>início</strong> e <strong>fim</strong> de cada fase (data e hora). Na fase atual em andamento, deixe o fim em branco. Use <strong>↑</strong> e <strong>↓</strong> para alterar a ordem das fases. <strong>Excluir</strong> pede confirmação antes de remover (mínimo uma fase). Salve a demanda para gravar.</p>

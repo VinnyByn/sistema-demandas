@@ -2522,6 +2522,16 @@ const HISTORICO_EDICAO_CAMPOS = [
   { campo: "chamadoOcomon", label: "Chamado Ocomon", format: (v) => v || "—" },
   { campo: "osAniel", label: "Nº O.S. Aniel", format: (v) => v || "—" },
   { campo: "clickup", label: "ClickUp", format: (v) => (v && v.url) || "—" },
+  {
+    campo: "checklist",
+    label: "Checklist",
+    format: (v) => {
+      const items = normalizeChecklist(v);
+      if (!items.length) return "—";
+      const d = items.filter((it) => it.done).length;
+      return `${d}/${items.length} etapa(s)`;
+    },
+  },
 ];
 
 function shortText(v) {
@@ -2720,6 +2730,8 @@ function diffEditTracked(prev, next) {
     const b = next?.[def.campo];
     if (def.campo === "motivosAtrasoItens") {
       if (sameMotivosAtrasoItens(a, b)) continue;
+    } else if (def.campo === "checklist") {
+      if (sameChecklist(a, b)) continue;
     } else if (sameTrackedValue(a, b)) {
       continue;
     }
@@ -2765,6 +2777,20 @@ function diffEditTracked(prev, next) {
 function sameTrackedValue(a, b) {
   const norm = (v) => (v === undefined || v === null ? "" : String(v));
   return norm(a) === norm(b);
+}
+
+function sameChecklist(a, b) {
+  const x = normalizeChecklist(a);
+  const y = normalizeChecklist(b);
+  if (x.length !== y.length) return false;
+  for (let i = 0; i < x.length; i++) {
+    if (x[i].id !== y[i].id) return false;
+    if (x[i].name !== y[i].name) return false;
+    if (x[i].who !== y[i].who) return false;
+    if (x[i].date !== y[i].date) return false;
+    if (x[i].done !== y[i].done) return false;
+  }
+  return true;
 }
 
 function sameTimeline(a, b) {
@@ -2887,6 +2913,24 @@ function groupComentariosPorDia(items) {
   return groups;
 }
 
+function normalizeChecklistItem(it) {
+  if (!it || typeof it !== "object") return null;
+  const name = String(it.name || it.etapa || "").trim();
+  if (!name) return null;
+  return {
+    id: it.id || uid(),
+    name,
+    who: String(it.who || it.responsavel || "").trim(),
+    date: String(it.date || "").trim(),
+    done: it.done === true,
+  };
+}
+
+function normalizeChecklist(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map(normalizeChecklistItem).filter(Boolean);
+}
+
 function migrateDemanda(d) {
   if (!d || typeof d !== "object") return d;
   // Já normalizada nesta sessão — evita reprocessar custo/histórico em todo card.
@@ -2926,6 +2970,7 @@ function migrateDemanda(d) {
     pdfLevantamento: normalizePdfLevantamento(d.pdfLevantamento),
     imagens: Array.isArray(d.imagens) ? d.imagens : [],
     historicoStatus: normalizeHistoricoStatus(d.historicoStatus),
+    checklist: normalizeChecklist(d.checklist),
     historicoEdicoes: normalizeHistoricoEdicoes(d.historicoEdicoes),
     historicoAlertas: normalizeHistoricoAlertas(d.historicoAlertas),
     chamadoOcomon: String(d.chamadoOcomon || "").trim(),
@@ -4122,6 +4167,7 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     ${diasAbertoHtml}
     ${atrasoHtml}
     ${colunaAlertaHtml}
+    ${checklistCardHtml(dmCard)}
     <div class="card__meta">
       <span class="badge ${tipoBadgeClass(tipo)}">${escapeHtml(tipo)}</span>
       ${produtoHtml}
@@ -4804,6 +4850,135 @@ let editingCustoBaseline = null;
 let pdfCustoAppliedInSession = false;
 let editingLancamentoCabos = [];
 let editingComentarios = [];
+let editingChecklist = [];
+
+function checklistCardHtml(dm) {
+  const items = normalizeChecklist(dm?.checklist);
+  const n = items.length;
+  const d = items.filter((it) => it.done).length;
+  const dots = items
+    .map((it) => `<span class="card__checklist-dot${it.done ? " is-on" : ""}"></span>`)
+    .join("");
+  return (
+    `<div class="card__checklist" title="Checklist ${d} de ${n}">` +
+    `<span class="card__checklist-frac">${d}/${n}</span>` +
+    `<span class="card__checklist-dots">${dots}</span>` +
+    `</div>`
+  );
+}
+
+function checklistNextLabel(items) {
+  const pending = items.find((it) => !it.done);
+  if (!items.length) return "Nenhuma etapa ainda";
+  return pending ? `Próximo: ${pending.name}` : "Checklist completo";
+}
+
+function renderChecklistDots(el, items) {
+  if (!el) return;
+  el.innerHTML = items
+    .map((it) => `<span class="card__checklist-dot${it.done ? " is-on" : ""}"></span>`)
+    .join("");
+}
+
+function renderChecklistEditor() {
+  const items = normalizeChecklist(editingChecklist);
+  const n = items.length;
+  const d = items.filter((it) => it.done).length;
+  const frac = document.getElementById("demChecklistFrac");
+  const next = document.getElementById("demChecklistNext");
+  const list = document.getElementById("demChecklistList");
+  if (frac) frac.textContent = `${d}/${n}`;
+  if (next) next.textContent = checklistNextLabel(items);
+  renderChecklistDots(document.getElementById("demChecklistDots"), items);
+  if (!list) return;
+  const readOnly = isReadOnlyUser();
+  list.innerHTML = "";
+  items.forEach((it) => {
+    const li = document.createElement("li");
+    li.className = "checklist-item" + (it.done ? "" : " is-off");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = it.done;
+    cb.disabled = readOnly;
+    cb.setAttribute("aria-label", it.name);
+    cb.addEventListener("change", () => {
+      it.done = cb.checked;
+      editingChecklist = normalizeChecklist(editingChecklist);
+      renderChecklistEditor();
+    });
+    const name = document.createElement("span");
+    name.className = "checklist-item__name";
+    name.textContent = it.name;
+    const who = document.createElement("span");
+    who.textContent = it.who || "—";
+    const when = document.createElement("time");
+    when.dateTime = it.date || "";
+    when.textContent = it.date ? formatDataCurta(it.date) : "—";
+    const rm = document.createElement("button");
+    rm.type = "button";
+    rm.className = "checklist-item__remove";
+    rm.textContent = "Remover";
+    rm.disabled = readOnly;
+    rm.addEventListener("click", async () => {
+      if (readOnly) return;
+      const ok = await confirmDialog({
+        title: "Remover etapa?",
+        message: `A etapa “${it.name}” será removida do checklist.`,
+        confirmText: "Remover",
+        cancelText: "Voltar",
+        variant: "danger",
+      });
+      if (!ok) return;
+      editingChecklist = editingChecklist.filter((x) => x.id !== it.id);
+      renderChecklistEditor();
+    });
+    li.append(cb, name, who, when, rm);
+    list.appendChild(li);
+  });
+}
+
+function addChecklistEtapaFromForm() {
+  if (!requireWriteAccess()) return;
+  const name = (document.getElementById("demChecklistEtapa")?.value || "").trim();
+  const who = (document.getElementById("demChecklistWho")?.value || "").trim();
+  const date = (document.getElementById("demChecklistDate")?.value || "").trim();
+  if (!name || !who || !date) {
+    toast("Preencha etapa, responsável e data.");
+    return;
+  }
+  editingChecklist = [
+    ...normalizeChecklist(editingChecklist),
+    { id: uid(), name, who, date, done: true },
+  ];
+  const etapa = document.getElementById("demChecklistEtapa");
+  const resp = document.getElementById("demChecklistWho");
+  if (etapa) etapa.value = "";
+  if (resp) resp.value = "";
+  renderChecklistEditor();
+}
+
+function bindChecklistEditor() {
+  const expand = document.getElementById("btnChecklistExpand");
+  const details = document.getElementById("demChecklistDetails");
+  expand?.addEventListener("click", () => {
+    const open = expand.getAttribute("aria-expanded") === "true";
+    const next = !open;
+    expand.setAttribute("aria-expanded", String(next));
+    expand.textContent = next ? "Recolher detalhes" : "Expandir detalhes";
+    if (details) details.hidden = !next;
+  });
+  document.getElementById("btnChecklistAdd")?.addEventListener("click", addChecklistEtapaFromForm);
+  ["demChecklistEtapa", "demChecklistWho"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addChecklistEtapaFromForm();
+      }
+    });
+  });
+  const dateEl = document.getElementById("demChecklistDate");
+  if (dateEl && !dateEl.value) dateEl.value = todayISODate();
+}
 
 function renderComentariosList() {
   const list = document.getElementById("demComentariosList");
@@ -4867,7 +5042,7 @@ function setDemandaFormReadOnly(readOnly) {
   if (modal) modal.classList.toggle("demanda-modal--readonly", !!readOnly);
   if (form) {
     form.querySelectorAll("input, select, textarea, button").forEach((el) => {
-        if (el.id === "modalDemandaClose" || el.id === "btnFecharDemanda" || el.id === "btnEnviarClickup" || el.id === "btnCancelarClickup" || el.id === "btnDemClickupCiente") return;
+        if (el.id === "modalDemandaClose" || el.id === "btnFecharDemanda" || el.id === "btnEnviarClickup" || el.id === "btnCancelarClickup" || el.id === "btnDemClickupCiente" || el.id === "btnChecklistExpand") return;
       if (el.closest(".comments-panel__toggle")) return;
       if (el.type === "hidden") return;
       if (readOnly) {
@@ -4962,6 +5137,21 @@ function openDemandaModal(id) {
     : null;
   lastPdfParseResult = null;
   editingComentarios = JSON.parse(JSON.stringify(normalizeComentarios(dm?.comentarios || d?.comentarios || [])));
+  editingChecklist = JSON.parse(JSON.stringify(normalizeChecklist(dm?.checklist || d?.checklist || [])));
+  const expandBtn = document.getElementById("btnChecklistExpand");
+  const details = document.getElementById("demChecklistDetails");
+  if (expandBtn) {
+    expandBtn.setAttribute("aria-expanded", "false");
+    expandBtn.textContent = "Expandir detalhes";
+  }
+  if (details) details.hidden = true;
+  const dateEl = document.getElementById("demChecklistDate");
+  if (dateEl) dateEl.value = todayISODate();
+  const etapaEl = document.getElementById("demChecklistEtapa");
+  const whoEl = document.getElementById("demChecklistWho");
+  if (etapaEl) etapaEl.value = "";
+  if (whoEl) whoEl.value = "";
+  renderChecklistEditor();
   const comentarioNovo = document.getElementById("demComentarioNovo");
   if (comentarioNovo) comentarioNovo.value = "";
   renderComentariosList();
@@ -5784,6 +5974,7 @@ document.getElementById("commentsPanelToggle")?.addEventListener("click", () => 
   const collapsed = panel.classList.toggle("is-collapsed");
   btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
 });
+bindChecklistEditor();
 document.getElementById("modalDemandaClose")?.addEventListener("click", () => closeDemandaModal());
 document.getElementById("btnFecharDemanda")?.addEventListener("click", () => closeDemandaModal());
 document.getElementById("btnDemConflictReload")?.addEventListener("click", () => {
@@ -5989,6 +6180,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     clickupTaskId: existing?.clickupTaskId || existing?.clickup?.taskId || "",
     chamadoOcomon: (document.getElementById("demChamadoOcomon")?.value || "").trim(),
     osAniel: (document.getElementById("demOsAniel")?.value || "").trim(),
+    checklist: normalizeChecklist(editingChecklist),
     createdAt: existing?.createdAt || now,
     updatedAt: now,
   };
