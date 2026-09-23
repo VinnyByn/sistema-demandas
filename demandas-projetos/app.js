@@ -902,12 +902,11 @@ function fillFilterDashProjetistaResumo() {
   const cur = sel.value;
   const lista = allProjetistasNomes();
   fillSelectOptions(sel, [
-    { value: "", label: "Selecione…" },
     { value: FILTER_PROJETISTA_TODOS, label: "Todos os projetistas" },
     ...lista.map((n) => ({ value: n, label: n })),
   ]);
   if (cur && [...sel.options].some((o) => o.value === cur)) sel.value = cur;
-  else sel.value = "";
+  else sel.value = FILTER_PROJETISTA_TODOS;
 }
 
 function refreshProjetistaAssignmentLists() {
@@ -6780,7 +6779,8 @@ function initDashBlocks() {
         id === "tempo" ||
         id === "indicadores-b2c" ||
         id === "indicadores-b2b" ||
-        id === "viabilidade"
+        id === "viabilidade" ||
+        id === "projetistas"
       ) {
         if (nowVisible && panels.dashboard && !panels.dashboard.hidden) renderDashboard();
       }
@@ -8617,6 +8617,9 @@ function listDemandasDashGeo(kind, key) {
   if (kind === "segmento") {
     return filterDemandasModoDash(demandasB2cDashboardList()).filter((d) => segmentoB2cBucket(d) === alvo);
   }
+  if (kind === "projetista") {
+    return filterDemandasModoDash(demandasDoProjetista(alvo, demandasDashOperacionalList()));
+  }
   const list = filterDemandasModoDash(filterDemandasDashCidades(demandasDashOperacionalList()));
   if (kind === "regional") {
     return list.filter((d) => labelRegionalDemanda(d) === alvo);
@@ -8645,7 +8648,8 @@ function openDashGeoProjetosLista(kind, key) {
   const tableEl = document.getElementById("modalDashGeoProjetosTable");
   if (!dlg || !tableEl) return;
 
-  const kindLabel = kind === "regional" ? "Regional" : kind === "segmento" ? "Segmento" : "Cidade";
+  const kindLabel =
+    kind === "regional" ? "Regional" : kind === "segmento" ? "Segmento" : kind === "projetista" ? "Projetista" : "Cidade";
   dashGeoListaCtx = { kind: String(kind || ""), key: String(key || "") };
   dashGeoListaReturnOnClose = false;
   const list = listDemandasDashGeo(kind, key).sort((a, b) =>
@@ -8952,45 +8956,278 @@ function statsProjetista(nome, baseList = demandasDashOperacionalList()) {
   return { ...countDemandas(list), valorTotal, metragemTotal, portasNovasTotal, comCusto, comLancamento, list };
 }
 
+let dashPjDrillNome = "";
+
+const DASH_PJ_RANK_CHART_IDS = ["chartPjRankSituacao", "chartPjRankGastos", "chartPjRankPortas"];
+const DASH_PJ_DRILL_CHART_IDS = ["chartPjSituacao", "chartPjTipo", "chartPjFase"];
+
+function destroyDashPjCharts(ids) {
+  ids.forEach((id) => {
+    if (dashCharts[id]) {
+      dashCharts[id].destroy();
+      delete dashCharts[id];
+    }
+  });
+}
+
+function setDashPjChartWrapHeight(canvasId, n, min = 220, per = 28) {
+  const wrap = document.getElementById(canvasId)?.closest(".chart-wrap");
+  if (wrap) wrap.style.height = `${Math.max(min, n * per + 24)}px`;
+}
+
+function hideDashPjDrill() {
+  const drillEl = document.getElementById("dashPjDrill");
+  if (drillEl) drillEl.hidden = true;
+  const kpis = document.getElementById("dashPjDrillKpis");
+  if (kpis) kpis.innerHTML = "";
+  const titleEl = document.getElementById("dashPjDrillTitle");
+  if (titleEl) titleEl.textContent = "Detalhe do projetista";
+  const hintEl = document.getElementById("dashPjDrillHint");
+  if (hintEl) hintEl.textContent = "";
+  destroyDashPjCharts(DASH_PJ_DRILL_CHART_IDS);
+}
+
+function setDashPjDrill(nome, { syncSelect = true } = {}) {
+  dashPjDrillNome = String(nome || "").trim();
+  if (syncSelect) {
+    const sel = document.getElementById("filterDashProjetistaResumo");
+    if (sel) {
+      sel.value = dashPjDrillNome || FILTER_PROJETISTA_TODOS;
+    }
+  }
+  renderKpiProjetistas();
+  if (!dashPjDrillNome) return;
+  requestAnimationFrame(() => {
+    document.getElementById("dashPjDrill")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+}
+
+function initDashPjDrill() {
+  if (initDashPjDrill._done) return;
+  initDashPjDrill._done = true;
+  document.getElementById("btnDashPjDrillFechar")?.addEventListener("click", () => {
+    setDashPjDrill("");
+  });
+  document.getElementById("btnDashPjVerProjetos")?.addEventListener("click", () => {
+    if (dashPjDrillNome) openDashGeoProjetosLista("projetista", dashPjDrillNome);
+  });
+}
+
+function buildStatsPorProjetista(baseList = demandasDashOperacionalList()) {
+  return allProjetistasNomes()
+    .map((nome) => ({ nome, ...statsProjetista(nome, baseList) }))
+    .filter((row) => row.total > 0);
+}
+
+function rankPjBarColors(rows, activeColor, idleColor) {
+  return rows.map((r) => (r.nome === dashPjDrillNome ? activeColor : idleColor));
+}
+
+function renderDashPjRankCharts(rows) {
+  const rankEl = document.getElementById("dashPjRankCharts");
+  if (!rows.length) {
+    destroyDashPjCharts(DASH_PJ_RANK_CHART_IDS);
+    if (rankEl) rankEl.hidden = true;
+    return;
+  }
+  if (rankEl) rankEl.hidden = false;
+  const ordered = [...rows].sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, "pt-BR"));
+  const labels = ordered.map((r) => truncateChartLabel(r.nome, 18));
+  const openDrill = (_label, i) => setDashPjDrill(ordered[i]?.nome);
+  setDashPjChartWrapHeight("chartPjRankSituacao", ordered.length);
+  setDashPjChartWrapHeight("chartPjRankGastos", ordered.length);
+  setDashPjChartWrapHeight("chartPjRankPortas", ordered.length);
+
+  makeDashChartProjetistaStacked(
+    "chartPjRankSituacao",
+    labels,
+    [
+      { label: "Ativas", data: ordered.map((r) => r.ativas), backgroundColor: "#6366f1", borderWidth: 0 },
+      { label: "Concluídas", data: ordered.map((r) => r.concluidas), backgroundColor: "#22c55e", borderWidth: 0 },
+      { label: "Pausadas", data: ordered.map((r) => r.pausadas), backgroundColor: "#f59e0b", borderWidth: 0 },
+      { label: "Reprovadas", data: ordered.map((r) => r.reprovadas), backgroundColor: "#ef4444", borderWidth: 0 },
+    ].filter((ds) => ds.data.some((n) => n > 0)),
+    { horizontal: true, showPct: true, onBarClick: openDrill },
+  );
+
+  const gastosRows = [...ordered].sort((a, b) => b.valorTotal - a.valorTotal || a.nome.localeCompare(b.nome, "pt-BR"));
+  makeDashChartMoneyBar(
+    "chartPjRankGastos",
+    gastosRows.map((r) => truncateChartLabel(r.nome, 18)),
+    gastosRows.map((r) => r.valorTotal),
+    rankPjBarColors(gastosRows, "#4ade80", "#22c55e"),
+    {
+      horizontal: true,
+      showPct: true,
+      datasetLabel: labelValorDashModo(),
+      onBarClick: (_l, i) => setDashPjDrill(gastosRows[i]?.nome),
+    },
+  );
+
+  const portasRows = [...ordered].sort((a, b) => b.portasNovasTotal - a.portasNovasTotal || a.nome.localeCompare(b.nome, "pt-BR"));
+  makeDashChartMetricBar(
+    "chartPjRankPortas",
+    portasRows.map((r) => truncateChartLabel(r.nome, 18)),
+    portasRows.map((r) => r.portasNovasTotal),
+    {
+      colors: rankPjBarColors(portasRows, "#67e8f9", "#06b6d4"),
+      datasetLabel: "Portas novas",
+      formatValue: formatQtd,
+      horizontal: true,
+      showPct: true,
+      onBarClick: (_l, i) => setDashPjDrill(portasRows[i]?.nome),
+    },
+  );
+}
+
+function renderDashPjDrill(nome, baseList) {
+  const drillEl = document.getElementById("dashPjDrill");
+  const kpisEl = document.getElementById("dashPjDrillKpis");
+  const titleEl = document.getElementById("dashPjDrillTitle");
+  const hintEl = document.getElementById("dashPjDrillHint");
+  if (!drillEl || !nome) {
+    hideDashPjDrill();
+    return;
+  }
+  const s = statsProjetista(nome, baseList);
+  const list = s.list || [];
+  const valorModoLabel = labelValorDashModo();
+  const periodo = labelDashPeriodoFiltro();
+  const geoAttrs = `data-dash-geo-list data-dash-geo-kind="projetista" data-dash-geo-key="${escapeHtml(nome)}"`;
+  drillEl.hidden = false;
+  if (titleEl) titleEl.textContent = nome;
+  if (hintEl) {
+    hintEl.textContent = `${s.total} projeto(s) · Esteira Projetos (sem B2B) · ${periodo}. Clique nos números ou nos gráficos para ver a lista.`;
+  }
+  if (kpisEl) {
+    const kpiBtn = (label, value, tone) =>
+      `<button type="button" class="kpi kpi--${tone} kpi--click" ${geoAttrs} title="Ver projetos">` +
+      `<div class="kpi__label">${label}</div><div class="kpi__value">${value}</div></button>`;
+    kpisEl.innerHTML =
+      kpiBtn("Total", s.total, "ok") +
+      kpiBtn("Ativas", s.ativas, "ok") +
+      kpiBtn("Concluídas", s.concluidas, "ok") +
+      kpiBtn("Em atraso", s.atraso, s.atraso ? "bad" : "ok") +
+      kpiBtn(valorModoLabel, formatBRL(s.valorTotal), s.valorTotal ? "ok" : "warn") +
+      kpiBtn("Portas novas", formatQtd(s.portasNovasTotal), s.portasNovasTotal ? "ok" : "warn") +
+      kpiBtn("Metragem", formatMetros(s.metragemTotal), s.metragemTotal ? "ok" : "warn");
+  }
+
+  const sitItems = [
+    { label: "Ativas", n: s.ativas, color: "#6366f1" },
+    { label: "Pausadas", n: s.pausadas, color: "#f59e0b" },
+    { label: "Concluídas", n: s.concluidas, color: "#22c55e" },
+    { label: "Reprovadas", n: s.reprovadas, color: "#ef4444" },
+  ].filter((it) => it.n > 0);
+  makeDashChart(
+    "chartPjSituacao",
+    "doughnut",
+    sitItems.map((it) => it.label),
+    sitItems.map((it) => it.n),
+    {
+      colors: sitItems.map((it) => it.color),
+      showPct: true,
+      onBarClick: () => openDashGeoProjetosLista("projetista", nome),
+    },
+  );
+
+  const tipos = tiposOperacionalDash()
+    .map((tipo) => ({
+      tipo,
+      n: list.filter((d) => normalizeTipo(d.tipo) === tipo).length,
+      color: TIPO_CHART_COLORS[tipo] || "#94a3b8",
+    }))
+    .filter((it) => it.n > 0)
+    .sort((a, b) => b.n - a.n);
+  setDashPjChartWrapHeight("chartPjTipo", tipos.length, 180, 32);
+  makeDashChartMetricBar(
+    "chartPjTipo",
+    tipos.map((it) => it.tipo),
+    tipos.map((it) => it.n),
+    {
+      colors: tipos.map((it) => it.color),
+      datasetLabel: "Projetos",
+      formatValue: (v) => String(v),
+      horizontal: true,
+      showPct: true,
+      onBarClick: () => openDashGeoProjetosLista("projetista", nome),
+    },
+  );
+
+  const faseItems = [...STATUS_ORDER, ...STATUS_EXTRA]
+    .map(([key, label]) => ({
+      key,
+      label,
+      n: list.filter((d) => migrateDemanda(d).status === key).length,
+      color: STATUS_CHART_COLORS[key] || "#94a3b8",
+    }))
+    .filter((it) => it.n > 0);
+  setDashPjChartWrapHeight("chartPjFase", faseItems.length, 220, 26);
+  makeDashChartMetricBar(
+    "chartPjFase",
+    faseItems.map((it) => truncateChartLabel(it.label, 22)),
+    faseItems.map((it) => it.n),
+    {
+      colors: faseItems.map((it) => it.color),
+      datasetLabel: "Projetos",
+      formatValue: (v) => String(v),
+      horizontal: true,
+      showPct: true,
+      onBarClick: () => openDashGeoProjetosLista("projetista", nome),
+    },
+  );
+}
+
 function renderKpiProjetistas(baseList = demandasDashOperacionalList()) {
   const wrap = document.getElementById("kpiProjetistas");
   const hint = document.getElementById("kpiProjetistasHint");
   if (!wrap) return;
   fillFilterDashProjetistaResumo();
-  const filtro = document.getElementById("filterDashProjetistaResumo")?.value || "";
-  if (!filtro) {
+  const filtro = document.getElementById("filterDashProjetistaResumo")?.value || FILTER_PROJETISTA_TODOS;
+  if (filtro && filtro !== FILTER_PROJETISTA_TODOS) dashPjDrillNome = filtro;
+
+  const rows = buildStatsPorProjetista(baseList);
+  const valorModoLabel = labelValorDashModo();
+  const tot = rows.reduce(
+    (acc, r) => {
+      acc.projetos += r.total;
+      acc.atraso += r.atraso;
+      acc.valor += r.valorTotal;
+      acc.portas += r.portasNovasTotal;
+      return acc;
+    },
+    { projetos: 0, atraso: 0, valor: 0, portas: 0 },
+  );
+
+  if (!rows.length) {
     wrap.innerHTML = "";
-    if (hint) hint.hidden = false;
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent = "Nenhum projetista com projeto na Esteira Projetos para a base de indicadores atual.";
+    }
+    destroyDashPjCharts(DASH_PJ_RANK_CHART_IDS);
+    const rankEl = document.getElementById("dashPjRankCharts");
+    if (rankEl) rankEl.hidden = true;
+    hideDashPjDrill();
     return;
   }
-  if (hint) hint.hidden = true;
 
-  const nomes =
-    filtro === FILTER_PROJETISTA_TODOS ? allProjetistasNomes() : [filtro];
-  const valorModoLabel = labelValorDashModo();
-  let html = "";
-  for (const nome of nomes) {
-    const s = statsProjetista(nome, baseList);
-    const m = calcMediasIndicadoresGeral(s.list || demandasDoProjetista(nome, baseList));
-    html +=
-      '<div class="kpi dash-pj-card"><div class="kpi__label dash-pj-card__nome">' +
-      escapeHtml(nome) +
-      '</div><div class="dash-pj-grid kpi-grid">' +
-      `<button type="button" class="kpi kpi--ok kpi--click" data-dash-pj-tipos="${escapeHtml(nome)}" title="Ver quantidade por tipo">` +
-      `<div class="kpi__label">Total cadastradas</div>` +
-      `<div class="kpi__value">${s.total}</div></button>` +
-      kpiCard("Ativas", s.ativas, "ok") +
-      kpiCard("Pausadas", s.pausadas, s.pausadas ? "warn" : "ok") +
-      kpiCard("Concluídas", s.concluidas, "ok") +
-      kpiCard("Reprovadas", s.reprovadas, s.reprovadas ? "warn" : "ok") +
-      kpiCard("Em atraso", s.atraso, s.atraso ? "bad" : "ok") +
-      kpiCard(valorModoLabel, formatBRL(s.valorTotal), s.valorTotal ? "ok" : "warn") +
-      kpiCard("Portas novas", formatQtd(s.portasNovasTotal), s.portasNovasTotal ? "ok" : "warn") +
-      kpiCard("Metragem lançamento", formatMetros(s.metragemTotal), s.metragemTotal ? "ok" : "warn") +
-      kpiMediasIndicadoresHtml(m) +
-      "</div></div>";
+  if (hint) hint.hidden = true;
+  wrap.innerHTML =
+    kpiCard("Projetistas", rows.length, "ok") +
+    kpiCard("Projetos", tot.projetos, tot.projetos ? "ok" : "warn") +
+    kpiCard("Em atraso", tot.atraso, tot.atraso ? "bad" : "ok") +
+    kpiCard(valorModoLabel, formatBRL(tot.valor), tot.valor ? "ok" : "warn") +
+    kpiCard("Portas novas", formatQtd(tot.portas), tot.portas ? "ok" : "warn");
+
+  renderDashPjRankCharts(rows);
+
+  const nomesValidos = new Set(rows.map((r) => r.nome));
+  if (dashPjDrillNome && !nomesValidos.has(dashPjDrillNome)) {
+    dashPjDrillNome = "";
   }
-  wrap.innerHTML = html;
+  if (dashPjDrillNome) renderDashPjDrill(dashPjDrillNome, baseList);
+  else hideDashPjDrill();
 }
 
 function countTiposDoProjetista(nome, baseList = demandasDashOperacionalList()) {
@@ -9200,14 +9437,36 @@ function makeDashChartProjetistaStacked(canvasId, labels, datasets, chartOpts = 
     dashCharts[canvasId].destroy();
     delete dashCharts[canvasId];
   }
-  if (!datasets.length) return;
+  if (!datasets.length || !labels.length) return;
   const formatValue = chartOpts.formatValue || ((n) => String(n));
+  const horizontal = Boolean(chartOpts.horizontal);
+  const valueTicks = {
+    color: "#94a3b8",
+    stepSize: chartOpts.stepSize,
+    callback: chartOpts.yFormat || ((v) => formatValue(v)),
+  };
+  const categoryTicks = {
+    color: "#94a3b8",
+    font: { size: 11 },
+    maxRotation: horizontal ? 0 : 45,
+    minRotation: 0,
+  };
+  const scales = horizontal
+    ? {
+        x: { stacked: true, beginAtZero: true, ticks: valueTicks, grid: { color: "rgba(148,163,184,0.12)" } },
+        y: { stacked: true, ticks: categoryTicks, grid: { display: false } },
+      }
+    : {
+        x: { stacked: true, ticks: categoryTicks, grid: { color: "rgba(148,163,184,0.12)" } },
+        y: { stacked: true, beginAtZero: true, ticks: valueTicks, grid: { color: "rgba(148,163,184,0.12)" } },
+      };
   dashCharts[canvasId] = new Chart(el, {
     type: "bar",
     data: { labels, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      indexAxis: horizontal ? "y" : "x",
       ...dashChartBarInteractOptions(chartOpts),
       plugins: {
         legend: { display: true, labels: { color: "#cbd5e1", boxWidth: 12, font: { size: 11 } } },
@@ -9216,28 +9475,18 @@ function makeDashChartProjetistaStacked(canvasId, labels, datasets, chartOpts = 
             label: (ctx) => {
               const n = ctx.raw;
               if (!n) return null;
-              return `${ctx.dataset.label}: ${formatValue(n)}`;
+              const stackTotal = (ctx.chart.data.datasets || []).reduce(
+                (s, ds) => s + numDash(ds.data?.[ctx.dataIndex]),
+                0,
+              );
+              const pct = pctShare(n, stackTotal);
+              const pctTxt = chartOpts.showPct && pct != null ? ` · ${formatPctShare(pct)}` : "";
+              return `${ctx.dataset.label}: ${formatValue(n)}${pctTxt}`;
             },
           },
         },
       },
-      scales: {
-        x: {
-          stacked: true,
-          ticks: { color: "#94a3b8", font: { size: 11 }, maxRotation: 45, minRotation: 0 },
-          grid: { color: "rgba(148,163,184,0.12)" },
-        },
-        y: {
-          stacked: true,
-          beginAtZero: true,
-          ticks: {
-            color: "#94a3b8",
-            stepSize: chartOpts.stepSize,
-            callback: chartOpts.yFormat || ((v) => formatValue(v)),
-          },
-          grid: { color: "rgba(148,163,184,0.12)" },
-        },
-      },
+      scales,
     },
   });
 }
@@ -9680,11 +9929,13 @@ function makeDashChart(canvasId, type, labels, data, options = {}) {
     dashCharts[canvasId].destroy();
     delete dashCharts[canvasId];
   }
+  if (!labels.length) return;
   const palette = ["#6366f1", "#14b8a6", "#f59e0b", "#ef4444", "#a855f7", "#0ea5e9", "#22c55e", "#94a3b8"];
   const color = options.color || palette[0];
   const bg =
     options.colors ||
     (type === "doughnut" ? palette.slice(0, labels.length) : color);
+  const formatValue = options.formatValue || ((v) => String(v));
   dashCharts[canvasId] = new Chart(el, {
     type,
     data: {
@@ -9694,7 +9945,19 @@ function makeDashChart(canvasId, type, labels, data, options = {}) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: type === "doughnut", labels: { color: "#cbd5e1", boxWidth: 12 } }, ...(options.plugins || {}) },
+      ...dashChartBarInteractOptions(options),
+      plugins: {
+        legend: { display: type === "doughnut", labels: { color: "#cbd5e1", boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const base = `${ctx.label}: ${formatValue(ctx.raw)}`;
+              return base + (options.showPct ? dashChartPctSuffix(ctx) : "");
+            },
+          },
+        },
+        ...(options.plugins || {}),
+      },
       scales: type === "bar" ? { x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } }, y: { beginAtZero: true, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } } } : undefined,
     },
   });
@@ -11430,7 +11693,13 @@ document.getElementById("filterDashCidadesCidade")?.addEventListener("change", (
   el.addEventListener("change", renderDashEntregaAtraso);
 });
 document.getElementById("filterDashProjetistaResumo")?.addEventListener("change", () => {
-  renderKpiProjetistas();
+  const v = document.getElementById("filterDashProjetistaResumo")?.value || FILTER_PROJETISTA_TODOS;
+  if (!v || v === FILTER_PROJETISTA_TODOS) {
+    dashPjDrillNome = "";
+    renderKpiProjetistas();
+    return;
+  }
+  setDashPjDrill(v, { syncSelect: false });
 });
 
 function hideAppLoader() {
@@ -11956,6 +12225,7 @@ document.querySelector(".brand h1")?.addEventListener("click", async () => {
 initDashBlocks();
 initDashGeoProjetosLista();
 initDashCidadesDrill();
+initDashPjDrill();
 initDashPjTipos();
 
 /* ---------- Login / bootstrap ---------- */

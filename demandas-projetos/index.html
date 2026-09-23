@@ -287,17 +287,62 @@
             <span class="dash-block__chevron" aria-hidden="true"></span>
           </button>
           <div class="dash-block__body" id="dashBlockProjetistas">
-        <p class="muted small dash-block__hint">Escolha o projetista (ou todos) para ver totais e médias conforme a <strong>base de indicadores</strong> no topo. Inclui todos os tipos da Esteira Projetos (sem B2B).</p>
+        <p class="muted small dash-block__hint">Comparação da Esteira Projetos (sem B2B). Valores seguem a <strong>base de indicadores</strong> no topo. Clique na barra de um projetista para abrir o detalhe — ou escolha no filtro.</p>
         <div class="dash-tempo-toolbar">
           <label class="field field--inline">
             <span>Projetista</span>
             <select id="filterDashProjetistaResumo" aria-label="Filtrar resumo por projetista">
-              <option value="">Selecione…</option>
+              <option value="__all__">Todos os projetistas</option>
             </select>
           </label>
         </div>
-        <p class="muted small" id="kpiProjetistasHint" hidden>Selecione um projetista acima para ver o resumo.</p>
-        <div class="kpi-grid kpi-grid--split" id="kpiProjetistas"></div>
+        <div class="kpi-grid" id="kpiProjetistas"></div>
+        <p class="muted small" id="kpiProjetistasHint" hidden></p>
+        <div class="dashboard-charts dashboard-charts--cols3" id="dashPjRankCharts">
+          <div class="chart-card">
+            <h4>Situação por projetista</h4>
+            <p class="muted small chart-card__sub">Carga na esteira: ativas, concluídas, pausadas e reprovadas. Clique na barra para o detalhe.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartPjRankSituacao"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Gastos por projetista</h4>
+            <p class="muted small chart-card__sub">Investimento na base de indicadores. Clique para o detalhe.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartPjRankGastos"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Portas por projetista</h4>
+            <p class="muted small chart-card__sub">Portas novas na mesma base. Clique para o detalhe.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartPjRankPortas"></canvas></div>
+          </div>
+        </div>
+        <div class="dash-cidades-drill" id="dashPjDrill" hidden>
+          <div class="dash-cidades-drill__head">
+            <h3 class="dash-subhead" id="dashPjDrillTitle">Detalhe do projetista</h3>
+            <div class="dash-pj-drill__actions">
+              <button type="button" class="btn btn--ghost btn--sm" id="btnDashPjVerProjetos">Ver projetos</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnDashPjDrillFechar">Fechar detalhe</button>
+            </div>
+          </div>
+          <p class="muted small dash-block__hint" id="dashPjDrillHint"></p>
+          <div class="kpi-grid" id="dashPjDrillKpis"></div>
+          <div class="dashboard-charts dashboard-charts--cols3">
+            <div class="chart-card">
+              <h4>Situação da esteira</h4>
+              <p class="muted small chart-card__sub">Como a carga desse projetista está hoje.</p>
+              <div class="chart-wrap"><canvas id="chartPjSituacao"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>Por tipo</h4>
+              <p class="muted small chart-card__sub">Mix de projetos sob responsabilidade dele.</p>
+              <div class="chart-wrap"><canvas id="chartPjTipo"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>Por fase</h4>
+              <p class="muted small chart-card__sub">Onde os projetos dele estão parados na esteira.</p>
+              <div class="chart-wrap chart-wrap--tall"><canvas id="chartPjFase"></canvas></div>
+            </div>
+          </div>
+        </div>
           </div>
         </section>
 

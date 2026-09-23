@@ -1383,6 +1383,13 @@ textarea {
   margin-bottom: 0.35rem;
 }
 .dash-cidades-drill__head .dash-subhead { margin: 0; }
+.dash-pj-drill__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+#kpiProjetistas { margin-bottom: 0.75rem; }
 .dash-valor-toolbar .field--dash-date { min-width: 150px; flex: 0 1 170px; }
 .dash-valor-toolbar #btnDashPeriodoLimpar { flex: 0 0 auto; align-self: flex-end; margin-bottom: 0.1rem; }
 .dash-valor-toolbar .muted.small { margin: 0; flex: 1 1 100%; }
