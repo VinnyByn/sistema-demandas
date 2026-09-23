@@ -1333,6 +1333,8 @@ textarea {
   border-radius: var(--radius); background: var(--surface);
 }
 .dash-tempo-toolbar .field--inline { min-width: 160px; flex: 1 1 180px; }
+.dash-geo-filtros { margin: 0 0 0.75rem; }
+.dash-geo-filtros .field--inline { min-width: 140px; flex: 1 1 150px; }
 .dash-indicadores-top {
   margin-bottom: 1.25rem;
 }

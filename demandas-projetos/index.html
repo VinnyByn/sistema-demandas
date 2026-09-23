@@ -1332,6 +1332,40 @@
         <button type="button" class="icon-btn" id="modalDashGeoProjetosClose" aria-label="Fechar">×</button>
       </div>
       <div class="modal__body">
+        <div class="dash-tempo-toolbar dash-geo-filtros" id="modalDashGeoProjetosFiltros">
+          <label class="field field--inline">
+            <span>Situação</span>
+            <select id="filterDashGeoSit" aria-label="Filtrar por situação">
+              <option value="">Todas</option>
+              <option value="ativas">Ativas</option>
+              <option value="concluidas">Concluídas</option>
+              <option value="pausadas">Pausadas</option>
+              <option value="reprovadas">Reprovadas</option>
+              <option value="atraso">Em atraso</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Tipo</span>
+            <select id="filterDashGeoTipo" aria-label="Filtrar por tipo">
+              <option value="">Todos</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Fase</span>
+            <select id="filterDashGeoFase" aria-label="Filtrar por fase">
+              <option value="">Todas</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Indicador</span>
+            <select id="filterDashGeoMetrica" aria-label="Filtrar por indicador">
+              <option value="">Todos</option>
+              <option value="valor">Com valor</option>
+              <option value="portas">Com portas novas</option>
+              <option value="metragem">Com metragem</option>
+            </select>
+          </label>
+        </div>
         <div class="dashboard-table-wrap" id="modalDashGeoProjetosTable"></div>
       </div>
       <div class="modal__foot">

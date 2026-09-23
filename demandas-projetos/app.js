@@ -8678,68 +8678,158 @@ function listDemandasDashGeo(kind, key, slice) {
 let dashGeoListaCtx = null;
 let dashGeoListaReturnOnClose = false;
 
+function sliceToDashGeoFiltros(slice) {
+  const s = String(slice || "").trim();
+  const filtros = { situacao: "", tipo: "", fase: "", metrica: "" };
+  if (["ativas", "concluidas", "pausadas", "reprovadas", "atraso"].includes(s)) filtros.situacao = s;
+  else if (["valor", "portas", "metragem"].includes(s)) filtros.metrica = s;
+  else if (s.startsWith("tipo:")) filtros.tipo = s.slice(5);
+  else if (s.startsWith("fase:")) filtros.fase = s.slice(5);
+  return filtros;
+}
+
+function dashGeoFiltrosFromDom() {
+  return {
+    situacao: document.getElementById("filterDashGeoSit")?.value || "",
+    tipo: document.getElementById("filterDashGeoTipo")?.value || "",
+    fase: document.getElementById("filterDashGeoFase")?.value || "",
+    metrica: document.getElementById("filterDashGeoMetrica")?.value || "",
+  };
+}
+
+function syncDashGeoFiltrosDom(filtros = {}) {
+  const sit = document.getElementById("filterDashGeoSit");
+  const tipo = document.getElementById("filterDashGeoTipo");
+  const fase = document.getElementById("filterDashGeoFase");
+  const met = document.getElementById("filterDashGeoMetrica");
+  if (sit) sit.value = filtros.situacao || "";
+  if (tipo && [...tipo.options].some((o) => o.value === (filtros.tipo || ""))) tipo.value = filtros.tipo || "";
+  if (fase && [...fase.options].some((o) => o.value === (filtros.fase || ""))) fase.value = filtros.fase || "";
+  if (met) met.value = filtros.metrica || "";
+}
+
+function applyDashGeoFiltros(list, filtros = {}) {
+  let out = list;
+  if (filtros.situacao) out = filterDemandasPjSlice(out, filtros.situacao);
+  if (filtros.tipo) out = out.filter((d) => normalizeTipo(d.tipo) === filtros.tipo);
+  if (filtros.fase) out = out.filter((d) => migrateDemanda(d).status === filtros.fase);
+  if (filtros.metrica) out = filterDemandasPjSlice(out, filtros.metrica);
+  return out;
+}
+
+function labelDashGeoFiltrosAtivos(filtros = {}) {
+  const parts = [];
+  if (filtros.situacao) parts.push(labelDashGeoSlice(filtros.situacao));
+  if (filtros.tipo) parts.push(filtros.tipo);
+  if (filtros.fase) parts.push(STATUS_LABEL[filtros.fase] || filtros.fase);
+  if (filtros.metrica) parts.push(labelDashGeoSlice(filtros.metrica));
+  return parts.filter(Boolean);
+}
+
+function fillDashGeoFiltrosOptions(list) {
+  const tipoSel = document.getElementById("filterDashGeoTipo");
+  const faseSel = document.getElementById("filterDashGeoFase");
+  const tipos = [...new Set(list.map((d) => normalizeTipo(d.tipo)).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "pt-BR"),
+  );
+  const fases = [...STATUS_ORDER, ...STATUS_EXTRA]
+    .map(([k, lab]) => ({ k, lab, n: list.filter((d) => migrateDemanda(d).status === k).length }))
+    .filter((it) => it.n > 0);
+  if (tipoSel) {
+    fillSelectOptions(tipoSel, [{ value: "", label: "Todos" }, ...tipos.map((t) => ({ value: t, label: t }))]);
+  }
+  if (faseSel) {
+    fillSelectOptions(faseSel, [{ value: "", label: "Todas" }, ...fases.map((it) => ({ value: it.k, label: it.lab }))]);
+  }
+}
+
+function renderDashGeoProjetosTable() {
+  const titleEl = document.getElementById("modalDashGeoProjetosTitle");
+  const subEl = document.getElementById("modalDashGeoProjetosSub");
+  const tableEl = document.getElementById("modalDashGeoProjetosTable");
+  const ctx = dashGeoListaCtx;
+  if (!tableEl || !ctx) return;
+
+  const filtros = dashGeoFiltrosFromDom();
+  ctx.filtros = filtros;
+  const full = ctx.list || [];
+  const list = applyDashGeoFiltros(full, filtros).sort((a, b) =>
+    String(a.titulo || "").localeCompare(String(b.titulo || ""), "pt-BR"),
+  );
+
+  const kind = ctx.kind;
+  const kindLabel =
+    kind === "regional" ? "Regional" : kind === "segmento" ? "Segmento" : kind === "projetista" ? "Projetista" : "Cidade";
+  const filtroLabels = labelDashGeoFiltrosAtivos(filtros);
+  if (titleEl) {
+    titleEl.textContent = filtroLabels.length
+      ? `Projetos — ${kindLabel}: ${ctx.key} · ${filtroLabels.join(" · ")}`
+      : `Projetos — ${kindLabel}: ${ctx.key}`;
+  }
+  if (subEl) {
+    const periodo = labelDashPeriodoFiltro();
+    const origem = kind === "segmento" ? "B2C" : "Esteira Projetos (sem B2B)";
+    const qtd = filtroLabels.length ? `${list.length} de ${full.length}` : String(list.length);
+    subEl.textContent = `${qtd} projeto(s) · ${origem} · ${periodo}`;
+  }
+
+  if (!list.length) {
+    tableEl.innerHTML = '<p class="muted small">Nenhum projeto neste agrupamento com os filtros atuais.</p>';
+    return;
+  }
+
+  let body = "";
+  for (const d of list) {
+    const dm = migrateDemanda(d);
+    body +=
+      "<tr>" +
+      `<td><button type="button" class="dash-geo-link" data-dash-geo-open-demanda="${escapeHtml(dm.id)}">${escapeHtml(dm.titulo || "(Sem título)")}</button></td>` +
+      `<td>${escapeHtml(normalizeTipo(dm.tipo) || "—")}</td>` +
+      `<td>${escapeHtml(labelStatus(dm.status, dm.linhaEsteira) || dm.status || "—")}</td>` +
+      `<td>${escapeHtml(labelProjetista(dm.responsavel) || dm.responsavel || "—")}</td>` +
+      `<td>${escapeHtml(labelCidade(dm.cidade))}</td>` +
+      `<td>${escapeHtml(formatDataISO(demandaDataChegadaDash(dm)) || "—")}</td>` +
+      "</tr>";
+  }
+  tableEl.innerHTML =
+    '<table class="dash-table"><thead><tr>' +
+    "<th>Projeto</th><th>Tipo</th><th>Status</th><th>Projetista</th><th>Cidade</th><th>Chegada</th>" +
+    "</tr></thead><tbody>" +
+    body +
+    "</tbody></table>";
+}
+
 function restoreDashGeoListaIfNeeded() {
   if (!dashGeoListaReturnOnClose || !dashGeoListaCtx) return;
   const ctx = dashGeoListaCtx;
   dashGeoListaReturnOnClose = false;
   const snap = snapshotPageScroll();
   requestAnimationFrame(() => {
-    openDashGeoProjetosLista(ctx.kind, ctx.key, ctx.slice);
+    openDashGeoProjetosLista(ctx.kind, ctx.key, ctx.slice, ctx.filtros);
     restorePageScroll(snap);
   });
 }
 
-function openDashGeoProjetosLista(kind, key, slice) {
+function openDashGeoProjetosLista(kind, key, slice, filtrosPreset) {
   const dlg = document.getElementById("modalDashGeoProjetos");
-  const titleEl = document.getElementById("modalDashGeoProjetosTitle");
-  const subEl = document.getElementById("modalDashGeoProjetosSub");
   const tableEl = document.getElementById("modalDashGeoProjetosTable");
   if (!dlg || !tableEl) return;
 
-  const kindLabel =
-    kind === "regional" ? "Regional" : kind === "segmento" ? "Segmento" : kind === "projetista" ? "Projetista" : "Cidade";
-  const sliceKey = String(slice || "");
-  dashGeoListaCtx = { kind: String(kind || ""), key: String(key || ""), slice: sliceKey };
-  dashGeoListaReturnOnClose = false;
-  const list = listDemandasDashGeo(kind, key, sliceKey).sort((a, b) =>
+  const full = listDemandasDashGeo(kind, key, "").sort((a, b) =>
     String(a.titulo || "").localeCompare(String(b.titulo || ""), "pt-BR"),
   );
-
-  const sliceLabel = labelDashGeoSlice(sliceKey);
-  if (titleEl) {
-    titleEl.textContent = sliceLabel
-      ? `Projetos — ${kindLabel}: ${key} · ${sliceLabel}`
-      : `Projetos — ${kindLabel}: ${key}`;
-  }
-  if (subEl) {
-    const periodo = labelDashPeriodoFiltro();
-    const origem = kind === "segmento" ? "B2C" : "Esteira Projetos (sem B2B)";
-    subEl.textContent = `${list.length} projeto(s) · ${origem} · ${periodo}`;
-  }
-
-  if (!list.length) {
-    tableEl.innerHTML = '<p class="muted small">Nenhum projeto neste agrupamento com os filtros atuais.</p>';
-  } else {
-    let body = "";
-    for (const d of list) {
-      const dm = migrateDemanda(d);
-      body +=
-        "<tr>" +
-        `<td><button type="button" class="dash-geo-link" data-dash-geo-open-demanda="${escapeHtml(dm.id)}">${escapeHtml(dm.titulo || "(Sem título)")}</button></td>` +
-        `<td>${escapeHtml(normalizeTipo(dm.tipo) || "—")}</td>` +
-        `<td>${escapeHtml(labelStatus(dm.status, dm.linhaEsteira) || dm.status || "—")}</td>` +
-        `<td>${escapeHtml(labelProjetista(dm.responsavel) || dm.responsavel || "—")}</td>` +
-        `<td>${escapeHtml(labelCidade(dm.cidade))}</td>` +
-        `<td>${escapeHtml(formatDataISO(demandaDataChegadaDash(dm)) || "—")}</td>` +
-        "</tr>";
-    }
-    tableEl.innerHTML =
-      '<table class="dash-table"><thead><tr>' +
-      "<th>Projeto</th><th>Tipo</th><th>Status</th><th>Projetista</th><th>Cidade</th><th>Chegada</th>" +
-      "</tr></thead><tbody>" +
-      body +
-      "</tbody></table>";
-  }
+  const filtros = filtrosPreset && typeof filtrosPreset === "object" ? { ...filtrosPreset } : sliceToDashGeoFiltros(slice);
+  dashGeoListaCtx = {
+    kind: String(kind || ""),
+    key: String(key || ""),
+    slice: String(slice || ""),
+    list: full,
+    filtros,
+  };
+  dashGeoListaReturnOnClose = false;
+  fillDashGeoFiltrosOptions(full);
+  syncDashGeoFiltrosDom(filtros);
+  renderDashGeoProjetosTable();
 
   if (typeof dlg.showModal === "function" && !dlg.open) dlg.showModal();
 }
@@ -8757,6 +8847,11 @@ function initDashGeoProjetosLista() {
   document.getElementById("modalDashGeoProjetosOk")?.addEventListener("click", close);
   dlg?.addEventListener("close", () => {
     if (!dashGeoListaReturnOnClose) dashGeoListaCtx = null;
+  });
+  ["filterDashGeoSit", "filterDashGeoTipo", "filterDashGeoFase", "filterDashGeoMetrica"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => {
+      if (dashGeoListaCtx) renderDashGeoProjetosTable();
+    });
   });
   document.addEventListener("click", (e) => {
     const openDem = e.target.closest?.("[data-dash-geo-open-demanda]");
