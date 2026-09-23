@@ -8612,13 +8612,63 @@ function dashCidadesFiltroAtivo() {
   return !!(regional || cidade);
 }
 
-function listDemandasDashGeo(kind, key) {
+function filterDemandasPjSlice(list, slice) {
+  const s = String(slice || "").trim();
+  if (!s || s === "total") return list;
+  const mode = getDashValorModo();
+  if (s === "ativas") {
+    return list.filter((d) => {
+      const dm = migrateDemanda(d);
+      return !isStatusConcluidoDemanda(dm) && dm.status !== "reprovado" && dm.status !== "pausado";
+    });
+  }
+  if (s === "concluidas") return list.filter((d) => isStatusConcluidoDemanda(migrateDemanda(d)));
+  if (s === "pausadas") return list.filter((d) => migrateDemanda(d).status === "pausado");
+  if (s === "reprovadas") return list.filter((d) => migrateDemanda(d).status === "reprovado");
+  if (s === "atraso") return list.filter(isAtraso);
+  if (s === "valor") return list.filter((d) => demandaValorDashPorModo(d, mode) > 0);
+  if (s === "portas") return list.filter((d) => demandaPortasDashPorModo(d, mode) > 0);
+  if (s === "metragem") return list.filter((d) => demandaMetragemDashPorModo(d, mode) > 0);
+  if (s.startsWith("tipo:")) {
+    const tipo = s.slice(5);
+    return list.filter((d) => normalizeTipo(d.tipo) === tipo);
+  }
+  if (s.startsWith("fase:")) {
+    const fase = s.slice(5);
+    return list.filter((d) => migrateDemanda(d).status === fase);
+  }
+  return list;
+}
+
+function labelDashGeoSlice(slice) {
+  const s = String(slice || "").trim();
+  if (!s || s === "total") return "";
+  if (s === "ativas") return "Ativas";
+  if (s === "concluidas") return "Concluídas";
+  if (s === "pausadas") return "Pausadas";
+  if (s === "reprovadas") return "Reprovadas";
+  if (s === "atraso") return "Em atraso";
+  if (s === "valor") return labelValorDashModo();
+  if (s === "portas") return "Portas novas";
+  if (s === "metragem") return "Metragem";
+  if (s.startsWith("tipo:")) return s.slice(5);
+  if (s.startsWith("fase:")) {
+    const key = s.slice(5);
+    return STATUS_LABEL[key] || key;
+  }
+  return "";
+}
+
+function listDemandasDashGeo(kind, key, slice) {
   const alvo = String(key || "");
   if (kind === "segmento") {
     return filterDemandasModoDash(demandasB2cDashboardList()).filter((d) => segmentoB2cBucket(d) === alvo);
   }
   if (kind === "projetista") {
-    return filterDemandasModoDash(demandasDoProjetista(alvo, demandasDashOperacionalList()));
+    return filterDemandasPjSlice(
+      filterDemandasModoDash(demandasDoProjetista(alvo, demandasDashOperacionalList())),
+      slice,
+    );
   }
   const list = filterDemandasModoDash(filterDemandasDashCidades(demandasDashOperacionalList()));
   if (kind === "regional") {
@@ -8636,12 +8686,12 @@ function restoreDashGeoListaIfNeeded() {
   dashGeoListaReturnOnClose = false;
   const snap = snapshotPageScroll();
   requestAnimationFrame(() => {
-    openDashGeoProjetosLista(ctx.kind, ctx.key);
+    openDashGeoProjetosLista(ctx.kind, ctx.key, ctx.slice);
     restorePageScroll(snap);
   });
 }
 
-function openDashGeoProjetosLista(kind, key) {
+function openDashGeoProjetosLista(kind, key, slice) {
   const dlg = document.getElementById("modalDashGeoProjetos");
   const titleEl = document.getElementById("modalDashGeoProjetosTitle");
   const subEl = document.getElementById("modalDashGeoProjetosSub");
@@ -8650,13 +8700,19 @@ function openDashGeoProjetosLista(kind, key) {
 
   const kindLabel =
     kind === "regional" ? "Regional" : kind === "segmento" ? "Segmento" : kind === "projetista" ? "Projetista" : "Cidade";
-  dashGeoListaCtx = { kind: String(kind || ""), key: String(key || "") };
+  const sliceKey = String(slice || "");
+  dashGeoListaCtx = { kind: String(kind || ""), key: String(key || ""), slice: sliceKey };
   dashGeoListaReturnOnClose = false;
-  const list = listDemandasDashGeo(kind, key).sort((a, b) =>
+  const list = listDemandasDashGeo(kind, key, sliceKey).sort((a, b) =>
     String(a.titulo || "").localeCompare(String(b.titulo || ""), "pt-BR"),
   );
 
-  if (titleEl) titleEl.textContent = `Projetos — ${kindLabel}: ${key}`;
+  const sliceLabel = labelDashGeoSlice(sliceKey);
+  if (titleEl) {
+    titleEl.textContent = sliceLabel
+      ? `Projetos — ${kindLabel}: ${key} · ${sliceLabel}`
+      : `Projetos — ${kindLabel}: ${key}`;
+  }
   if (subEl) {
     const periodo = labelDashPeriodoFiltro();
     const origem = kind === "segmento" ? "B2C" : "Esteira Projetos (sem B2B)";
@@ -8717,7 +8773,11 @@ function initDashGeoProjetosLista() {
     }
     const btn = e.target.closest?.("[data-dash-geo-list]");
     if (!btn || !btn.closest("#panelDashboard")) return;
-    openDashGeoProjetosLista(btn.getAttribute("data-dash-geo-kind"), btn.getAttribute("data-dash-geo-key"));
+    openDashGeoProjetosLista(
+      btn.getAttribute("data-dash-geo-kind"),
+      btn.getAttribute("data-dash-geo-key"),
+      btn.getAttribute("data-dash-geo-slice"),
+    );
   });
 }
 
@@ -9097,20 +9157,20 @@ function renderDashPjDrill(nome, baseList) {
   drillEl.hidden = false;
   if (titleEl) titleEl.textContent = nome;
   if (hintEl) {
-    hintEl.textContent = `${s.total} projeto(s) · Esteira Projetos (sem B2B) · ${periodo}. Clique nos números ou nos gráficos para ver a lista.`;
+    hintEl.textContent = `${s.total} projeto(s) · Esteira Projetos (sem B2B) · ${periodo}. Clique em cada número para ver os projetos correspondentes.`;
   }
   if (kpisEl) {
-    const kpiBtn = (label, value, tone) =>
-      `<button type="button" class="kpi kpi--${tone} kpi--click" ${geoAttrs} title="Ver projetos">` +
+    const kpiBtn = (label, value, tone, slice) =>
+      `<button type="button" class="kpi kpi--${tone} kpi--click" ${geoAttrs} data-dash-geo-slice="${escapeHtml(slice)}" title="Ver ${escapeHtml(label)}">` +
       `<div class="kpi__label">${label}</div><div class="kpi__value">${value}</div></button>`;
     kpisEl.innerHTML =
-      kpiBtn("Total", s.total, "ok") +
-      kpiBtn("Ativas", s.ativas, "ok") +
-      kpiBtn("Concluídas", s.concluidas, "ok") +
-      kpiBtn("Em atraso", s.atraso, s.atraso ? "bad" : "ok") +
-      kpiBtn(valorModoLabel, formatBRL(s.valorTotal), s.valorTotal ? "ok" : "warn") +
-      kpiBtn("Portas novas", formatQtd(s.portasNovasTotal), s.portasNovasTotal ? "ok" : "warn") +
-      kpiBtn("Metragem", formatMetros(s.metragemTotal), s.metragemTotal ? "ok" : "warn");
+      kpiBtn("Total", s.total, "ok", "total") +
+      kpiBtn("Ativas", s.ativas, "ok", "ativas") +
+      kpiBtn("Concluídas", s.concluidas, "ok", "concluidas") +
+      kpiBtn("Em atraso", s.atraso, s.atraso ? "bad" : "ok", "atraso") +
+      kpiBtn(valorModoLabel, formatBRL(s.valorTotal), s.valorTotal ? "ok" : "warn", "valor") +
+      kpiBtn("Portas novas", formatQtd(s.portasNovasTotal), s.portasNovasTotal ? "ok" : "warn", "portas") +
+      kpiBtn("Metragem", formatMetros(s.metragemTotal), s.metragemTotal ? "ok" : "warn", "metragem");
   }
 
   const sitItems = [
@@ -9127,7 +9187,19 @@ function renderDashPjDrill(nome, baseList) {
     {
       colors: sitItems.map((it) => it.color),
       showPct: true,
-      onBarClick: () => openDashGeoProjetosLista("projetista", nome),
+      onBarClick: (label) => {
+        const sitSlice =
+          label === "Ativas"
+            ? "ativas"
+            : label === "Pausadas"
+              ? "pausadas"
+              : label === "Concluídas"
+                ? "concluidas"
+                : label === "Reprovadas"
+                  ? "reprovadas"
+                  : "total";
+        openDashGeoProjetosLista("projetista", nome, sitSlice);
+      },
     },
   );
 
@@ -9150,7 +9222,7 @@ function renderDashPjDrill(nome, baseList) {
       formatValue: (v) => String(v),
       horizontal: true,
       showPct: true,
-      onBarClick: () => openDashGeoProjetosLista("projetista", nome),
+      onBarClick: (_l, i) => openDashGeoProjetosLista("projetista", nome, `tipo:${tipos[i]?.tipo || ""}`),
     },
   );
 
@@ -9173,7 +9245,7 @@ function renderDashPjDrill(nome, baseList) {
       formatValue: (v) => String(v),
       horizontal: true,
       showPct: true,
-      onBarClick: () => openDashGeoProjetosLista("projetista", nome),
+      onBarClick: (_l, i) => openDashGeoProjetosLista("projetista", nome, `fase:${faseItems[i]?.key || ""}`),
     },
   );
 }
