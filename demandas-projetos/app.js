@@ -7079,21 +7079,15 @@ function truncateChartLabel(text, max = 20) {
 }
 
 const DASH_REGIONAL_CHART_IDS = [
-  "chartCidGastoCidade",
-  "chartCidGastoRegional",
-  "chartCidPortasCidade",
-  "chartCidPortasRegional",
-  "chartCidTipoCidade",
-  "chartCidTipoRegional",
-];
-
-const DASH_REGIONAL_TABLE_IDS = [
-  "tableCidGastoCidade",
-  "tableCidGastoRegional",
-  "tableCidPortasCidade",
-  "tableCidPortasRegional",
-  "tableCidTipoCidade",
-  "tableCidTipoRegional",
+  "chartCidRankSit",
+  "chartCidRankGastos",
+  "chartCidRankPortas",
+  "chartCidSit",
+  "chartCidTipoMix",
+  "chartCidFase",
+  "chartCidCitySit",
+  "chartCidCityGastos",
+  "chartCidCityPortas",
 ];
 
 function destroyDashRegionalCharts() {
@@ -7102,10 +7096,6 @@ function destroyDashRegionalCharts() {
       dashCharts[id].destroy();
       delete dashCharts[id];
     }
-  });
-  DASH_REGIONAL_TABLE_IDS.forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = "";
   });
 }
 
@@ -8580,7 +8570,7 @@ function populateDashCidadesFilters(demandas) {
   const regionais = collectRegionaisFromDemandas(demandas);
   fillSelectOptions(
     selReg,
-    [{ value: "", label: "Todas" }, ...regionais.map((r) => ({ value: r, label: r }))],
+    [{ value: "", label: "Todas as regionais" }, ...regionais.map((r) => ({ value: r, label: r }))],
     false,
   );
   if (savedReg && [...selReg.options].some((o) => o.value === savedReg)) selReg.value = savedReg;
@@ -8588,7 +8578,7 @@ function populateDashCidadesFilters(demandas) {
   const cidades = collectCidadesFromDemandas(demandas, selReg.value);
   fillSelectOptions(
     selCid,
-    [{ value: "", label: "Todas" }, ...cidades.map((c) => ({ value: c, label: c }))],
+    [{ value: "", label: "Todas as cidades" }, ...cidades.map((c) => ({ value: c, label: c }))],
     false,
   );
   if (savedCid && [...selCid.options].some((o) => o.value === savedCid)) selCid.value = savedCid;
@@ -8668,11 +8658,12 @@ function listDemandasDashGeo(kind, key, slice) {
   if (kind === "projetista") {
     return filterDemandasPjSlice(demandasDoProjetista(alvo, demandasDashOperacionalList()), slice);
   }
-  const list = filterDemandasModoDash(filterDemandasDashCidades(demandasDashOperacionalList()));
-  if (kind === "regional") {
-    return list.filter((d) => labelRegionalDemanda(d) === alvo);
-  }
-  return list.filter((d) => labelCidade(d.cidade) === alvo);
+  const list = demandasDashOperacionalList();
+  const geo =
+    kind === "regional"
+      ? list.filter((d) => labelRegionalDemanda(d) === alvo)
+      : list.filter((d) => labelCidade(d.cidade) === alvo);
+  return filterDemandasPjSlice(geo, slice);
 }
 
 let dashGeoListaCtx = null;
@@ -8876,26 +8867,67 @@ function initDashGeoProjetosLista() {
 
 let dashCidadesDrillRegional = "";
 
-const DASH_CIDADES_DRILL_CHART_IDS = ["chartCidGastoCidade", "chartCidPortasCidade", "chartCidTipoCidade"];
-const DASH_CIDADES_DRILL_TABLE_IDS = ["tableCidGastoCidade", "tableCidPortasCidade", "tableCidTipoCidade"];
+const DASH_CIDADES_DRILL_CHART_IDS = [
+  "chartCidSit",
+  "chartCidTipoMix",
+  "chartCidFase",
+  "chartCidCitySit",
+  "chartCidCityGastos",
+  "chartCidCityPortas",
+];
+const DASH_CIDADES_RANK_CHART_IDS = ["chartCidRankSit", "chartCidRankGastos", "chartCidRankPortas"];
+
+function statsGeoGrupo(list) {
+  const mode = getDashValorModo();
+  let valorTotal = 0;
+  let metragemTotal = 0;
+  let portasNovasTotal = 0;
+  for (const d of list) {
+    valorTotal += demandaValorDashPorModo(d, mode);
+    metragemTotal += demandaMetragemDashPorModo(d, mode);
+    portasNovasTotal += demandaPortasDashPorModo(d, mode);
+  }
+  return { ...countDemandas(list), valorTotal, metragemTotal, portasNovasTotal, list };
+}
+
+function buildStatsGeoPorGrupo(demandas, keyFn) {
+  const map = new Map();
+  for (const d of demandas) {
+    const key = keyFn(d);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(d);
+  }
+  return [...map.entries()]
+    .map(([nome, list]) => ({ nome, ...statsGeoGrupo(list) }))
+    .filter((r) => r.total > 0)
+    .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, "pt-BR"));
+}
 
 function hideDashCidadesDrill() {
   const drillEl = document.getElementById("dashCidadesDrill");
   if (drillEl) drillEl.hidden = true;
+  const kpis = document.getElementById("dashCidadesDrillKpis");
+  if (kpis) kpis.innerHTML = "";
+  const titleEl = document.getElementById("dashCidadesDrillTitle");
+  if (titleEl) titleEl.textContent = "Detalhe da regional";
+  const hintEl = document.getElementById("dashCidadesDrillHint");
+  if (hintEl) hintEl.textContent = "";
   DASH_CIDADES_DRILL_CHART_IDS.forEach((id) => {
     if (dashCharts[id]) {
       dashCharts[id].destroy();
       delete dashCharts[id];
     }
   });
-  DASH_CIDADES_DRILL_TABLE_IDS.forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = "";
-  });
 }
 
-function setDashCidadesDrillRegional(regional) {
-  dashCidadesDrillRegional = String(regional || "");
+function setDashCidadesDrillRegional(regional, { syncSelect = true } = {}) {
+  dashCidadesDrillRegional = String(regional || "").trim();
+  if (syncSelect) {
+    const sel = document.getElementById("filterDashCidadesRegional");
+    if (sel) sel.value = dashCidadesDrillRegional;
+    const selCid = document.getElementById("filterDashCidadesCidade");
+    if (selCid && !dashCidadesDrillRegional) selCid.value = "";
+  }
   renderDashCidades();
   if (!dashCidadesDrillRegional) return;
   requestAnimationFrame(() => {
@@ -8909,125 +8941,196 @@ function initDashCidadesDrill() {
   document.getElementById("btnDashCidadesDrillFechar")?.addEventListener("click", () => {
     setDashCidadesDrillRegional("");
   });
+  document.getElementById("btnDashCidadesVerProjetos")?.addEventListener("click", () => {
+    if (dashCidadesDrillRegional) openDashGeoProjetosLista("regional", dashCidadesDrillRegional, "total");
+  });
+}
+
+function renderDashGeoRankCharts(prefix, rows, onPick, activeNome) {
+  if (!rows.length) return;
+  const sitId = `${prefix}Sit`;
+  const gasId = `${prefix}Gastos`;
+  const porId = `${prefix}Portas`;
+  const colors = (list, active, idle) => list.map((r) => (r.nome === activeNome ? active : idle));
+  setDashPjChartWrapHeight(sitId, rows.length);
+  setDashPjChartWrapHeight(gasId, rows.length);
+  setDashPjChartWrapHeight(porId, rows.length);
+  const ordered = [...rows].sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, "pt-BR"));
+  makeDashChartProjetistaStacked(
+    sitId,
+    ordered.map((r) => truncateChartLabel(r.nome, 18)),
+    [
+      { label: "Ativas", data: ordered.map((r) => r.ativas), backgroundColor: "#6366f1", borderWidth: 0 },
+      { label: "Concluídas", data: ordered.map((r) => r.concluidas), backgroundColor: "#22c55e", borderWidth: 0 },
+      { label: "Pausadas", data: ordered.map((r) => r.pausadas), backgroundColor: "#f59e0b", borderWidth: 0 },
+      { label: "Reprovadas", data: ordered.map((r) => r.reprovadas), backgroundColor: "#ef4444", borderWidth: 0 },
+    ].filter((ds) => ds.data.some((n) => n > 0)),
+    { horizontal: true, showPct: true, onBarClick: (_l, i) => onPick(ordered[i]?.nome) },
+  );
+  const gastosRows = [...ordered].sort((a, b) => b.valorTotal - a.valorTotal || a.nome.localeCompare(b.nome, "pt-BR"));
+  makeDashChartMoneyBar(
+    gasId,
+    gastosRows.map((r) => truncateChartLabel(r.nome, 18)),
+    gastosRows.map((r) => r.valorTotal),
+    colors(gastosRows, "#4ade80", "#22c55e"),
+    {
+      horizontal: true,
+      showPct: true,
+      datasetLabel: labelValorDashModo(),
+      onBarClick: (_l, i) => onPick(gastosRows[i]?.nome),
+    },
+  );
+  const portasRows = [...ordered].sort(
+    (a, b) => b.portasNovasTotal - a.portasNovasTotal || a.nome.localeCompare(b.nome, "pt-BR"),
+  );
+  makeDashChartMetricBar(
+    porId,
+    portasRows.map((r) => truncateChartLabel(r.nome, 18)),
+    portasRows.map((r) => r.portasNovasTotal),
+    {
+      colors: colors(portasRows, "#67e8f9", "#06b6d4"),
+      datasetLabel: "Portas novas",
+      formatValue: formatQtd,
+      horizontal: true,
+      showPct: true,
+      onBarClick: (_l, i) => onPick(portasRows[i]?.nome),
+    },
+  );
+}
+
+function renderDashGeoDetailCharts(list, kind, key) {
+  const s = statsGeoGrupo(list);
+  const sitItems = [
+    { label: "Ativas", n: s.ativas, color: "#6366f1" },
+    { label: "Pausadas", n: s.pausadas, color: "#f59e0b" },
+    { label: "Concluídas", n: s.concluidas, color: "#22c55e" },
+    { label: "Reprovadas", n: s.reprovadas, color: "#ef4444" },
+  ].filter((it) => it.n > 0);
+  makeDashChart(
+    "chartCidSit",
+    "doughnut",
+    sitItems.map((it) => it.label),
+    sitItems.map((it) => it.n),
+    {
+      colors: sitItems.map((it) => it.color),
+      showPct: true,
+      onBarClick: (label) => {
+        const sitSlice =
+          label === "Ativas"
+            ? "ativas"
+            : label === "Pausadas"
+              ? "pausadas"
+              : label === "Concluídas"
+                ? "concluidas"
+                : label === "Reprovadas"
+                  ? "reprovadas"
+                  : "total";
+        openDashGeoProjetosLista(kind, key, sitSlice);
+      },
+    },
+  );
+
+  const tipos = tiposOperacionalDash()
+    .map((tipo) => ({
+      tipo,
+      n: list.filter((d) => normalizeTipo(d.tipo) === tipo).length,
+      color: TIPO_CHART_COLORS[tipo] || "#94a3b8",
+    }))
+    .filter((it) => it.n > 0)
+    .sort((a, b) => b.n - a.n);
+  setDashPjChartWrapHeight("chartCidTipoMix", tipos.length, 180, 32);
+  makeDashChartMetricBar(
+    "chartCidTipoMix",
+    tipos.map((it) => it.tipo),
+    tipos.map((it) => it.n),
+    {
+      colors: tipos.map((it) => it.color),
+      datasetLabel: "Projetos",
+      formatValue: (v) => String(v),
+      horizontal: true,
+      showPct: true,
+      onBarClick: (_l, i) => openDashGeoProjetosLista(kind, key, `tipo:${tipos[i]?.tipo || ""}`),
+    },
+  );
+
+  const faseItems = [...STATUS_ORDER, ...STATUS_EXTRA]
+    .map(([status, label]) => ({
+      key: status,
+      label,
+      n: list.filter((d) => migrateDemanda(d).status === status).length,
+      color: STATUS_CHART_COLORS[status] || "#94a3b8",
+    }))
+    .filter((it) => it.n > 0);
+  setDashPjChartWrapHeight("chartCidFase", faseItems.length, 220, 26);
+  makeDashChartMetricBar(
+    "chartCidFase",
+    faseItems.map((it) => truncateChartLabel(it.label, 22)),
+    faseItems.map((it) => it.n),
+    {
+      colors: faseItems.map((it) => it.color),
+      datasetLabel: "Projetos",
+      formatValue: (v) => String(v),
+      horizontal: true,
+      showPct: true,
+      onBarClick: (_l, i) => openDashGeoProjetosLista(kind, key, `fase:${faseItems[i]?.key || ""}`),
+    },
+  );
+  return s;
 }
 
 function renderDashCidades() {
   const kpiEl = document.getElementById("dashCidadesKpis");
-  const tiposKpiEl = document.getElementById("dashCidadesTiposKpis");
   const countEl = document.getElementById("dashCidadesCount");
+  const rankEl = document.getElementById("dashCidadesRankCharts");
 
   const todasBase = demandasDashOperacionalList();
   populateDashCidadesFilters(todasBase);
-  const filtradasGeo = filterDemandasDashCidades(todasBase);
-  const todas = filterDemandasModoDash(filtradasGeo);
-  const rows = buildStatsPorCidade(todas);
-  const rowsRegional = buildStatsPorRegional(todas);
-  const tiposDash = tiposOperacionalDash();
+  const filtroReg = document.getElementById("filterDashCidadesRegional")?.value || "";
+  if (filtroReg) dashCidadesDrillRegional = filtroReg;
+
+  const rowsRegional = buildStatsGeoPorGrupo(todasBase, labelRegionalDemanda);
+  const rowsCidadeAll = buildStatsGeoPorGrupo(todasBase, (d) => labelCidade(d.cidade));
+  const tot = statsGeoGrupo(todasBase);
 
   if (!todasBase.length) {
     destroyDashRegionalCharts();
     hideDashCidadesDrill();
     if (kpiEl) kpiEl.innerHTML = "";
-    if (tiposKpiEl) tiposKpiEl.innerHTML = "";
+    if (rankEl) rankEl.hidden = true;
     if (countEl) countEl.textContent = "Nenhum projeto cadastrado.";
     return;
   }
 
-  if (!todas.length) {
-    destroyDashRegionalCharts();
-    hideDashCidadesDrill();
-    if (kpiEl) kpiEl.innerHTML = "";
-    if (tiposKpiEl) tiposKpiEl.innerHTML = "";
-    const modoLabel = labelValorDashModo().toLowerCase();
-    if (countEl) {
-      countEl.textContent = dashCidadesFiltroAtivo()
-        ? "Nenhum projeto encontrado com os filtros atuais e a base de indicadores selecionada."
-        : `Nenhum projeto na base «${modoLabel}».`;
-    }
-    return;
-  }
-
-  const totais = rows.reduce(
-    (acc, r) => {
-      acc.projetos += r.projetos;
-      acc.concluidas += r.concluidas;
-      acc.valor += r.valor;
-      acc.portasNovas += r.portasNovas;
-      acc.metragem += r.metragem;
-      return acc;
-    },
-    emptyStatsCidade("Total"),
-  );
-
   if (kpiEl) {
     kpiEl.innerHTML =
       kpiCard("Regionais", rowsRegional.length, "ok") +
-      kpiCard("Cidades", rows.length, "ok") +
-      kpiCard("Projetos", totais.projetos, "ok") +
-      kpiCard(
-        "% conclusão",
-        formatPct(statsCidadePctConclusao(totais)),
-        totais.projetos ? "ok" : "warn",
-      ) +
-      kpiCard(labelValorDashModo(), formatBRL(totais.valor), totais.valor ? "ok" : "warn") +
-      kpiCard("Portas novas", formatQtd(totais.portasNovas), totais.portasNovas ? "ok" : "warn") +
-      kpiCard("Metragem lanç.", formatMetros(totais.metragem), totais.metragem ? "ok" : "warn");
+      kpiCard("Cidades", rowsCidadeAll.length, "ok") +
+      kpiCard("Projetos", tot.total, tot.total ? "ok" : "warn") +
+      kpiCard("Em atraso", tot.atraso, tot.atraso ? "bad" : "ok") +
+      kpiCard(labelValorDashModo(), formatBRL(tot.valorTotal), tot.valorTotal ? "ok" : "warn") +
+      kpiCard("Portas novas", formatQtd(tot.portasNovasTotal), tot.portasNovasTotal ? "ok" : "warn");
   }
-
-  const porTipo = Object.fromEntries(tiposDash.map((t) => [t, 0]));
-  todas.forEach((d) => {
-    const t = normalizeTipo(d.tipo);
-    if (porTipo[t] !== undefined) porTipo[t] += 1;
-  });
-  if (tiposKpiEl) {
-    tiposKpiEl.innerHTML = tiposDash
-      .map((t) => kpiCard(t, porTipo[t] || 0, porTipo[t] ? "ok" : "warn"))
-      .join("");
-  }
-
   if (countEl) {
-    const sufixo = dashCidadesFiltroAtivo() ? " no filtro." : " no total.";
-    countEl.textContent = `${rowsRegional.length} regional(is) · ${rows.length} cidade(s) · ${totais.projetos} projeto(s) · Esteira Projetos (sem B2B)${sufixo}`;
+    countEl.textContent = `${rowsRegional.length} regional(is) · ${rowsCidadeAll.length} cidade(s) · ${tot.total} projeto(s) · Esteira Projetos (sem B2B) · ${labelDashPeriodoFiltro()}.`;
   }
 
-  const nReg = Math.max(rowsRegional.length, 1);
-  const modo = getDashValorModo();
-  const onRegionalClick = (regional) => setDashCidadesDrillRegional(regional);
-  renderDashTipoValorPorGrupo("chartCidGastoRegional", "tableCidGastoRegional", todas, rowsRegional, (d) => labelRegionalDemanda(d), "Regional", {
-    valueFn: (d) => demandaValorDashPorModo(d, modo),
-    topN: nReg,
-    tipos: tiposDash,
-    chartOpts: {
-      formatValue: (n) => formatBRL(n),
-      yFormat: (v) => formatBRL(v),
-      truncateLabel: 40,
-      onBarClick: onRegionalClick,
-    },
-    tableOpts: { formatCell: (n) => (n > 0 ? formatBRL(n) : "—"), formatTotal: (n) => (n > 0 ? formatBRL(n) : "—") },
-  });
-  renderDashTipoValorPorGrupo("chartCidPortasRegional", "tableCidPortasRegional", todas, rowsRegional, (d) => labelRegionalDemanda(d), "Regional", {
-    valueFn: (d) => demandaPortasDashPorModo(d, modo),
-    sortValueFn: (r) => r.portasNovas,
-    topN: nReg,
-    tipos: tiposDash,
-    chartOpts: { formatValue: (n) => formatQtd(n), stepSize: 1, truncateLabel: 40, onBarClick: onRegionalClick },
-    tableOpts: { formatCell: (n) => (n > 0 ? formatQtd(n) : "—"), formatTotal: (n) => (n > 0 ? formatQtd(n) : "—") },
-  });
-  renderDashTipoPorGrupo(
-    "chartCidTipoRegional",
-    "tableCidTipoRegional",
-    todas,
-    rowsRegional,
-    labelRegionalDemanda,
-    "Regional",
-    nReg,
-    tiposDash,
-    onRegionalClick,
-  );
+  if (!rowsRegional.length) {
+    DASH_CIDADES_RANK_CHART_IDS.forEach((id) => {
+      if (dashCharts[id]) {
+        dashCharts[id].destroy();
+        delete dashCharts[id];
+      }
+    });
+    if (rankEl) rankEl.hidden = true;
+    hideDashCidadesDrill();
+    return;
+  }
 
-  const drillEl = document.getElementById("dashCidadesDrill");
-  const regionaisValidas = new Set(rowsRegional.map((r) => r.cidade));
-  if (dashCidadesDrillRegional && !regionaisValidas.has(dashCidadesDrillRegional)) {
+  if (rankEl) rankEl.hidden = false;
+  renderDashGeoRankCharts("chartCidRank", rowsRegional, (nome) => setDashCidadesDrillRegional(nome), dashCidadesDrillRegional);
+
+  const nomesValidos = new Set(rowsRegional.map((r) => r.nome));
+  if (dashCidadesDrillRegional && !nomesValidos.has(dashCidadesDrillRegional)) {
     dashCidadesDrillRegional = "";
   }
   if (!dashCidadesDrillRegional) {
@@ -9035,43 +9138,51 @@ function renderDashCidades() {
     return;
   }
 
-  const dasCidades = todas.filter((d) => labelRegionalDemanda(d) === dashCidadesDrillRegional);
-  const rowsCidade = buildStatsPorCidade(dasCidades);
-  if (drillEl) drillEl.hidden = false;
+  const listReg = todasBase.filter((d) => labelRegionalDemanda(d) === dashCidadesDrillRegional);
+  const s = statsGeoGrupo(listReg);
+  const drillEl = document.getElementById("dashCidadesDrill");
   const titleEl = document.getElementById("dashCidadesDrillTitle");
   const hintEl = document.getElementById("dashCidadesDrillHint");
-  if (titleEl) titleEl.textContent = `Cidades — ${dashCidadesDrillRegional}`;
+  const kpisEl = document.getElementById("dashCidadesDrillKpis");
+  if (drillEl) drillEl.hidden = false;
+  if (titleEl) titleEl.textContent = dashCidadesDrillRegional;
   if (hintEl) {
-    hintEl.textContent = `${rowsCidade.length} cidade(s) nesta regional. Clique na barra ou no nome na tabela para abrir os projetos.`;
+    hintEl.textContent = `${s.total} projeto(s) nesta regional · ${labelDashPeriodoFiltro()}. Clique em cada número para ver os projetos correspondentes.`;
+  }
+  if (kpisEl) {
+    const geoAttrs = `data-dash-geo-list data-dash-geo-kind="regional" data-dash-geo-key="${escapeHtml(dashCidadesDrillRegional)}"`;
+    const kpiBtn = (label, value, tone, slice) =>
+      `<button type="button" class="kpi kpi--${tone} kpi--click" ${geoAttrs} data-dash-geo-slice="${escapeHtml(slice)}" title="Ver ${escapeHtml(label)}">` +
+      `<div class="kpi__label">${label}</div><div class="kpi__value">${value}</div></button>`;
+    kpisEl.innerHTML =
+      kpiBtn("Total", s.total, "ok", "total") +
+      kpiBtn("Ativas", s.ativas, "ok", "ativas") +
+      kpiBtn("Concluídas", s.concluidas, "ok", "concluidas") +
+      kpiBtn("Em atraso", s.atraso, s.atraso ? "bad" : "ok", "atraso") +
+      kpiBtn(labelValorDashModo(), formatBRL(s.valorTotal), s.valorTotal ? "ok" : "warn", "valor") +
+      kpiBtn("Portas novas", formatQtd(s.portasNovasTotal), s.portasNovasTotal ? "ok" : "warn", "portas") +
+      kpiBtn("Metragem", formatMetros(s.metragemTotal), s.metragemTotal ? "ok" : "warn", "metragem");
   }
 
-  const onCidadeClick = (cidade) => openDashGeoProjetosLista("cidade", cidade);
-  renderDashTipoValorPorGrupo("chartCidGastoCidade", "tableCidGastoCidade", dasCidades, rowsCidade, (d) => labelCidade(d.cidade), "Cidade", {
-    valueFn: (d) => demandaValorDashPorModo(d, modo),
-    topN: 12,
-    tipos: tiposDash,
-    chartOpts: { formatValue: (n) => formatBRL(n), yFormat: (v) => formatBRL(v), onBarClick: onCidadeClick },
-    tableOpts: { formatCell: (n) => (n > 0 ? formatBRL(n) : "—"), formatTotal: (n) => (n > 0 ? formatBRL(n) : "—") },
-  });
-  renderDashTipoValorPorGrupo("chartCidPortasCidade", "tableCidPortasCidade", dasCidades, rowsCidade, (d) => labelCidade(d.cidade), "Cidade", {
-    valueFn: (d) => demandaPortasDashPorModo(d, modo),
-    sortValueFn: (r) => r.portasNovas,
-    topN: 12,
-    tipos: tiposDash,
-    chartOpts: { formatValue: (n) => formatQtd(n), stepSize: 1, onBarClick: onCidadeClick },
-    tableOpts: { formatCell: (n) => (n > 0 ? formatQtd(n) : "—"), formatTotal: (n) => (n > 0 ? formatQtd(n) : "—") },
-  });
-  renderDashTipoPorGrupo(
-    "chartCidTipoCidade",
-    "tableCidTipoCidade",
-    dasCidades,
-    rowsCidade,
-    (d) => labelCidade(d.cidade),
-    "Cidade",
-    12,
-    tiposDash,
-    onCidadeClick,
-  );
+  renderDashGeoDetailCharts(listReg, "regional", dashCidadesDrillRegional);
+
+  const rowsCidade = buildStatsGeoPorGrupo(listReg, (d) => labelCidade(d.cidade));
+  const cityCharts = document.getElementById("dashCidadesCityCharts");
+  const cityHead = document.getElementById("dashCidadesCityHead");
+  if (!rowsCidade.length) {
+    ["chartCidCitySit", "chartCidCityGastos", "chartCidCityPortas"].forEach((id) => {
+      if (dashCharts[id]) {
+        dashCharts[id].destroy();
+        delete dashCharts[id];
+      }
+    });
+    if (cityCharts) cityCharts.hidden = true;
+    if (cityHead) cityHead.hidden = true;
+    return;
+  }
+  if (cityCharts) cityCharts.hidden = false;
+  if (cityHead) cityHead.hidden = false;
+  renderDashGeoRankCharts("chartCidCity", rowsCidade, (cidade) => openDashGeoProjetosLista("cidade", cidade, "total"));
 }
 
 function demandaTempoTotalMs(d) {
@@ -11857,10 +11968,19 @@ document.getElementById("btnDashViabilidadeAtualizar")?.addEventListener("click"
 document.getElementById("filterDashCidadesRegional")?.addEventListener("change", () => {
   const base = demandasDashOperacionalList();
   populateDashCidadesFilters(base);
-  if (isDashBlockVisible("cidades")) renderDashCidades();
+  const v = document.getElementById("filterDashCidadesRegional")?.value || "";
+  setDashCidadesDrillRegional(v, { syncSelect: false });
 });
 document.getElementById("filterDashCidadesCidade")?.addEventListener("change", () => {
-  if (isDashBlockVisible("cidades")) renderDashCidades();
+  const cidade = document.getElementById("filterDashCidadesCidade")?.value || "";
+  if (!cidade) {
+    if (isDashBlockVisible("cidades")) renderDashCidades();
+    return;
+  }
+  const reg = regionalFromCidadeLabel(cidade);
+  const selReg = document.getElementById("filterDashCidadesRegional");
+  if (selReg && reg) selReg.value = reg;
+  setDashCidadesDrillRegional(reg, { syncSelect: false });
 });
 ["filterDashAtrasoBusca", "filterDashAtrasoResp", "filterDashAtrasoAno", "filterDashAtrasoMes"].forEach((id) => {
   const el = document.getElementById(id);
