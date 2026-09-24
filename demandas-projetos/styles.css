@@ -860,6 +860,162 @@ textarea {
   white-space: nowrap;
 }
 .checklist-toggle:hover { color: var(--text); }
+.checklist-gantt {
+  margin: 0.45rem 0 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.checklist-gantt[hidden] { display: none !important; }
+.checklist-gantt__empty {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+}
+.checklist-gantt__scroll {
+  overflow: auto;
+  max-height: min(22rem, 52vh);
+}
+.checklist-gantt__inner {
+  --gantt-w: 20rem;
+  --gantt-col: 32px;
+  min-width: calc(11rem + var(--gantt-w));
+}
+.checklist-gantt__head,
+.checklist-gantt__row {
+  display: grid;
+  grid-template-columns: 11rem var(--gantt-w);
+}
+.checklist-gantt__head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.checklist-gantt__label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 11rem;
+  padding: 0.38rem 0.7rem;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  min-width: 0;
+}
+.checklist-gantt__head .checklist-gantt__label {
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  background: var(--surface2);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.checklist-gantt__label strong {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.checklist-gantt__label span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.checklist-gantt__row.is-off .checklist-gantt__label strong { font-weight: 500; color: var(--muted); }
+.checklist-gantt__axis,
+.checklist-gantt__track {
+  position: relative;
+  width: var(--gantt-w);
+  min-width: var(--gantt-w);
+}
+.checklist-gantt__months,
+.checklist-gantt__ticks {
+  display: flex;
+}
+.checklist-gantt__month,
+.checklist-gantt__tick {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border-left: 1px solid var(--border);
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.15;
+}
+.checklist-gantt__month {
+  padding: 0.28rem 0.2rem 0.12rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.checklist-gantt__ticks.is-days .checklist-gantt__tick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.08rem 0 0.22rem;
+}
+.checklist-gantt__ticks.is-weeks .checklist-gantt__tick {
+  padding: 0.2rem 0.15rem 0.28rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.checklist-gantt__row {
+  border-top: 1px solid rgba(42, 53, 68, 0.7);
+}
+.checklist-gantt__row:first-child { border-top: none; }
+.checklist-gantt__track {
+  height: 2.45rem;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--gantt-col) - 1px),
+      rgba(42, 53, 68, 0.85) calc(var(--gantt-col) - 1px),
+      rgba(42, 53, 68, 0.85) var(--gantt-col)
+    );
+}
+.checklist-gantt__bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 1.05rem;
+  min-width: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.checklist-gantt__bar.is-done { background: var(--accent2); }
+.checklist-gantt__mark {
+  position: absolute;
+  top: 50%;
+  width: 0.72rem;
+  height: 0.72rem;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border-radius: 2px;
+  background: var(--warn);
+}
+.checklist-gantt__mark.is-done { background: var(--accent2); }
+.checklist-gantt__today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--danger);
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 1;
+}
 .checklist-list {
   list-style: none;
   margin: 0;

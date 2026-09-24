@@ -5323,6 +5323,269 @@ function renderChecklistEditor() {
     li.append(box, name, meta, rm);
     list.appendChild(li);
   });
+  renderChecklistGantt();
+}
+
+const GANTT_PAD_DAYS = 2;
+const GANTT_WEEK_AFTER_DAYS = 21;
+const GANTT_COL_DAY_PX = 32;
+const GANTT_COL_COMPACT_PX = 16;
+const WEEKDAYS_PT = ["D", "S", "T", "Q", "Q", "S", "S"];
+const MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+function checklistGanttItemStart(it) {
+  return isoDatePart(it?.dateInicio) || "";
+}
+
+function checklistGanttItemEnd(it) {
+  return isoDatePart(it?.date) || "";
+}
+
+function checklistGanttRange(items) {
+  let min = "";
+  let max = "";
+  for (const it of items) {
+    const start = checklistGanttItemStart(it);
+    const end = checklistGanttItemEnd(it);
+    const a = start || end;
+    const b = end || start;
+    if (a && (!min || a < min)) min = a;
+    if (b && (!max || b > max)) max = b;
+  }
+  if (!min || !max) return null;
+  if (min > max) {
+    const swap = min;
+    min = max;
+    max = swap;
+  }
+  const start = addDaysISO(min, -GANTT_PAD_DAYS) || min;
+  const end = addDaysISO(max, GANTT_PAD_DAYS) || max;
+  return { start, end };
+}
+
+function checklistGanttDays(start, end) {
+  const days = [];
+  let cur = start;
+  while (cur && cur <= end) {
+    days.push(cur);
+    const next = addDaysISO(cur, 1);
+    if (!next || next === cur) break;
+    cur = next;
+  }
+  return days;
+}
+
+function checklistGanttGroups(days, keyFn) {
+  const groups = [];
+  for (const iso of days) {
+    const key = keyFn(iso);
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.days.push(iso);
+    else groups.push({ key, days: [iso] });
+  }
+  return groups;
+}
+
+function checklistGanttMonthKey(iso) {
+  return String(iso || "").slice(0, 7);
+}
+
+function checklistGanttMonthLabel(iso) {
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})/);
+  if (!m) return iso || "";
+  const month = MONTHS_PT[Number(m[2]) - 1] || m[2];
+  return `${month} ${m[1]}`;
+}
+
+function checklistGanttWeekStart(iso) {
+  const t = parseDate(iso);
+  if (t == null) return iso;
+  const d = new Date(t);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  const pad = (x) => String(x).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function checklistGanttWeekLabel(days) {
+  if (!days.length) return "";
+  const a = days[0];
+  const b = days[days.length - 1];
+  const ma = String(a).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const mb = String(b).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!ma || !mb) return `${formatDataCurta(a)} – ${formatDataCurta(b)}`;
+  if (ma[2] === mb[2]) return `${ma[3]}–${mb[3]}/${ma[2]}`;
+  return `${ma[3]}/${ma[2]}–${mb[3]}/${mb[2]}`;
+}
+
+function checklistGanttWeekday(iso) {
+  const t = parseDate(iso);
+  if (t == null) return "";
+  return WEEKDAYS_PT[new Date(t).getDay()] || "";
+}
+
+function checklistGanttDayNum(iso) {
+  const m = String(iso || "").match(/-(\d{2})$/);
+  return m ? String(Number(m[1])) : "";
+}
+
+function setChecklistGanttOpen(open) {
+  const btn = document.getElementById("btnChecklistGantt");
+  const panel = document.getElementById("demChecklistGantt");
+  if (btn) {
+    btn.setAttribute("aria-expanded", String(open));
+    btn.textContent = open ? "Fechar cronograma" : "Abrir cronograma";
+  }
+  if (panel) panel.hidden = !open;
+  if (open) renderChecklistGantt();
+}
+
+function renderChecklistGantt() {
+  const host = document.getElementById("demChecklistGantt");
+  if (!host || host.hidden) return;
+  const items = normalizeChecklist(editingChecklist);
+  const range = checklistGanttRange(items);
+  host.replaceChildren();
+  if (!range) {
+    const empty = document.createElement("p");
+    empty.className = "muted small checklist-gantt__empty";
+    empty.textContent = "Adicione etapas com início e término para ver o cronograma.";
+    host.appendChild(empty);
+    return;
+  }
+  const days = checklistGanttDays(range.start, range.end);
+  if (!days.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted small checklist-gantt__empty";
+    empty.textContent = "Adicione etapas com início e término para ver o cronograma.";
+    host.appendChild(empty);
+    return;
+  }
+  const compact = days.length > GANTT_WEEK_AFTER_DAYS;
+  const colPx = compact ? GANTT_COL_COMPACT_PX : GANTT_COL_DAY_PX;
+  const chartW = days.length * colPx;
+  const today = todayISODate();
+  const todayIdx = days.indexOf(today);
+  const todayPct = todayIdx >= 0 ? ((todayIdx + 0.5) / days.length) * 100 : null;
+
+  const scroll = document.createElement("div");
+  scroll.className = "checklist-gantt__scroll";
+  const inner = document.createElement("div");
+  inner.className = "checklist-gantt__inner";
+  inner.style.setProperty("--gantt-w", `${chartW}px`);
+  inner.style.setProperty("--gantt-col", `${colPx}px`);
+  inner.setAttribute("role", "img");
+  inner.setAttribute("aria-label", "Cronograma das etapas do checklist");
+
+  const head = document.createElement("div");
+  head.className = "checklist-gantt__head";
+  const headLabel = document.createElement("div");
+  headLabel.className = "checklist-gantt__label";
+  headLabel.textContent = "Etapa";
+  const axis = document.createElement("div");
+  axis.className = "checklist-gantt__axis";
+
+  const monthsRow = document.createElement("div");
+  monthsRow.className = "checklist-gantt__months";
+  checklistGanttGroups(days, checklistGanttMonthKey).forEach((g) => {
+    const cell = document.createElement("div");
+    cell.className = "checklist-gantt__month";
+    cell.style.width = `${g.days.length * colPx}px`;
+    cell.textContent = checklistGanttMonthLabel(g.days[0]);
+    monthsRow.appendChild(cell);
+  });
+
+  const ticksRow = document.createElement("div");
+  ticksRow.className = "checklist-gantt__ticks" + (compact ? " is-weeks" : " is-days");
+  if (compact) {
+    checklistGanttGroups(days, checklistGanttWeekStart).forEach((g) => {
+      const cell = document.createElement("div");
+      cell.className = "checklist-gantt__tick";
+      cell.style.width = `${g.days.length * colPx}px`;
+      cell.textContent = checklistGanttWeekLabel(g.days);
+      ticksRow.appendChild(cell);
+    });
+  } else {
+    days.forEach((iso) => {
+      const cell = document.createElement("div");
+      cell.className = "checklist-gantt__tick";
+      cell.style.width = `${colPx}px`;
+      const num = document.createElement("span");
+      num.textContent = checklistGanttDayNum(iso);
+      const wd = document.createElement("span");
+      wd.textContent = checklistGanttWeekday(iso);
+      cell.append(num, wd);
+      ticksRow.appendChild(cell);
+    });
+  }
+  axis.append(monthsRow, ticksRow);
+  if (todayPct != null) {
+    const todayLine = document.createElement("i");
+    todayLine.className = "checklist-gantt__today";
+    todayLine.style.left = `${todayPct}%`;
+    todayLine.setAttribute("aria-hidden", "true");
+    axis.appendChild(todayLine);
+  }
+  head.append(headLabel, axis);
+
+  const body = document.createElement("div");
+  body.className = "checklist-gantt__body";
+  items.forEach((it) => {
+    const row = document.createElement("div");
+    row.className = "checklist-gantt__row" + (it.done ? " is-done" : " is-off");
+    const label = document.createElement("div");
+    label.className = "checklist-gantt__label";
+    const name = document.createElement("strong");
+    name.textContent = it.name || "Etapa";
+    const who = document.createElement("span");
+    who.textContent = it.who || "—";
+    label.append(name, who);
+    const track = document.createElement("div");
+    track.className = "checklist-gantt__track";
+    if (todayPct != null) {
+      const todayLine = document.createElement("i");
+      todayLine.className = "checklist-gantt__today";
+      todayLine.style.left = `${todayPct}%`;
+      todayLine.setAttribute("aria-hidden", "true");
+      track.appendChild(todayLine);
+    }
+    let start = checklistGanttItemStart(it);
+    let end = checklistGanttItemEnd(it);
+    if (start && end && start > end) {
+      const swap = start;
+      start = end;
+      end = swap;
+    }
+    if (start && end) {
+      const i0 = days.indexOf(start);
+      const i1 = days.indexOf(end);
+      if (i0 >= 0 && i1 >= 0) {
+        const bar = document.createElement("div");
+        bar.className = "checklist-gantt__bar" + (it.done ? " is-done" : "");
+        bar.style.left = `${(i0 / days.length) * 100}%`;
+        bar.style.width = `${((i1 - i0 + 1) / days.length) * 100}%`;
+        bar.title = `${it.name} · Início ${formatDataCurta(start)} · Término ${formatDataCurta(end)}`;
+        track.appendChild(bar);
+      }
+    } else if (end || start) {
+      const pin = end || start;
+      const idx = days.indexOf(pin);
+      if (idx >= 0) {
+        const mark = document.createElement("div");
+        mark.className = "checklist-gantt__mark" + (it.done ? " is-done" : "");
+        mark.style.left = `${((idx + 0.5) / days.length) * 100}%`;
+        mark.title = `${it.name} · ${end ? "Término" : "Início"} ${formatDataCurta(pin)}`;
+        track.appendChild(mark);
+      }
+    }
+    row.append(label, track);
+    body.appendChild(row);
+  });
+
+  inner.append(head, body);
+  scroll.appendChild(inner);
+  host.appendChild(scroll);
 }
 
 function addChecklistEtapaFromForm() {
@@ -5360,6 +5623,11 @@ function bindChecklistEditor() {
     expand.setAttribute("aria-expanded", String(next));
     expand.textContent = next ? "Recolher detalhes" : "Expandir detalhes";
     if (details) details.hidden = !next;
+  });
+  document.getElementById("btnChecklistGantt")?.addEventListener("click", () => {
+    const btn = document.getElementById("btnChecklistGantt");
+    const open = btn?.getAttribute("aria-expanded") === "true";
+    setChecklistGanttOpen(!open);
   });
   document.getElementById("btnChecklistAdd")?.addEventListener("click", addChecklistEtapaFromForm);
   ["demChecklistEtapa", "demChecklistWho"].forEach((id) => {
@@ -5547,6 +5815,7 @@ function openDemandaModal(id) {
     expandBtn.textContent = "Expandir detalhes";
   }
   if (details) details.hidden = true;
+  setChecklistGanttOpen(false);
   const dateStartEl = document.getElementById("demChecklistDateInicio");
   if (dateStartEl) dateStartEl.value = todayISODate();
   const dateEl = document.getElementById("demChecklistDate");
