@@ -331,50 +331,6 @@
           </div>
         </section>
 
-        <section class="dash-block" data-dash-block="entrega-atraso">
-          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockEntregaAtraso">
-            <span>Entrega com atraso</span>
-            <span class="dash-block__chevron" aria-hidden="true"></span>
-          </button>
-          <div class="dash-block__body" id="dashBlockEntregaAtraso">
-        <p class="muted small dash-block__hint">Projetos em <strong>Conclusão</strong> com <strong>prazo previsto</strong> e <strong>data de término</strong> preenchidos. Em atraso = término depois do prazo. A lista detalha só os atrasados.</p>
-        <div class="dash-tempo-toolbar">
-          <label class="field field--inline">
-            <span>Buscar projeto</span>
-            <input type="search" id="filterDashAtrasoBusca" placeholder="Nome, cidade ou solicitante…" />
-          </label>
-          <label class="field field--inline">
-            <span>Projetista</span>
-            <select id="filterDashAtrasoResp">
-              <option value="">Selecione…</option>
-            </select>
-          </label>
-          <label class="field field--inline">
-            <span>Ano (término)</span>
-            <select id="filterDashAtrasoAno">
-              <option value="">Selecione…</option>
-            </select>
-          </label>
-          <label class="field field--inline">
-            <span>Mês (término)</span>
-            <select id="filterDashAtrasoMes">
-              <option value="">Selecione…</option>
-            </select>
-          </label>
-        </div>
-        <div class="dashboard-charts dashboard-charts--cf">
-          <div class="chart-card chart-card--wide">
-            <h4>Total e atrasos</h4>
-            <p class="muted small chart-card__sub">Concluídos comparáveis no filtro. Em atraso = entregues depois do prazo.</p>
-            <div class="chart-wrap"><canvas id="chartDashAtrasoResumo"></canvas></div>
-          </div>
-        </div>
-        <div class="kpi-grid" id="dashAtrasoKpis"></div>
-        <p class="muted small" id="dashAtrasoCount"></p>
-        <div class="dashboard-table-wrap" id="dashAtrasoTable"></div>
-          </div>
-        </section>
-
         <section class="dash-block" data-dash-block="cidades">
           <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockCidades">
             <span>Por regional e cidade</span>

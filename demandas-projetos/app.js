@@ -4719,7 +4719,6 @@ function fillDashProjetistaFilterSelects() {
   const opts = dashProjetistaFilterOptions();
   for (const id of [
     "filterDashCfResp",
-    "filterDashAtrasoResp",
     "filterDashTempoResp",
     "filterDashTempoB2bResp",
     "filterDashPeResp",
@@ -6851,7 +6850,6 @@ function initDashBlocks() {
       state[id] = nowVisible;
       saveDashBlocksState(state);
       if (
-        id === "entrega-atraso" ||
         id === "cidades" ||
         id === "tempo" ||
         id === "indicadores-b2c" ||
@@ -11191,161 +11189,6 @@ function renderDashTempoB2bTable() {
   renderDashTempoPanel(DASH_TEMPO_CFG_B2B);
 }
 
-function populateDashAtrasoAnoMes() {
-  const selAno = document.getElementById("filterDashAtrasoAno");
-  const selMes = document.getElementById("filterDashAtrasoMes");
-  if (!selAno) return;
-  const savedAno = selAno.value;
-  const savedMes = selMes?.value || "";
-  const years = new Set();
-  demandasDashOperacionalList().forEach((d) => {
-    const row = demandaEntregaComparavel(d);
-    if (!row) return;
-    const p = demandaTerminoPeriodo(row.d);
-    if (p) years.add(p.year);
-  });
-  const sorted = [...years].sort((a, b) => b - a);
-  selAno.innerHTML =
-    '<option value="">Selecione…</option>' +
-    sorted.map((y) => `<option value="${y}">${y}</option>`).join("");
-  if (savedAno && sorted.some((y) => String(y) === savedAno)) selAno.value = savedAno;
-
-  if (selMes) {
-    selMes.innerHTML =
-      '<option value="">Selecione…</option>' +
-      MESES_PT.map((lab, i) => {
-        const v = String(i + 1).padStart(2, "0");
-        return `<option value="${v}">${lab}</option>`;
-      }).join("");
-    if (savedMes) selMes.value = savedMes;
-  }
-}
-
-function dashAtrasoFiltroAtivo() {
-  const busca = (document.getElementById("filterDashAtrasoBusca")?.value || "").trim();
-  const resp = document.getElementById("filterDashAtrasoResp")?.value || "";
-  const ano = document.getElementById("filterDashAtrasoAno")?.value || "";
-  const mes = document.getElementById("filterDashAtrasoMes")?.value || "";
-  return !!(busca || resp || ano || mes);
-}
-
-function filterDashAtrasoRows(rows) {
-  const busca = (document.getElementById("filterDashAtrasoBusca")?.value || "").trim().toLowerCase();
-  const resp = document.getElementById("filterDashAtrasoResp")?.value || "";
-  const ano = document.getElementById("filterDashAtrasoAno")?.value || "";
-  const mes = document.getElementById("filterDashAtrasoMes")?.value || "";
-  return rows.filter((row) => {
-    const { d } = row;
-    if (busca) {
-      const hay = `${d.titulo} ${d.cidade || ""} ${d.solicitante || ""}`.toLowerCase();
-      if (!hay.includes(busca)) return false;
-    }
-    if (!matchFilterProjetista(d, resp)) return false;
-    const p = demandaTerminoPeriodo(d);
-    if (ano && (!p || p.year !== Number(ano))) return false;
-    if (mes && (!p || p.month !== Number(mes))) return false;
-    return true;
-  });
-}
-
-function renderDashAtrasoResumoChart(total, atraso) {
-  makeDashChartMetricBar(
-    "chartDashAtrasoResumo",
-    ["Total de projetos", "Em atraso"],
-    [total, atraso],
-    {
-      colors: ["#6366f1", "#ef4444"],
-      datasetLabel: "Projetos",
-      stepSize: 1,
-    },
-  );
-}
-
-function renderDashEntregaAtraso() {
-  const kpiEl = document.getElementById("dashAtrasoKpis");
-  const wrap = document.getElementById("dashAtrasoTable");
-  const countEl = document.getElementById("dashAtrasoCount");
-  if (!wrap) return;
-  populateDashAtrasoAnoMes();
-
-  const allComparaveis = demandasDashOperacionalList().map(demandaEntregaComparavel).filter(Boolean);
-  const comparaveis = dashAtrasoFiltroAtivo() ? filterDashAtrasoRows(allComparaveis) : allComparaveis;
-  const atrasados = comparaveis.filter((row) => row.atrasou);
-  const total = comparaveis.length;
-  const nAtraso = atrasados.length;
-  const mediaDias = nAtraso ? Math.round(atrasados.reduce((s, r) => s + r.diasAtraso, 0) / nAtraso) : 0;
-  const maxDias = nAtraso ? Math.max(...atrasados.map((r) => r.diasAtraso)) : 0;
-  const pctAtraso = total ? Math.round((nAtraso / total) * 100) : 0;
-
-  renderDashAtrasoResumoChart(total, nAtraso);
-
-  if (kpiEl) {
-    kpiEl.innerHTML =
-      kpiCard("Total de projetos", total, total ? "ok" : "warn") +
-      kpiCard("Em atraso", nAtraso, nAtraso ? "bad" : "ok") +
-      kpiCard("% em atraso", total ? pctAtraso + "%" : "—", nAtraso ? "warn" : "ok") +
-      kpiCard("Média dias de atraso", nAtraso ? mediaDias : "—", nAtraso ? "warn" : "ok") +
-      (dashAtrasoFiltroAtivo()
-        ? kpiCard("Maior atraso", nAtraso ? maxDias + " dia(s)" : "—", nAtraso ? "bad" : "ok")
-        : "");
-  }
-
-  if (!allComparaveis.length) {
-    if (countEl) countEl.textContent = "";
-    wrap.innerHTML =
-      '<p class="muted">Nenhum projeto em Conclusão com prazo previsto e data de término preenchidos.</p>';
-    return;
-  }
-
-  if (!dashAtrasoFiltroAtivo()) {
-    if (countEl) {
-      countEl.textContent =
-        `${total} concluído(s) comparável(is) · ${nAtraso} em atraso — aplique um filtro para listar os atrasados.`;
-    }
-    wrap.innerHTML =
-      '<p class="muted dash-tempo-hint">O gráfico usa os concluídos com as duas datas. Selecione <strong>ano</strong>, <strong>mês</strong>, <strong>projetista</strong> ou use a <strong>busca</strong> para listar os atrasados.</p>';
-    return;
-  }
-
-  if (countEl) {
-    countEl.textContent = `Exibindo ${nAtraso} atrasado(s) de ${total} concluído(s) no filtro (${allComparaveis.length} no período do dashboard).`;
-  }
-
-  if (!atrasados.length) {
-    wrap.innerHTML = '<p class="muted">Nenhum projeto em atraso com os filtros atuais.</p>';
-    return;
-  }
-
-  const sorted = [...atrasados].sort((a, b) => {
-    const da = parseDate(a.dataTermino) || 0;
-    const db = parseDate(b.dataTermino) || 0;
-    if (db !== da) return db - da;
-    return b.diasAtraso - a.diasAtraso;
-  });
-
-  let body = "";
-  for (const row of sorted) {
-    body +=
-      "<tr><td>" +
-      escapeHtml(row.d.titulo) +
-      "</td><td>" +
-      formatDataISO(row.dataPrevista) +
-      "</td><td>" +
-      formatDataISO(row.dataTermino) +
-      '</td><td><span class="dash-atraso-dias">' +
-      row.diasAtraso +
-      " dia(s)</span></td><td>" +
-      escapeHtml(labelProjetista(row.d.responsavel)) +
-      "</td><td>" +
-      escapeHtml(row.d.cidade || "—") +
-      "</td></tr>";
-  }
-  wrap.innerHTML =
-    '<table class="dash-table"><thead><tr><th>Projeto</th><th>Prazo previsto</th><th>Data término</th><th>Atraso</th><th>Projetista</th><th>Cidade</th></tr></thead><tbody>' +
-    body +
-    "</tbody></table>";
-}
-
 function renderDashboard() {
   initDashBlocks();
   destroyDashboardCharts();
@@ -11369,7 +11212,6 @@ function renderDashboard() {
   renderKpiProjetistas(demandasDashOperacionalList());
 
   if (isDashBlockVisible("cidades")) renderDashCidades();
-  if (isDashBlockVisible("entrega-atraso")) renderDashEntregaAtraso();
   if (isDashBlockVisible("tempo")) renderDashTempoTable();
   if (isDashBlockVisible("indicadores-b2c")) renderDashIndicadoresB2c();
   if (isDashBlockVisible("indicadores-b2b")) renderDashIndicadoresB2b();
@@ -11952,12 +11794,6 @@ document.getElementById("filterDashCidadesCidade")?.addEventListener("change", (
   const selReg = document.getElementById("filterDashCidadesRegional");
   if (selReg && reg) selReg.value = reg;
   setDashCidadesDrillRegional(reg, { syncSelect: false });
-});
-["filterDashAtrasoBusca", "filterDashAtrasoResp", "filterDashAtrasoAno", "filterDashAtrasoMes"].forEach((id) => {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.addEventListener("input", renderDashEntregaAtraso);
-  el.addEventListener("change", renderDashEntregaAtraso);
 });
 document.getElementById("filterDashProjetistaResumo")?.addEventListener("change", () => {
   const v = document.getElementById("filterDashProjetistaResumo")?.value || FILTER_PROJETISTA_TODOS;
