@@ -3156,6 +3156,7 @@ function sameChecklist(a, b) {
     if (x[i].id !== y[i].id) return false;
     if (x[i].name !== y[i].name) return false;
     if (x[i].who !== y[i].who) return false;
+    if (x[i].dateInicio !== y[i].dateInicio) return false;
     if (x[i].date !== y[i].date) return false;
     if (x[i].done !== y[i].done) return false;
   }
@@ -3290,7 +3291,8 @@ function normalizeChecklistItem(it) {
     id: it.id || uid(),
     name,
     who: String(it.who || it.responsavel || "").trim(),
-    date: String(it.date || "").trim(),
+    dateInicio: String(it.dateInicio || it.inicio || "").trim(),
+    date: String(it.date || it.dateFim || "").trim(),
     done: it.done === true,
   };
 }
@@ -5293,10 +5295,13 @@ function renderChecklistEditor() {
     const who = document.createElement("span");
     who.className = "checklist-item__who";
     who.textContent = it.who || "—";
+    const start = document.createElement("time");
+    start.dateTime = it.dateInicio || "";
+    start.textContent = it.dateInicio ? `Início ${formatDataCurta(it.dateInicio)}` : "Início —";
     const when = document.createElement("time");
     when.dateTime = it.date || "";
-    when.textContent = it.date ? formatDataCurta(it.date) : "—";
-    meta.append(who, when);
+    when.textContent = it.date ? `Término ${formatDataCurta(it.date)}` : "Término —";
+    meta.append(who, start, when);
     const rm = document.createElement("button");
     rm.type = "button";
     rm.className = "checklist-item__remove";
@@ -5324,14 +5329,20 @@ function addChecklistEtapaFromForm() {
   if (!requireWriteAccess()) return;
   const name = (document.getElementById("demChecklistEtapa")?.value || "").trim();
   const who = (document.getElementById("demChecklistWho")?.value || "").trim();
+  const dateInicio = (document.getElementById("demChecklistDateInicio")?.value || "").trim();
   const date = (document.getElementById("demChecklistDate")?.value || "").trim();
-  if (!name || !who || !date) {
-    toast("Preencha etapa, responsável e data.");
+  if (!name || !who || !dateInicio || !date) {
+    toast("Preencha etapa, responsável, previsão de início e término.");
+    return;
+  }
+  if (dateInicio > date) {
+    toast("A previsão de início deve ser anterior ou igual ao término.");
+    document.getElementById("demChecklistDateInicio")?.focus();
     return;
   }
   editingChecklist = [
     ...normalizeChecklist(editingChecklist),
-    { id: uid(), name, who, date, done: true },
+    { id: uid(), name, who, dateInicio, date, done: true },
   ];
   const etapa = document.getElementById("demChecklistEtapa");
   const resp = document.getElementById("demChecklistWho");
@@ -5359,6 +5370,8 @@ function bindChecklistEditor() {
       }
     });
   });
+  const dateStartEl = document.getElementById("demChecklistDateInicio");
+  if (dateStartEl && !dateStartEl.value) dateStartEl.value = todayISODate();
   const dateEl = document.getElementById("demChecklistDate");
   if (dateEl && !dateEl.value) dateEl.value = todayISODate();
 }
@@ -5534,6 +5547,8 @@ function openDemandaModal(id) {
     expandBtn.textContent = "Expandir detalhes";
   }
   if (details) details.hidden = true;
+  const dateStartEl = document.getElementById("demChecklistDateInicio");
+  if (dateStartEl) dateStartEl.value = todayISODate();
   const dateEl = document.getElementById("demChecklistDate");
   if (dateEl) dateEl.value = todayISODate();
   const etapaEl = document.getElementById("demChecklistEtapa");
