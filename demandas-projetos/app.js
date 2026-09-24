@@ -2053,8 +2053,8 @@ function diasEntreDatasISO(isoA, isoB) {
   return Math.max(0, Math.round((b - a) / 86400000));
 }
 
-/** Projeto concluído após o prazo previsto; null se não aplicável. */
-function demandaEntregaAtraso(d) {
+/** Projeto em Conclusão com prazo e término preenchidos; null se não comparável. */
+function demandaEntregaComparavel(d) {
   const dm = migrateDemanda(d);
   if (!isStatusConcluidoDemanda(dm)) return null;
   const prev = dm.dataFimPrevista;
@@ -2063,13 +2063,21 @@ function demandaEntregaAtraso(d) {
   if (!fim) return null;
   const prevMs = parseDate(prev);
   const fimMs = parseDate(fim);
-  if (prevMs == null || fimMs == null || fimMs <= prevMs) return null;
+  if (prevMs == null || fimMs == null) return null;
+  const atrasou = fimMs > prevMs;
   return {
     d: dm,
     dataPrevista: prev,
     dataTermino: fim,
-    diasAtraso: diasEntreDatasISO(prev, fim),
+    diasAtraso: atrasou ? diasEntreDatasISO(prev, fim) : 0,
+    atrasou,
   };
+}
+
+/** Projeto concluído após o prazo previsto; null se não aplicável. */
+function demandaEntregaAtraso(d) {
+  const row = demandaEntregaComparavel(d);
+  return row?.atrasou ? row : null;
 }
 
 /** Dias de atraso em relação ao prazo previsto (andamento ou concluído). */
@@ -11191,7 +11199,7 @@ function populateDashAtrasoAnoMes() {
   const savedMes = selMes?.value || "";
   const years = new Set();
   demandasDashOperacionalList().forEach((d) => {
-    const row = demandaEntregaAtraso(d);
+    const row = demandaEntregaComparavel(d);
     if (!row) return;
     const p = demandaTerminoPeriodo(row.d);
     if (p) years.add(p.year);
@@ -11240,6 +11248,19 @@ function filterDashAtrasoRows(rows) {
   });
 }
 
+function renderDashAtrasoResumoChart(total, atraso) {
+  makeDashChartMetricBar(
+    "chartDashAtrasoResumo",
+    ["Total de projetos", "Em atraso"],
+    [total, atraso],
+    {
+      colors: ["#6366f1", "#ef4444"],
+      datasetLabel: "Projetos",
+      stepSize: 1,
+    },
+  );
+}
+
 function renderDashEntregaAtraso() {
   const kpiEl = document.getElementById("dashAtrasoKpis");
   const wrap = document.getElementById("dashAtrasoTable");
@@ -11247,49 +11268,55 @@ function renderDashEntregaAtraso() {
   if (!wrap) return;
   populateDashAtrasoAnoMes();
 
-  const allRows = demandasDashOperacionalList().map(demandaEntregaAtraso).filter(Boolean);
+  const allComparaveis = demandasDashOperacionalList().map(demandaEntregaComparavel).filter(Boolean);
+  const comparaveis = dashAtrasoFiltroAtivo() ? filterDashAtrasoRows(allComparaveis) : allComparaveis;
+  const atrasados = comparaveis.filter((row) => row.atrasou);
+  const total = comparaveis.length;
+  const nAtraso = atrasados.length;
+  const mediaDias = nAtraso ? Math.round(atrasados.reduce((s, r) => s + r.diasAtraso, 0) / nAtraso) : 0;
+  const maxDias = nAtraso ? Math.max(...atrasados.map((r) => r.diasAtraso)) : 0;
+  const pctAtraso = total ? Math.round((nAtraso / total) * 100) : 0;
 
-  if (!allRows.length) {
-    if (kpiEl) kpiEl.innerHTML = kpiCard("Entregas com atraso", 0, "ok");
+  renderDashAtrasoResumoChart(total, nAtraso);
+
+  if (kpiEl) {
+    kpiEl.innerHTML =
+      kpiCard("Total de projetos", total, total ? "ok" : "warn") +
+      kpiCard("Em atraso", nAtraso, nAtraso ? "bad" : "ok") +
+      kpiCard("% em atraso", total ? pctAtraso + "%" : "—", nAtraso ? "warn" : "ok") +
+      kpiCard("Média dias de atraso", nAtraso ? mediaDias : "—", nAtraso ? "warn" : "ok") +
+      (dashAtrasoFiltroAtivo()
+        ? kpiCard("Maior atraso", nAtraso ? maxDias + " dia(s)" : "—", nAtraso ? "bad" : "ok")
+        : "");
+  }
+
+  if (!allComparaveis.length) {
     if (countEl) countEl.textContent = "";
-    wrap.innerHTML = '<p class="muted">Nenhum projeto concluído após o prazo previsto (com data de entrega e conclusão preenchidas).</p>';
+    wrap.innerHTML =
+      '<p class="muted">Nenhum projeto em Conclusão com prazo previsto e data de término preenchidos.</p>';
     return;
   }
 
   if (!dashAtrasoFiltroAtivo()) {
-    if (kpiEl) {
-      kpiEl.innerHTML =
-        kpiCard("Total com atraso na entrega", allRows.length, allRows.length ? "bad" : "ok") +
-        kpiCard("Média de dias (todos)", Math.round(allRows.reduce((s, r) => s + r.diasAtraso, 0) / allRows.length), "warn");
-    }
     if (countEl) {
-      countEl.textContent = `${allRows.length} entrega(s) com atraso cadastrada(s) — aplique um filtro para listar.`;
+      countEl.textContent =
+        `${total} concluído(s) comparável(is) · ${nAtraso} em atraso — aplique um filtro para listar os atrasados.`;
     }
     wrap.innerHTML =
-      '<p class="muted dash-tempo-hint">Projetos em <strong>Conclusão</strong> cuja <strong>data de conclusão</strong> passou do <strong>prazo previsto</strong>. Selecione <strong>ano</strong>, <strong>mês</strong>, <strong>projetista</strong> ou use a <strong>busca</strong>.</p>';
+      '<p class="muted dash-tempo-hint">O gráfico usa os concluídos com as duas datas. Selecione <strong>ano</strong>, <strong>mês</strong>, <strong>projetista</strong> ou use a <strong>busca</strong> para listar os atrasados.</p>';
     return;
   }
 
-  const rows = filterDashAtrasoRows(allRows);
-  const mediaDias = rows.length ? Math.round(rows.reduce((s, r) => s + r.diasAtraso, 0) / rows.length) : 0;
-  const maxDias = rows.length ? Math.max(...rows.map((r) => r.diasAtraso)) : 0;
-
-  if (kpiEl) {
-    kpiEl.innerHTML =
-      kpiCard("No filtro", rows.length, rows.length ? "bad" : "ok") +
-      kpiCard("Média dias de atraso", rows.length ? mediaDias : "—", rows.length ? "warn" : "ok") +
-      kpiCard("Maior atraso", rows.length ? maxDias + " dia(s)" : "—", rows.length ? "bad" : "ok");
-  }
   if (countEl) {
-    countEl.textContent = `Exibindo ${rows.length} de ${allRows.length} entrega(s) com atraso.`;
+    countEl.textContent = `Exibindo ${nAtraso} atrasado(s) de ${total} concluído(s) no filtro (${allComparaveis.length} no período do dashboard).`;
   }
 
-  if (!rows.length) {
-    wrap.innerHTML = '<p class="muted">Nenhum projeto encontrado com os filtros atuais.</p>';
+  if (!atrasados.length) {
+    wrap.innerHTML = '<p class="muted">Nenhum projeto em atraso com os filtros atuais.</p>';
     return;
   }
 
-  const sorted = [...rows].sort((a, b) => {
+  const sorted = [...atrasados].sort((a, b) => {
     const da = parseDate(a.dataTermino) || 0;
     const db = parseDate(b.dataTermino) || 0;
     if (db !== da) return db - da;
