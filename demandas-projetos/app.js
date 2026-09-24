@@ -4961,8 +4961,10 @@ function renderChecklistEditor() {
     cb.disabled = readOnly;
     cb.setAttribute("aria-label", it.name);
     cb.addEventListener("change", () => {
-      it.done = cb.checked;
-      editingChecklist = normalizeChecklist(editingChecklist);
+      const done = cb.checked;
+      editingChecklist = normalizeChecklist(editingChecklist).map((row) =>
+        row.id === it.id ? { ...row, done } : row,
+      );
       renderChecklistEditor();
     });
     const mark = document.createElement("i");
