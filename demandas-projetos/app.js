@@ -6837,7 +6837,6 @@ function initDashBlocks() {
         id === "tempo" ||
         id === "indicadores-b2c" ||
         id === "indicadores-b2b" ||
-        id === "viabilidade" ||
         id === "projetistas"
       ) {
         if (nowVisible && panels.dashboard && !panels.dashboard.hidden) renderDashboard();
@@ -11336,126 +11335,6 @@ function renderDashboard() {
   if (isDashBlockVisible("tempo")) renderDashTempoTable();
   if (isDashBlockVisible("indicadores-b2c")) renderDashIndicadoresB2c();
   if (isDashBlockVisible("indicadores-b2b")) renderDashIndicadoresB2b();
-  if (isDashBlockVisible("viabilidade")) renderDashViabilidade();
-}
-
-const viabilidadePortasState = { data: null, error: "", loading: false, inFlight: null };
-
-function viabilidadePortasCell(row) {
-  return `<td>${formatQtd(row?.portas || 0)}</td>`;
-}
-
-function paintDashViabilidade(data) {
-  const kpiEl = document.getElementById("kpiViabilidade");
-  const tableEl = document.getElementById("dashViabilidadeTable");
-  const countEl = document.getElementById("dashViabilidadeCount");
-  if (!kpiEl || !tableEl) return;
-  const regionais = Array.isArray(data?.regionais) ? data.regionais : [];
-  const total = data?.total || {};
-  const cidadesN = Number(data?.cidades) || regionais.reduce((n, r) => n + (r.cidades || []).length, 0);
-  kpiEl.innerHTML =
-    kpiCard("Portas", formatQtd(total.portas), total.portas ? "ok" : "warn") +
-    kpiCard("Regionais", regionais.length, regionais.length ? "ok" : "warn") +
-    kpiCard("Cidades", cidadesN, cidadesN ? "ok" : "warn");
-
-  const body = regionais
-    .map((reg) => {
-      const cities = Array.isArray(reg.cidades) ? reg.cidades : [];
-      const group =
-        `<tr class="dash-group-row"><td>${escapeHtml(reg.regional)}</td>${viabilidadePortasCell(reg)}</tr>`;
-      const rows = cities
-        .map(
-          (c) =>
-            `<tr><td class="dash-via-cidade">${escapeHtml(c.cidade)}</td>${viabilidadePortasCell(c)}</tr>`,
-        )
-        .join("");
-      return group + rows;
-    })
-    .join("");
-  tableEl.innerHTML =
-    `<table class="dash-table dash-table--viabilidade" aria-label="Portas de viabilidade por cidade e regional">` +
-    `<thead><tr><th>Cidade / regional</th><th>Portas</th></tr></thead>` +
-    `<tbody>${body || `<tr><td colspan="2">Nenhum dado de viabilidade.</td></tr>`}</tbody>` +
-    `<tfoot><tr><td><strong>Total</strong></td>${viabilidadePortasCell(total)}</tr></tfoot></table>`;
-
-  const quando = formatComentarioData(data?.fetchedAt);
-  if (countEl) {
-    countEl.textContent = quando ? `${quando}.` : "";
-  }
-}
-
-function setDashViabilidadeLoading(force) {
-  const btn = document.getElementById("btnDashViabilidadeAtualizar");
-  const countEl = document.getElementById("dashViabilidadeCount");
-  if (btn) btn.disabled = true;
-  if (countEl) {
-    countEl.textContent = force
-      ? "Atualizando… isso pode levar alguns minutos."
-      : "Carregando viabilidade…";
-  }
-}
-
-function renderDashViabilidade(opts = {}) {
-  const kpiEl = document.getElementById("kpiViabilidade");
-  const tableEl = document.getElementById("dashViabilidadeTable");
-  if (!kpiEl || !tableEl) return;
-  if (viabilidadePortasState.data && !opts.force) {
-    paintDashViabilidade(viabilidadePortasState.data);
-    return;
-  }
-  if (viabilidadePortasState.loading && !opts.force) {
-    setDashViabilidadeLoading(false);
-    return;
-  }
-  void loadDashViabilidade(Boolean(opts.force));
-}
-
-async function loadDashViabilidade(force) {
-  const kpiEl = document.getElementById("kpiViabilidade");
-  const tableEl = document.getElementById("dashViabilidadeTable");
-  const countEl = document.getElementById("dashViabilidadeCount");
-  const btn = document.getElementById("btnDashViabilidadeAtualizar");
-  if (!kpiEl || !tableEl) return;
-  if (viabilidadePortasState.inFlight && !force) {
-    try {
-      await viabilidadePortasState.inFlight;
-    } catch (_) {}
-    if (viabilidadePortasState.data) paintDashViabilidade(viabilidadePortasState.data);
-    return;
-  }
-  if (typeof firebase === "undefined" || !firebase.functions) {
-    if (countEl) countEl.textContent = "Recarregue a página (Ctrl+F5) para carregar a viabilidade.";
-    return;
-  }
-  viabilidadePortasState.loading = true;
-  setDashViabilidadeLoading(force);
-  const run = (async () => {
-    const fns = firebase.app().functions("us-central1");
-    const call = fns.httpsCallable("getViabilidadePortas", { timeout: 300000 });
-    const res = await call({ force: Boolean(force) });
-    return res?.data || {};
-  })();
-  viabilidadePortasState.inFlight = run;
-  try {
-    const data = await run;
-    viabilidadePortasState.data = data;
-    viabilidadePortasState.error = "";
-    paintDashViabilidade(data);
-  } catch (e) {
-    viabilidadePortasState.error = formatCallableError(e, "Não foi possível carregar a viabilidade.");
-    if (!viabilidadePortasState.data) {
-      kpiEl.innerHTML = "";
-      tableEl.innerHTML = "";
-    }
-    if (countEl) countEl.textContent = viabilidadePortasState.error;
-    toast(viabilidadePortasState.error);
-  } finally {
-    if (viabilidadePortasState.inFlight === run) {
-      viabilidadePortasState.loading = false;
-      viabilidadePortasState.inFlight = null;
-      if (btn) btn.disabled = false;
-    }
-  }
 }
 
 function countByStatusForList(list, linha = LINHA_ESTEIRA_OPERACIONAL) {
@@ -12011,10 +11890,6 @@ document.getElementById("btnDashPeriodoLimpar")?.addEventListener("click", () =>
   if (ini) ini.value = "";
   if (fim) fim.value = "";
   renderDashboard();
-});
-document.getElementById("btnDashViabilidadeAtualizar")?.addEventListener("click", () => {
-  if (!isDashBlockVisible("viabilidade")) return;
-  renderDashViabilidade({ force: true });
 });
 ["filterDashB2bAno", "filterDashB2bMes"].forEach((id) => {
   const el = document.getElementById(id);

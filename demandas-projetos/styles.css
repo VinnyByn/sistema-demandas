@@ -1149,29 +1149,6 @@ textarea {
 .dash-table--cidades td { white-space: nowrap; }
 .dash-table--cidades td:first-child { white-space: normal; min-width: 7rem; }
 
-.dash-viabilidade-toolbar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin: 0.35rem 0 0.85rem;
-}
-.dash-viabilidade-toolbar #dashViabilidadeCount { margin: 0; }
-.dash-table--viabilidade th:nth-child(n+2),
-.dash-table--viabilidade td:nth-child(n+2) {
-  text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-.dash-table.dash-table--viabilidade {
-  width: 100%;
-  min-width: 0;
-}
-.dash-table--viabilidade th,
-.dash-table--viabilidade td {
-  padding: 0.28rem 0.65rem;
-}
-.dash-table--viabilidade .dash-group-row td {
-  padding: 0.32rem 0.65rem;
-  font-size: 0.82rem;
-}
-.dash-table--viabilidade .dash-via-cidade { padding-left: 1.35rem; }
-.dash-table--viabilidade tfoot td { background: var(--surface2); font-weight: 700; }
-
 .dash-block {
   margin-bottom: 1rem; border: 1px solid var(--border); border-radius: var(--radius);
   background: var(--surface); overflow: hidden;
