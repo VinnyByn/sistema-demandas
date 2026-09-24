@@ -743,6 +743,8 @@ function colorForGeoNome(nome) {
   if (REGIONAL_CHART_COLORS[key]) return REGIONAL_CHART_COLORS[key];
   const idx = TODAS_CIDADES_LISTA.findIndex((c) => c.toLowerCase() === key.toLowerCase());
   if (idx >= 0) return GEO_CHART_PALETTE[idx % GEO_CHART_PALETTE.length];
+  const pjIdx = allProjetistasNomes().findIndex((n) => projetistaSlug(n) === projetistaSlug(key));
+  if (pjIdx >= 0) return GEO_CHART_PALETTE[pjIdx % GEO_CHART_PALETTE.length];
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   return GEO_CHART_PALETTE[hash % GEO_CHART_PALETTE.length];
@@ -9346,8 +9348,8 @@ function buildStatsPorProjetista(baseList = demandasDashOperacionalList()) {
     .filter((row) => row.total > 0);
 }
 
-function rankPjBarColors(rows, activeColor, idleColor) {
-  return rows.map((r) => (r.nome === dashPjDrillNome ? activeColor : idleColor));
+function rankPjBarColors(rows) {
+  return colorsForGeoNomes(rows.map((r) => r.nome));
 }
 
 function renderDashPjRankCharts(rows) {
@@ -9382,7 +9384,7 @@ function renderDashPjRankCharts(rows) {
     "chartPjRankGastos",
     gastosRows.map((r) => truncateChartLabel(r.nome, 18)),
     gastosRows.map((r) => r.valorTotal),
-    rankPjBarColors(gastosRows, "#4ade80", "#22c55e"),
+    rankPjBarColors(gastosRows),
     {
       horizontal: true,
       showPct: true,
@@ -9397,7 +9399,7 @@ function renderDashPjRankCharts(rows) {
     portasRows.map((r) => truncateChartLabel(r.nome, 18)),
     portasRows.map((r) => r.portasNovasTotal),
     {
-      colors: rankPjBarColors(portasRows, "#67e8f9", "#06b6d4"),
+      colors: rankPjBarColors(portasRows),
       datasetLabel: "Portas novas",
       formatValue: formatQtd,
       horizontal: true,
