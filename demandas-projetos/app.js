@@ -726,14 +726,41 @@ const GEO_CHART_PALETTE = [
   "#eab308",
   "#ec4899",
   "#0ea5e9",
+  "#84cc16",
+  "#f97316",
+  "#8b5cf6",
+  "#10b981",
+  "#3b82f6",
+  "#d946ef",
+  "#f43f5e",
+  "#65a30d",
+  "#0284c7",
+  "#c026d3",
 ];
 
 function colorForGeoNome(nome) {
   const key = String(nome || "").trim();
   if (REGIONAL_CHART_COLORS[key]) return REGIONAL_CHART_COLORS[key];
+  const idx = TODAS_CIDADES_LISTA.findIndex((c) => c.toLowerCase() === key.toLowerCase());
+  if (idx >= 0) return GEO_CHART_PALETTE[idx % GEO_CHART_PALETTE.length];
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   return GEO_CHART_PALETTE[hash % GEO_CHART_PALETTE.length];
+}
+
+function colorsForGeoNomes(nomes) {
+  const map = new Map();
+  const taken = new Set();
+  for (const nome of nomes) {
+    if (map.has(nome)) continue;
+    let color = colorForGeoNome(nome);
+    if (taken.has(color)) {
+      color = GEO_CHART_PALETTE.find((c) => !taken.has(c)) || color;
+    }
+    taken.add(color);
+    map.set(nome, color);
+  }
+  return nomes.map((n) => map.get(n));
 }
 
 const TODAS_CIDADES_LISTA = REGIONAIS_ORDER.flatMap((reg) => REGIONAIS_CIDADES[reg]);
@@ -8980,7 +9007,7 @@ function renderDashGeoRankCharts(prefix, rows, onPick, activeNome) {
   const sitId = `${prefix}Sit`;
   const gasId = `${prefix}Gastos`;
   const porId = `${prefix}Portas`;
-  const colors = (list) => list.map((r) => colorForGeoNome(r.nome));
+  const colors = (list) => colorsForGeoNomes(list.map((r) => r.nome));
   setDashPjChartWrapHeight(sitId, rows.length);
   setDashPjChartWrapHeight(gasId, rows.length);
   setDashPjChartWrapHeight(porId, rows.length);
