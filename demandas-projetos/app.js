@@ -4953,6 +4953,8 @@ function renderChecklistEditor() {
   items.forEach((it) => {
     const li = document.createElement("li");
     li.className = "checklist-item" + (it.done ? "" : " is-off");
+    const box = document.createElement("label");
+    box.className = "checklist-check";
     const cb = document.createElement("input");
     cb.type = "checkbox";
     cb.checked = it.done;
@@ -4963,14 +4965,21 @@ function renderChecklistEditor() {
       editingChecklist = normalizeChecklist(editingChecklist);
       renderChecklistEditor();
     });
+    const mark = document.createElement("i");
+    mark.setAttribute("aria-hidden", "true");
+    box.append(cb, mark);
     const name = document.createElement("span");
     name.className = "checklist-item__name";
     name.textContent = it.name;
+    const meta = document.createElement("span");
+    meta.className = "checklist-item__meta";
     const who = document.createElement("span");
+    who.className = "checklist-item__who";
     who.textContent = it.who || "—";
     const when = document.createElement("time");
     when.dateTime = it.date || "";
     when.textContent = it.date ? formatDataCurta(it.date) : "—";
+    meta.append(who, when);
     const rm = document.createElement("button");
     rm.type = "button";
     rm.className = "checklist-item__remove";
@@ -4989,7 +4998,7 @@ function renderChecklistEditor() {
       editingChecklist = editingChecklist.filter((x) => x.id !== it.id);
       renderChecklistEditor();
     });
-    li.append(cb, name, who, when, rm);
+    li.append(box, name, meta, rm);
     list.appendChild(li);
   });
 }

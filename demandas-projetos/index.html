@@ -1155,9 +1155,9 @@
           <div class="checklist-progress" id="demChecklistProgress" aria-label="Avanço do checklist">
             <span class="card__checklist-frac" id="demChecklistFrac">0/0</span>
             <span class="card__checklist-dots" id="demChecklistDots" aria-hidden="true"></span>
+            <button type="button" class="checklist-toggle" id="btnChecklistExpand" aria-expanded="false" aria-controls="demChecklistDetails">Expandir detalhes</button>
           </div>
           <p class="muted small checklist-next" id="demChecklistNext"></p>
-          <button type="button" class="btn btn--ghost btn--sm" id="btnChecklistExpand" aria-expanded="false" aria-controls="demChecklistDetails">Expandir detalhes</button>
           <div id="demChecklistDetails" hidden>
             <ul class="checklist-list" id="demChecklistList"></ul>
             <div class="checklist-add">
@@ -1173,7 +1173,9 @@
                 <span>Data</span>
                 <input id="demChecklistDate" type="date" />
               </label>
-              <button type="button" class="btn btn--primary btn--sm" id="btnChecklistAdd">Adicionar etapa</button>
+            </div>
+            <div class="checklist-add-actions">
+              <button type="button" class="btn btn--ghost btn--sm" id="btnChecklistAdd">+ Adicionar etapa</button>
             </div>
           </div>
         </fieldset>
