@@ -707,6 +707,35 @@ const REGIONAIS_CIDADES = {
 
 const REGIONAIS_ORDER = Object.keys(REGIONAIS_CIDADES).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
+const REGIONAL_CHART_COLORS = {
+  "Regional Centro Oeste": "#f59e0b",
+  "Regional Norte de Minas": "#22c55e",
+  "Regional São Paulo": "#a855f7",
+  "Regional Sul de Minas": "#06b6d4",
+  "Não informada": "#94a3b8",
+};
+
+const GEO_CHART_PALETTE = [
+  "#6366f1",
+  "#22c55e",
+  "#06b6d4",
+  "#f59e0b",
+  "#a855f7",
+  "#ef4444",
+  "#14b8a6",
+  "#eab308",
+  "#ec4899",
+  "#0ea5e9",
+];
+
+function colorForGeoNome(nome) {
+  const key = String(nome || "").trim();
+  if (REGIONAL_CHART_COLORS[key]) return REGIONAL_CHART_COLORS[key];
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  return GEO_CHART_PALETTE[hash % GEO_CHART_PALETTE.length];
+}
+
 const TODAS_CIDADES_LISTA = REGIONAIS_ORDER.flatMap((reg) => REGIONAIS_CIDADES[reg]);
 
 function findRegionalForCidade(cidade) {
@@ -8951,7 +8980,7 @@ function renderDashGeoRankCharts(prefix, rows, onPick, activeNome) {
   const sitId = `${prefix}Sit`;
   const gasId = `${prefix}Gastos`;
   const porId = `${prefix}Portas`;
-  const colors = (list, active, idle) => list.map((r) => (r.nome === activeNome ? active : idle));
+  const colors = (list) => list.map((r) => colorForGeoNome(r.nome));
   setDashPjChartWrapHeight(sitId, rows.length);
   setDashPjChartWrapHeight(gasId, rows.length);
   setDashPjChartWrapHeight(porId, rows.length);
@@ -8972,7 +9001,7 @@ function renderDashGeoRankCharts(prefix, rows, onPick, activeNome) {
     gasId,
     gastosRows.map((r) => truncateChartLabel(r.nome, 18)),
     gastosRows.map((r) => r.valorTotal),
-    colors(gastosRows, "#4ade80", "#22c55e"),
+    colors(gastosRows),
     {
       horizontal: true,
       showPct: true,
@@ -8988,7 +9017,7 @@ function renderDashGeoRankCharts(prefix, rows, onPick, activeNome) {
     portasRows.map((r) => truncateChartLabel(r.nome, 18)),
     portasRows.map((r) => r.portasNovasTotal),
     {
-      colors: colors(portasRows, "#67e8f9", "#06b6d4"),
+      colors: colors(portasRows),
       datasetLabel: "Portas novas",
       formatValue: formatQtd,
       horizontal: true,
