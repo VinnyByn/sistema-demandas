@@ -555,13 +555,7 @@ function projetistaLabelForEmail(email) {
 function demandasAssignedToEmail(email) {
   const label = projetistaLabelForEmail(email);
   if (!label) return [];
-  const labelSlug = projetistaSlug(label);
-  return (state.demandas || []).filter((d) => {
-    const resp = normalizeResponsavel(d.responsavel) || String(d.responsavel || "").trim();
-    if (!resp) return false;
-    if (resp === label) return true;
-    return projetistaSlug(resp) === labelSlug;
-  });
+  return (state.demandas || []).filter((d) => demandaTemProjetista(d, label));
 }
 
 function allProjetistasNomes() {
@@ -586,11 +580,7 @@ function projetistaSlug(nome) {
 function matchFilterProjetista(d, resp) {
   if (!resp || resp === FILTER_PROJETISTA_TODOS) return true;
   if (resp === "__none__") return !normalizeResponsavel(d.responsavel);
-  const alvo = String(resp).trim();
-  const r = normalizeResponsavel(d.responsavel) || String(d.responsavel || "").trim();
-  if (!r) return false;
-  if (r === alvo) return true;
-  return projetistaSlug(r) === projetistaSlug(alvo);
+  return demandaTemProjetista(d, resp);
 }
 const TIPOS_DEMANDA = ["B2C", "B2B", "SWAP", "Backbone", "Licenciamento", "Mapeamento", "Migração"];
 
@@ -784,6 +774,82 @@ function normalizeCidadeCadastro(cidade) {
   return hit || t;
 }
 
+function normalizeCidadesExtra(list, cidadePrincipal) {
+  const main = normalizeCidadeCadastro(cidadePrincipal).toLowerCase();
+  const raw = Array.isArray(list)
+    ? list
+    : typeof list === "string" && list.trim()
+      ? list.split(/[;,]/)
+      : [];
+  const seen = new Set();
+  const out = [];
+  for (const item of raw) {
+    const c = normalizeCidadeCadastro(item);
+    if (!c) continue;
+    const key = c.toLowerCase();
+    if (main && key === main) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(c);
+  }
+  return out;
+}
+
+function sameCidadesExtra(a, b, cidadePrincipal) {
+  const x = normalizeCidadesExtra(a, cidadePrincipal);
+  const y = normalizeCidadesExtra(b, cidadePrincipal);
+  if (x.length !== y.length) return false;
+  const set = new Set(x.map((c) => c.toLowerCase()));
+  return y.every((c) => set.has(c.toLowerCase()));
+}
+
+function demandaCidadesList(d) {
+  const main = normalizeCidadeCadastro(d?.cidade);
+  const extras = normalizeCidadesExtra(d?.cidadesExtra, main);
+  return main ? [main, ...extras] : extras;
+}
+
+function demandaCidadesLabels(d) {
+  const list = demandaCidadesList(d);
+  return list.length ? list.map(labelCidade) : [labelCidade("")];
+}
+
+function demandaRegionaisLabels(d) {
+  const seen = new Set();
+  const out = [];
+  for (const c of demandaCidadesList(d)) {
+    const reg = findRegionalForCidade(c) || "Não informada";
+    if (seen.has(reg)) continue;
+    seen.add(reg);
+    out.push(reg);
+  }
+  return out.length ? out : ["Não informada"];
+}
+
+function demandaTemCidade(d, cidadeLabel) {
+  const alvo = labelCidade(cidadeLabel);
+  return demandaCidadesLabels(d).includes(alvo);
+}
+
+function demandaTemRegional(d, regional) {
+  return demandaRegionaisLabels(d).includes(regional);
+}
+
+function resolveGeoKeys(d, keyFn) {
+  if (typeof keyFn !== "function") return [];
+  const raw = keyFn(d);
+  if (Array.isArray(raw)) return raw.filter((k) => k != null && String(k) !== "");
+  if (raw == null || raw === "") return [];
+  return [raw];
+}
+
+function formatCidadesDemanda(d) {
+  return demandaCidadesLabels(d).join(" · ");
+}
+
+let editingCidadesExtra = [];
+let editingProjetistasExtra = [];
+
 function fillDemRegionalSelect() {
   const sel = document.getElementById("demRegional");
   if (!sel) return;
@@ -865,21 +931,122 @@ function readCidadeFromForm() {
   return normalizeCidadeCadastro(document.getElementById("demCidade")?.value || "");
 }
 
+function readCidadesExtraFromForm() {
+  return normalizeCidadesExtra(editingCidadesExtra, readCidadeFromForm());
+}
+
+function fillDemExtraRegionalSelect() {
+  const sel = document.getElementById("demExtraRegional");
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Regional…</option>';
+  for (const reg of REGIONAIS_ORDER) {
+    const o = document.createElement("option");
+    o.value = reg;
+    o.textContent = reg;
+    sel.appendChild(o);
+  }
+  if (cur && [...sel.options].some((o) => o.value === cur)) sel.value = cur;
+}
+
+function fillDemExtraCidadeSelect(regional, selectedCidade = "") {
+  const sel = document.getElementById("demExtraCidade");
+  if (!sel) return;
+  const principal = readCidadeFromForm().toLowerCase();
+  const taken = new Set(normalizeCidadesExtra(editingCidadesExtra, readCidadeFromForm()).map((c) => c.toLowerCase()));
+  sel.innerHTML = "";
+  if (!regional || !REGIONAIS_CIDADES[regional]) {
+    sel.disabled = true;
+    const o = document.createElement("option");
+    o.value = "";
+    o.textContent = "Selecione a regional…";
+    sel.appendChild(o);
+    return;
+  }
+  sel.disabled = false;
+  const o0 = document.createElement("option");
+  o0.value = "";
+  o0.textContent = "Cidade extra…";
+  sel.appendChild(o0);
+  for (const c of REGIONAIS_CIDADES[regional]) {
+    if (c.toLowerCase() === principal || taken.has(c.toLowerCase())) continue;
+    const o = document.createElement("option");
+    o.value = c;
+    o.textContent = c;
+    sel.appendChild(o);
+  }
+  const norm = normalizeCidadeCadastro(selectedCidade);
+  if (norm && [...sel.options].some((o) => o.value === norm)) sel.value = norm;
+}
+
+function renderCidadesExtraList() {
+  const host = document.getElementById("demCidadesExtraList");
+  if (!host) return;
+  editingCidadesExtra = normalizeCidadesExtra(editingCidadesExtra, readCidadeFromForm());
+  if (!editingCidadesExtra.length) {
+    host.innerHTML = "";
+  } else {
+    host.innerHTML = editingCidadesExtra
+      .map((cidade, i) => {
+        const reg = findRegionalForCidade(cidade);
+        const tag = reg ? `${cidade} · ${reg}` : cidade;
+        return (
+          `<span class="cidade-extra-chip" data-idx="${i}">` +
+          `<span>${escapeHtml(tag)}</span>` +
+          `<button type="button" class="cidade-extra-chip__rm" data-remove-extra="${i}" aria-label="Remover ${escapeHtml(cidade)}">×</button>` +
+          `</span>`
+        );
+      })
+      .join("");
+    host.querySelectorAll("[data-remove-extra]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const i = Number(btn.getAttribute("data-remove-extra"));
+        if (!Number.isInteger(i)) return;
+        editingCidadesExtra = editingCidadesExtra.filter((_, idx) => idx !== i);
+        renderCidadesExtraList();
+      });
+    });
+  }
+  fillDemExtraCidadeSelect(document.getElementById("demExtraRegional")?.value || "");
+}
+
+function addCidadeExtraFromPicker() {
+  const cidade = normalizeCidadeCadastro(document.getElementById("demExtraCidade")?.value || "");
+  if (!cidade) {
+    toast("Selecione a cidade extra");
+    return;
+  }
+  editingCidadesExtra = normalizeCidadesExtra([...editingCidadesExtra, cidade], readCidadeFromForm());
+  const selCid = document.getElementById("demExtraCidade");
+  if (selCid) selCid.value = "";
+  renderCidadesExtraList();
+}
+
 function initDemCidadeSelects() {
   fillDemRegionalSelect();
   fillDemCidadeSelect("");
+  fillDemExtraRegionalSelect();
+  fillDemExtraCidadeSelect("");
   document.getElementById("demRegional")?.addEventListener("change", () => {
     const reg = document.getElementById("demRegional")?.value || "";
     fillDemCidadeSelect(reg, "");
+    renderCidadesExtraList();
   });
+  document.getElementById("demCidade")?.addEventListener("change", () => {
+    renderCidadesExtraList();
+  });
+  document.getElementById("demExtraRegional")?.addEventListener("change", () => {
+    fillDemExtraCidadeSelect(document.getElementById("demExtraRegional")?.value || "");
+  });
+  document.getElementById("btnAddCidadeExtra")?.addEventListener("click", addCidadeExtraFromPicker);
 }
 
 function cidadesLegadasNoSistema() {
   const set = new Set();
   for (const d of state.demandas || []) {
-    const c = normalizeCidadeCadastro(d.cidade);
-    if (!c) continue;
-    if (!TODAS_CIDADES_LISTA.some((x) => x.toLowerCase() === c.toLowerCase())) set.add(c);
+    for (const c of demandaCidadesList(d)) {
+      if (!TODAS_CIDADES_LISTA.some((x) => x.toLowerCase() === c.toLowerCase())) set.add(c);
+    }
   }
   return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
 }
@@ -952,6 +1119,75 @@ function fillDemResponsavelSelect(_linha = editingLinhaEsteira) {
   ]);
   const sel = document.getElementById("demResponsavel");
   if (sel && cur && [...sel.options].some((o) => o.value === cur)) sel.value = cur;
+  fillDemExtraProjetistaSelect();
+}
+
+function readProjetistasExtraFromForm() {
+  return normalizeProjetistasExtra(editingProjetistasExtra, document.getElementById("demResponsavel")?.value || "");
+}
+
+function fillDemExtraProjetistaSelect() {
+  const sel = document.getElementById("demExtraProjetista");
+  if (!sel) return;
+  const principal = normalizeResponsavel(document.getElementById("demResponsavel")?.value || "");
+  const taken = new Set(readProjetistasExtraFromForm().map((n) => projetistaSlug(n)));
+  const lista = projetistaLabelsFromRoles().filter((n) => {
+    const key = projetistaSlug(n);
+    if (principal && key === projetistaSlug(principal)) return false;
+    return !taken.has(key);
+  });
+  fillSelectOptions(sel, [
+    { value: "", label: "Projetista extra…" },
+    ...lista.map((n) => ({ value: n, label: n })),
+  ]);
+}
+
+function renderProjetistasExtraList() {
+  const host = document.getElementById("demProjetistasExtraList");
+  if (!host) return;
+  editingProjetistasExtra = readProjetistasExtraFromForm();
+  if (!editingProjetistasExtra.length) {
+    host.innerHTML = "";
+  } else {
+    host.innerHTML = editingProjetistasExtra
+      .map((nome, i) => (
+        `<span class="cidade-extra-chip" data-idx="${i}">` +
+        `<span>${escapeHtml(nome)}</span>` +
+        `<button type="button" class="cidade-extra-chip__rm" data-remove-pj-extra="${i}" aria-label="Remover ${escapeHtml(nome)}">×</button>` +
+        `</span>`
+      ))
+      .join("");
+    host.querySelectorAll("[data-remove-pj-extra]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const i = Number(btn.getAttribute("data-remove-pj-extra"));
+        if (!Number.isInteger(i)) return;
+        editingProjetistasExtra = editingProjetistasExtra.filter((_, idx) => idx !== i);
+        renderProjetistasExtraList();
+      });
+    });
+  }
+  fillDemExtraProjetistaSelect();
+}
+
+function addProjetistaExtraFromPicker() {
+  const nome = normalizeResponsavel(document.getElementById("demExtraProjetista")?.value || "");
+  if (!nome) {
+    toast("Selecione o projetista extra");
+    return;
+  }
+  editingProjetistasExtra = normalizeProjetistasExtra(
+    [...editingProjetistasExtra, nome],
+    document.getElementById("demResponsavel")?.value || "",
+  );
+  renderProjetistasExtraList();
+}
+
+function initDemProjetistasExtra() {
+  fillDemExtraProjetistaSelect();
+  document.getElementById("demResponsavel")?.addEventListener("change", () => {
+    renderProjetistasExtraList();
+  });
+  document.getElementById("btnAddProjetistaExtra")?.addEventListener("click", addProjetistaExtraFromPicker);
 }
 
 function fillFilterDashProjetistaResumo() {
@@ -1077,18 +1313,18 @@ function demandaMatchesEsteiraFilters(d, f) {
   if (f.projetista) {
     if (f.projetista === "__none__") {
       if (normalizeResponsavel(d.responsavel) !== "") return false;
-    } else if (normalizeResponsavel(d.responsavel) !== f.projetista) return false;
+    } else if (!demandaTemProjetista(d, f.projetista)) return false;
   }
-  const cid = normalizeCidadeCadastro(d.cidade);
-  if (f.regional && findRegionalForCidade(cid) !== f.regional) return false;
-  if (f.cidade && cid.toLowerCase() !== f.cidade.toLowerCase()) return false;
+  if (f.regional && !demandaTemRegional(d, f.regional)) return false;
+  if (f.cidade && !demandaTemCidade(d, f.cidade)) return false;
   if (f.busca) {
     const blob = normalizeBuscaText(
       [
         d.titulo,
-        d.cidade,
+        formatCidadesDemanda(d),
+        ...demandaRegionaisLabels(d),
         d.solicitante,
-        d.responsavel,
+        formatProjetistasDemanda(d) || d.responsavel,
         d.descricao,
         d.statusAtual,
         d.chamadoOcomon,
@@ -1125,6 +1361,53 @@ function normalizeResponsavel(v, linha) {
 function labelProjetista(v) {
   const n = normalizeResponsavel(v);
   return n || "Não atribuído";
+}
+
+function normalizeProjetistasExtra(list, responsavelPrincipal) {
+  const main = normalizeResponsavel(responsavelPrincipal);
+  const mainSlug = projetistaSlug(main);
+  const raw = Array.isArray(list)
+    ? list
+    : typeof list === "string" && list.trim()
+      ? list.split(/[;,]/)
+      : [];
+  const seen = new Set();
+  const out = [];
+  for (const item of raw) {
+    const n = normalizeResponsavel(item);
+    if (!n) continue;
+    const key = projetistaSlug(n);
+    if (mainSlug && key === mainSlug) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(n);
+  }
+  return out;
+}
+
+function sameProjetistasExtra(a, b, responsavelPrincipal) {
+  const x = normalizeProjetistasExtra(a, responsavelPrincipal);
+  const y = normalizeProjetistasExtra(b, responsavelPrincipal);
+  if (x.length !== y.length) return false;
+  const set = new Set(x.map((n) => projetistaSlug(n)));
+  return y.every((n) => set.has(projetistaSlug(n)));
+}
+
+function demandaProjetistasList(d) {
+  const main = normalizeResponsavel(d?.responsavel);
+  const extras = normalizeProjetistasExtra(d?.projetistasExtra, main);
+  return main ? [main, ...extras] : extras;
+}
+
+function demandaTemProjetista(d, nome) {
+  const alvo = normalizeResponsavel(nome) || String(nome || "").trim();
+  if (!alvo) return false;
+  const slug = projetistaSlug(alvo);
+  return demandaProjetistasList(d).some((n) => n === alvo || projetistaSlug(n) === slug);
+}
+
+function formatProjetistasDemanda(d) {
+  return demandaProjetistasList(d).join(" · ");
 }
 
 function normalizeTipo(v) {
@@ -1682,6 +1965,7 @@ function demandasContentFingerprint(demandas) {
         d.updatedAt || "",
         d.status || "",
         d.responsavel || "",
+        Array.isArray(d.projetistasExtra) ? d.projetistasExtra.join(",") : "",
         d.ordemEsteira ?? "",
         d.titulo || "",
         d.dataChegada || "",
@@ -2571,10 +2855,26 @@ const HISTORICO_EDICAO_CAMPOS = [
   { campo: "status", label: "Status (esteira)", format: (v) => labelStatus(v) || v || "—" },
   { campo: "statusAtual", label: "Status atual" },
   { campo: "responsavel", label: "Projetista responsável", format: (v) => v || "Não atribuído" },
+  {
+    campo: "projetistasExtra",
+    label: "Projetistas extras",
+    format: (v) => {
+      const list = normalizeProjetistasExtra(v, "");
+      return list.length ? list.join(" · ") : "—";
+    },
+  },
   { campo: "tipo", label: "Tipo" },
   { campo: "produtoB2b", label: "Produto B2B", format: (v) => v || "—" },
   { campo: "segmentoB2c", label: "Segmento B2C", format: (v) => v || "—" },
   { campo: "cidade", label: "Cidade", format: (v) => v || "—" },
+  {
+    campo: "cidadesExtra",
+    label: "Cidades extras",
+    format: (v) => {
+      const list = normalizeCidadesExtra(v, "");
+      return list.length ? list.join(" · ") : "—";
+    },
+  },
   { campo: "solicitante", label: "Solicitante", format: (v) => v || "—" },
   { campo: "setorSolicitanteB2b", label: "Setor solicitante (B2B)", format: (v) => v || "—" },
   { campo: "dataChegada", label: "Data de chegada", format: formatDataCurta },
@@ -2797,6 +3097,10 @@ function diffEditTracked(prev, next) {
       if (sameMotivosAtrasoItens(a, b)) continue;
     } else if (def.campo === "checklist") {
       if (sameChecklist(a, b)) continue;
+    } else if (def.campo === "cidadesExtra") {
+      if (sameCidadesExtra(a, b, next?.cidade || prev?.cidade)) continue;
+    } else if (def.campo === "projetistasExtra") {
+      if (sameProjetistasExtra(a, b, next?.responsavel || prev?.responsavel)) continue;
     } else if (sameTrackedValue(a, b)) {
       continue;
     }
@@ -3011,6 +3315,7 @@ function migrateDemanda(d) {
     descricao: d.descricao || "",
     comentarios: normalizeComentarios(d.comentarios),
     cidade: normalizeCidadeCadastro(d.cidade),
+    cidadesExtra: normalizeCidadesExtra(d.cidadesExtra, d.cidade),
     dataChegada: d.dataChegada || "",
     dataFimPrevista: d.dataFimPrevista || "",
     dataFimAtualizada: d.dataFimAtualizada || "",
@@ -3022,6 +3327,7 @@ function migrateDemanda(d) {
     solicitante: d.solicitante || "",
     setorSolicitanteB2b: normalizeTipo(d.tipo) === "B2B" ? normalizeSetorSolicitanteB2b(d.setorSolicitanteB2b) : "",
     responsavel: normalizeResponsavel(d.responsavel),
+    projetistasExtra: normalizeProjetistasExtra(d.projetistasExtra, d.responsavel),
     tipo: normalizeTipo(d.tipo),
     produtoB2b: normalizeTipo(d.tipo) === "B2B" ? normalizeProdutoB2b(d.produtoB2b) : "",
     segmentoB2c: normalizeTipo(d.tipo) === "B2C" ? normalizeSegmentoB2c(d.segmentoB2c) : "",
@@ -3703,7 +4009,7 @@ function buildInboxAlertasRows(list, linha) {
         d,
         dias: diasCol,
         msg: `${diasCol} dia(s) em «${fase}»`,
-        meta: d.responsavel ? `Projetista: ${d.responsavel}` : "",
+        meta: formatProjetistasDemanda(d) ? `Projetista: ${formatProjetistasDemanda(d)}` : "",
       });
     }
   }
@@ -4192,8 +4498,9 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
       ? `<p class="card__dias-aberto" title="${diasAbertoTitle}"><strong>Aberto:</strong> ${escapeHtml(formatDiasAbertoLabel(diasAberto))}</p>`
       : "";
   const editingHtml = cardEditingByHtml(d);
-  const respAtrib = normalizeResponsavel(d.responsavel)
-    ? `<span>${escapeHtml(d.responsavel)}</span>`
+  const respNomes = demandaProjetistasList(d);
+  const respAtrib = respNomes.length
+    ? `<span title="${escapeHtml(respNomes.join(" · "))}">${escapeHtml(respNomes.join(" · "))}</span>`
     : `<span class="badge badge--pend">${escapeHtml(labelProjetista(d.responsavel))}</span>`;
   const tipo = normalizeTipo(d.tipo);
   const produtoHtml =
@@ -4239,7 +4546,7 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
       ${segmentoHtml}
       ${statusBadge}
       ${respAtrib}
-      ${d.cidade ? `<span>${escapeHtml(d.cidade)}</span>` : ""}
+      ${demandaCidadesList(d).length ? `<span title="${escapeHtml(formatCidadesDemanda(d))}">${escapeHtml(formatCidadesDemanda(d))}</span>` : ""}
       ${d.solicitante ? `<span>${escapeHtml(d.solicitante)}</span>` : ""}
       ${atr}
     </div>
@@ -4734,6 +5041,7 @@ function initProjetistaSelects() {
 }
 initProjetistaSelects();
 initDemCidadeSelects();
+initDemProjetistasExtra();
 initDemProdutoB2bSelect();
 initDemSetorSolicitanteB2bSelect();
 initDemSolicitanteB2bSelect();
@@ -5175,6 +5483,10 @@ function openDemandaModal(id) {
   if (btnExcluirDem) btnExcluirDem.textContent = d?.id ? "Excluir" : "Descartar";
   document.getElementById("demTitulo").value = d?.titulo || "";
   setDemCidadeUi(d?.cidade || "");
+  editingCidadesExtra = normalizeCidadesExtra(dm?.cidadesExtra || d?.cidadesExtra, d?.cidade || "");
+  const extraReg = document.getElementById("demExtraRegional");
+  if (extraReg) extraReg.value = "";
+  renderCidadesExtraList();
   document.getElementById("demDataChegada").value = d?.dataChegada || todayISODate();
   document.getElementById("demDataFimPrevista").value = d?.dataFimPrevista || "";
   document.getElementById("demDataFimAtualizada").value = d?.dataFimAtualizada || "";
@@ -5188,6 +5500,8 @@ function openDemandaModal(id) {
     selSolB2b.value = SOLICITANTES_B2B_COMERCIAL.includes(sol) ? sol : "";
   }
   document.getElementById("demResponsavel").value = normalizeResponsavel(d?.responsavel);
+  editingProjetistasExtra = normalizeProjetistasExtra(dm?.projetistasExtra || d?.projetistasExtra, d?.responsavel || "");
+  renderProjetistasExtraList();
   syncDemTipoSelect(d?.tipo || (editingLinhaEsteira === LINHA_ESTEIRA_B2B ? "B2B" : "B2C"));
   const selProduto = document.getElementById("demProdutoB2b");
   if (selProduto) selProduto.value = dm?.produtoB2b || "";
@@ -5253,6 +5567,8 @@ function openDemandaModal(id) {
   }
 
   setDemandaFormReadOnly(isReadOnlyUser());
+  renderCidadesExtraList();
+  renderProjetistasExtraList();
   syncDemClickupUi();
   const scrollSnap = snapshotPageScroll();
   setDemandaModalScrollLock(true);
@@ -6224,6 +6540,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     id,
     titulo: document.getElementById("demTitulo").value.trim(),
     cidade: readCidadeFromForm(),
+    cidadesExtra: readCidadesExtraFromForm(),
     dataChegada: document.getElementById("demDataChegada").value,
     dataFimPrevista: document.getElementById("demDataFimPrevista").value,
     dataFimAtualizada: document.getElementById("demDataFimAtualizada").value,
@@ -6237,6 +6554,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     solicitante: readSolicitanteFromForm(),
     setorSolicitanteB2b: readSetorSolicitanteB2bFromForm(),
     responsavel: normalizeResponsavel(document.getElementById("demResponsavel").value),
+    projetistasExtra: readProjetistasExtraFromForm(),
     tipo,
     produtoB2b,
     segmentoB2c,
@@ -7425,10 +7743,11 @@ function buildSegmentoB2cMatrix(demandas, rowKeys, keyFn) {
     ]),
   );
   demandas.forEach((d) => {
-    const key = keyFn(d);
-    if (!matrix[key]) return;
     const seg = segmentoB2cBucket(d);
-    if (matrix[key][seg] !== undefined) matrix[key][seg] += 1;
+    for (const key of [...new Set(resolveGeoKeys(d, keyFn))]) {
+      if (!matrix[key] || matrix[key][seg] === undefined) continue;
+      matrix[key][seg] += 1;
+    }
   });
   return matrix;
 }
@@ -7441,10 +7760,12 @@ function buildSegmentoB2cValueMatrix(demandas, rowKeys, keyFn, valueFn) {
     ]),
   );
   demandas.forEach((d) => {
-    const key = keyFn(d);
-    if (!matrix[key]) return;
     const seg = segmentoB2cBucket(d);
-    if (matrix[key][seg] !== undefined) matrix[key][seg] += numDash(valueFn(d));
+    const val = numDash(valueFn(d));
+    for (const key of [...new Set(resolveGeoKeys(d, keyFn))]) {
+      if (!matrix[key] || matrix[key][seg] === undefined) continue;
+      matrix[key][seg] += val;
+    }
   });
   return matrix;
 }
@@ -7718,7 +8039,7 @@ function renderDashB2cGeoDetalhamento(demandas, rowsCidade, rowsRegional) {
     "Regional",
     demandas,
     rowsRegional,
-    (d) => labelRegionalDemanda(d),
+    demandaRegionaisLabels,
     nReg,
   );
   renderDashSegmentoB2cPortasPorGrupo(
@@ -7727,7 +8048,7 @@ function renderDashB2cGeoDetalhamento(demandas, rowsCidade, rowsRegional) {
     "Regional",
     demandas,
     rowsRegional,
-    (d) => labelRegionalDemanda(d),
+    demandaRegionaisLabels,
     nReg,
   );
   renderDashSegmentoB2cInvestPorGrupo(
@@ -7736,7 +8057,7 @@ function renderDashB2cGeoDetalhamento(demandas, rowsCidade, rowsRegional) {
     "Cidade",
     demandas,
     rowsCidade,
-    (d) => labelCidade(d.cidade),
+    demandaCidadesLabels,
     12,
   );
   renderDashSegmentoB2cPortasPorGrupo(
@@ -7745,7 +8066,7 @@ function renderDashB2cGeoDetalhamento(demandas, rowsCidade, rowsRegional) {
     "Cidade",
     demandas,
     rowsCidade,
-    (d) => labelCidade(d.cidade),
+    demandaCidadesLabels,
     12,
   );
 }
@@ -8535,9 +8856,9 @@ function renderDashProjetadoExecutado() {
       "<tr><td><strong>" +
       escapeHtml(r.d.titulo || "—") +
       "</strong></td><td>" +
-      escapeHtml(r.d.cidade || "—") +
+      escapeHtml(formatCidadesDemanda(r.d)) +
       "</td><td>" +
-      escapeHtml(dm.responsavel || "—") +
+      escapeHtml(formatProjetistasDemanda(dm) || "—") +
       '</td><td class="dash-pe-num">' +
       formatBRL(r.base) +
       '</td><td class="dash-pe-num">' +
@@ -8599,24 +8920,27 @@ function statsCidadePctConclusao(row) {
 function buildStatsPorGrupo(demandas, keyFn) {
   const map = new Map();
   for (const d of demandas) {
-    const key = keyFn(d);
-    if (!map.has(key)) map.set(key, emptyStatsCidade(key));
-    accumulateDemandaStatsCidade(map.get(key), d);
+    for (const key of [...new Set(resolveGeoKeys(d, keyFn))]) {
+      if (!map.has(key)) map.set(key, emptyStatsCidade(key));
+      accumulateDemandaStatsCidade(map.get(key), d);
+    }
   }
   return [...map.values()].sort((a, b) => b.projetos - a.projetos || a.cidade.localeCompare(b.cidade, "pt-BR"));
 }
 
 function buildStatsPorCidade(demandas) {
-  return buildStatsPorGrupo(demandas, (d) => labelCidade(d.cidade));
+  return buildStatsPorGrupo(demandas, demandaCidadesLabels);
 }
 
 function buildStatsPorRegional(demandas) {
-  return buildStatsPorGrupo(demandas, labelRegionalDemanda);
+  return buildStatsPorGrupo(demandas, demandaRegionaisLabels);
 }
 
 function collectRegionaisFromDemandas(demandas) {
   const set = new Set();
-  for (const d of demandas) set.add(labelRegionalDemanda(d));
+  for (const d of demandas) {
+    for (const r of demandaRegionaisLabels(d)) set.add(r);
+  }
   return [...set].sort((a, b) => {
     if (a === "Não informada") return 1;
     if (b === "Não informada") return -1;
@@ -8627,8 +8951,10 @@ function collectRegionaisFromDemandas(demandas) {
 function collectCidadesFromDemandas(demandas, regionalFilter) {
   const set = new Set();
   for (const d of demandas) {
-    if (regionalFilter && labelRegionalDemanda(d) !== regionalFilter) continue;
-    set.add(labelCidade(d.cidade));
+    for (const c of demandaCidadesLabels(d)) {
+      if (regionalFilter && regionalFromCidadeLabel(c) !== regionalFilter) continue;
+      set.add(c);
+    }
   }
   return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
 }
@@ -8664,8 +8990,8 @@ function filterDemandasDashCidades(demandas) {
   const cidade = document.getElementById("filterDashCidadesCidade")?.value || "";
   if (!regional && !cidade) return demandas;
   return demandas.filter((d) => {
-    if (regional && labelRegionalDemanda(d) !== regional) return false;
-    if (cidade && labelCidade(d.cidade) !== cidade) return false;
+    if (regional && !demandaTemRegional(d, regional)) return false;
+    if (cidade && !demandaTemCidade(d, cidade)) return false;
     return true;
   });
 }
@@ -8735,8 +9061,8 @@ function listDemandasDashGeo(kind, key, slice) {
   const list = demandasDashOperacionalList();
   const geo =
     kind === "regional"
-      ? list.filter((d) => labelRegionalDemanda(d) === alvo)
-      : list.filter((d) => labelCidade(d.cidade) === alvo);
+      ? list.filter((d) => demandaTemRegional(d, alvo))
+      : list.filter((d) => demandaTemCidade(d, alvo));
   return filterDemandasPjSlice(geo, slice);
 }
 
@@ -8851,8 +9177,8 @@ function renderDashGeoProjetosTable() {
       `<td><button type="button" class="dash-geo-link" data-dash-geo-open-demanda="${escapeHtml(dm.id)}">${escapeHtml(dm.titulo || "(Sem título)")}</button></td>` +
       `<td>${escapeHtml(normalizeTipo(dm.tipo) || "—")}</td>` +
       `<td>${escapeHtml(labelStatus(dm.status, dm.linhaEsteira) || dm.status || "—")}</td>` +
-      `<td>${escapeHtml(labelProjetista(dm.responsavel) || dm.responsavel || "—")}</td>` +
-      `<td>${escapeHtml(labelCidade(dm.cidade))}</td>` +
+      `<td>${escapeHtml(formatProjetistasDemanda(dm) || labelProjetista(dm.responsavel))}</td>` +
+      `<td>${escapeHtml(formatCidadesDemanda(dm))}</td>` +
       `<td>${escapeHtml(formatDataISO(demandaDataChegadaDash(dm)) || "—")}</td>` +
       "</tr>";
   }
@@ -8967,9 +9293,10 @@ function statsGeoGrupo(list) {
 function buildStatsGeoPorGrupo(demandas, keyFn) {
   const map = new Map();
   for (const d of demandas) {
-    const key = keyFn(d);
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(d);
+    for (const key of [...new Set(resolveGeoKeys(d, keyFn))]) {
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(d);
+    }
   }
   return [...map.entries()]
     .map(([nome, list]) => ({ nome, ...statsGeoGrupo(list) }))
@@ -9162,8 +9489,8 @@ function renderDashCidades() {
   const filtroReg = document.getElementById("filterDashCidadesRegional")?.value || "";
   if (filtroReg) dashCidadesDrillRegional = filtroReg;
 
-  const rowsRegional = buildStatsGeoPorGrupo(todasBase, labelRegionalDemanda);
-  const rowsCidadeAll = buildStatsGeoPorGrupo(todasBase, (d) => labelCidade(d.cidade));
+  const rowsRegional = buildStatsGeoPorGrupo(todasBase, demandaRegionaisLabels);
+  const rowsCidadeAll = buildStatsGeoPorGrupo(todasBase, demandaCidadesLabels);
   const tot = statsGeoGrupo(todasBase);
 
   if (!todasBase.length) {
@@ -9212,7 +9539,7 @@ function renderDashCidades() {
     return;
   }
 
-  const listReg = todasBase.filter((d) => labelRegionalDemanda(d) === dashCidadesDrillRegional);
+  const listReg = todasBase.filter((d) => demandaTemRegional(d, dashCidadesDrillRegional));
   const s = statsGeoGrupo(listReg);
   const drillEl = document.getElementById("dashCidadesDrill");
   const titleEl = document.getElementById("dashCidadesDrillTitle");
@@ -9240,7 +9567,9 @@ function renderDashCidades() {
 
   renderDashGeoDetailCharts(listReg, "regional", dashCidadesDrillRegional);
 
-  const rowsCidade = buildStatsGeoPorGrupo(listReg, (d) => labelCidade(d.cidade));
+  const rowsCidade = buildStatsGeoPorGrupo(listReg, (d) =>
+    demandaCidadesLabels(d).filter((c) => regionalFromCidadeLabel(c) === dashCidadesDrillRegional),
+  );
   const cityCharts = document.getElementById("dashCidadesCityCharts");
   const cityHead = document.getElementById("dashCidadesCityHead");
   if (!rowsCidade.length) {
@@ -9266,13 +9595,7 @@ function demandaTempoTotalMs(d) {
 function demandasDoProjetista(nome, baseList = demandasDashOperacionalList()) {
   const alvo = String(nome || "").trim();
   if (!alvo) return [];
-  const slug = projetistaSlug(alvo);
-  return baseList.filter((d) => {
-    const resp = normalizeResponsavel(d.responsavel) || String(d.responsavel || "").trim();
-    if (!resp) return false;
-    if (resp === alvo) return true;
-    return projetistaSlug(resp) === slug;
-  });
+  return baseList.filter((d) => demandaTemProjetista(d, alvo));
 }
 
 function statsProjetista(nome, baseList = demandasDashOperacionalList()) {
@@ -9544,16 +9867,29 @@ function renderKpiProjetistas(baseList = demandasDashOperacionalList()) {
 
   const rows = buildStatsPorProjetista(baseList);
   const valorModoLabel = labelValorDashModo();
-  const tot = rows.reduce(
-    (acc, r) => {
-      acc.projetos += r.total;
-      acc.atraso += r.atraso;
-      acc.valor += r.valorTotal;
-      acc.portas += r.portasNovasTotal;
-      return acc;
-    },
-    { projetos: 0, atraso: 0, valor: 0, portas: 0 },
-  );
+  const seenPj = new Set();
+  const uniquePj = [];
+  for (const r of rows) {
+    for (const d of r.list || []) {
+      if (seenPj.has(d.id)) continue;
+      seenPj.add(d.id);
+      uniquePj.push(d);
+    }
+  }
+  const totCounts = countDemandas(uniquePj);
+  const modePj = getDashValorModo();
+  let valorUnique = 0;
+  let portasUnique = 0;
+  for (const d of uniquePj) {
+    valorUnique += demandaValorDashPorModo(d, modePj);
+    portasUnique += demandaPortasDashPorModo(d, modePj);
+  }
+  const tot = {
+    projetos: totCounts.total,
+    atraso: totCounts.atraso,
+    valor: valorUnique,
+    portas: portasUnique,
+  };
 
   if (!rows.length) {
     wrap.innerHTML = "";
@@ -9728,10 +10064,12 @@ function buildProjetistaCountMatrix(baseList, colKeys, valueFromDemanda) {
     matrix[nome] = Object.fromEntries(colKeys.map((k) => [k, 0]));
   }
   baseList.forEach((d) => {
-    const pj = normalizeResponsavel(d.responsavel);
-    if (!PROJETISTAS.includes(pj)) return;
     const col = valueFromDemanda(d);
-    if (col && matrix[pj][col] !== undefined) matrix[pj][col] += 1;
+    if (!col) return;
+    for (const pj of demandaProjetistasList(d)) {
+      if (!PROJETISTAS.includes(pj) || matrix[pj][col] === undefined) continue;
+      matrix[pj][col] += 1;
+    }
   });
   return matrix;
 }
@@ -9981,10 +10319,11 @@ function buildProdutoB2bMatrix(demandas, rowKeys, keyFn) {
     rowKeys.map((k) => [k, Object.fromEntries(cols.map((p) => [p, 0]))]),
   );
   demandas.forEach((d) => {
-    const key = keyFn(d);
-    if (!matrix[key]) return;
     const prod = produtoB2bBucket(d);
-    if (matrix[key][prod] !== undefined) matrix[key][prod] += 1;
+    for (const key of [...new Set(resolveGeoKeys(d, keyFn))]) {
+      if (!matrix[key] || matrix[key][prod] === undefined) continue;
+      matrix[key][prod] += 1;
+    }
   });
   return matrix;
 }
@@ -10083,8 +10422,9 @@ function scheduleDashChartsResize(ids) {
 function topCidadesSolicitanteB2b(demandas, topN = 10) {
   const counts = new Map();
   demandas.forEach((d) => {
-    const c = labelCidade(d.cidade);
-    counts.set(c, (counts.get(c) || 0) + 1);
+    for (const c of demandaCidadesLabels(d)) {
+      counts.set(c, (counts.get(c) || 0) + 1);
+    }
   });
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"))
@@ -10098,9 +10438,11 @@ function buildSolicitanteB2bCidadeMatrix(demandas, cidades) {
   );
   demandas.forEach((d) => {
     const sol = resolveSolicitanteB2bComercial(d);
-    const cid = labelCidade(d.cidade);
-    if (!sol || !matrix[sol] || matrix[sol][cid] === undefined) return;
-    matrix[sol][cid] += 1;
+    if (!sol || !matrix[sol]) return;
+    for (const cid of demandaCidadesLabels(d)) {
+      if (matrix[sol][cid] === undefined) continue;
+      matrix[sol][cid] += 1;
+    }
   });
   return matrix;
 }
@@ -10905,7 +11247,7 @@ function filterDashCfDetalheRows(rows) {
 
   return rows.filter((row) => {
     if (busca) {
-      const hay = `${row.d.titulo} ${row.d.cidade || ""} ${row.d.solicitante || ""}`.toLowerCase();
+      const hay = `${row.d.titulo} ${formatCidadesDemanda(row.d)} ${row.d.solicitante || ""}`.toLowerCase();
       if (!hay.includes(busca)) return false;
     }
     if (!matchFilterProjetista(row.d, resp)) return false;
@@ -10967,7 +11309,7 @@ function renderDashCfDetalheTable() {
       "</td><td>" +
       formatDataISO(row.dataConclusao) +
       "</td><td>" +
-      escapeHtml(labelProjetista(row.d.responsavel)) +
+      escapeHtml(formatProjetistasDemanda(row.d) || labelProjetista(row.d.responsavel)) +
       "</td><td>" +
       escapeHtml(STATUS_LABEL[row.d.status] || row.d.status) +
       "</td></tr>";
@@ -11059,7 +11401,7 @@ function filterDashTempoRows(rows, cfg = DASH_TEMPO_CFG_OP) {
   const mes = document.getElementById(cfg.ids.filterMes)?.value || "";
   return rows.filter(({ d }) => {
     if (busca) {
-      const hay = `${d.titulo} ${d.cidade || ""} ${d.solicitante || ""}`.toLowerCase();
+      const hay = `${d.titulo} ${formatCidadesDemanda(d)} ${d.solicitante || ""}`.toLowerCase();
       if (!hay.includes(busca)) return false;
     }
     if (!matchFilterProjetista(d, resp)) return false;
@@ -11480,7 +11822,7 @@ function renderDashIndicadoresB2b() {
     "Cidade",
     listModo,
     rowsCidade,
-    (d) => labelCidade(d.cidade),
+    demandaCidadesLabels,
   );
   renderDashProdutoB2bPorGrupo(
     "chartB2bProdutoRegional",
@@ -11488,7 +11830,7 @@ function renderDashIndicadoresB2b() {
     "Regional",
     listModo,
     rowsRegional,
-    labelRegionalDemanda,
+    demandaRegionaisLabels,
     rowsRegional.length,
   );
 

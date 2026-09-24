@@ -943,7 +943,10 @@ const DemandasCsvImport = (function () {
       d.titulo || "",
       tipoProjetoExport(d),
       resumoFromDescricao(d.descricao),
-      d.cidade || "",
+      [d.cidade, ...(Array.isArray(d.cidadesExtra) ? d.cidadesExtra : [])]
+        .map((c) => String(c || "").trim())
+        .filter((c, i, arr) => c && arr.findIndex((x) => x.toLowerCase() === c.toLowerCase()) === i)
+        .join(" · "),
       diasRestantesExport(d.dataFimPrevista, todayISO),
       mapStatusFollowUpExport(d, todayISO),
       situacaoAtual,
@@ -955,7 +958,10 @@ const DemandasCsvImport = (function () {
       meta.kpi,
       "",
       "",
-      d.responsavel || "",
+      [d.responsavel, ...(Array.isArray(d.projetistasExtra) ? d.projetistasExtra : [])]
+        .map((n) => String(n || "").trim())
+        .filter((n, i, arr) => n && arr.findIndex((x) => x.toLowerCase() === n.toLowerCase()) === i)
+        .join(" · "),
       d.solicitante || "",
       meta.indicador,
       execucaoCustoExport(d),
