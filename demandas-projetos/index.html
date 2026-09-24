@@ -887,47 +887,51 @@
         <fieldset class="fieldset fieldset--segment fieldset--atribuicao">
           <legend>Atribuição e origem</legend>
           <div class="form-grid">
-            <label class="field">
-              <span>Projetista</span>
-              <select id="demResponsavel">
-                <option value="">Não atribuído</option>
-              </select>
-            </label>
-            <div class="field field--span" id="fieldProjetistasExtra">
-              <span>Projetistas extras</span>
-              <p class="muted small">O projeto também entra nos totais desses projetistas.</p>
-              <div id="demProjetistasExtraList" class="cidades-extra-list"></div>
-              <div class="cidades-extra-add cidades-extra-add--single">
-                <select id="demExtraProjetista" aria-label="Projetista extra">
-                  <option value="">Projetista extra…</option>
+            <div class="atribuicao-pair">
+              <label class="field">
+                <span>Projetista</span>
+                <select id="demResponsavel">
+                  <option value="">Não atribuído</option>
                 </select>
-                <button type="button" class="btn btn--ghost btn--sm" id="btnAddProjetistaExtra">Adicionar</button>
+              </label>
+              <div class="field" id="fieldProjetistasExtra" title="O projeto também entra nos totais desses projetistas.">
+                <span>Projetistas extras</span>
+                <div id="demProjetistasExtraList" class="cidades-extra-list"></div>
+                <div class="cidades-extra-add cidades-extra-add--single">
+                  <select id="demExtraProjetista" aria-label="Projetista extra">
+                    <option value="">Projetista extra…</option>
+                  </select>
+                  <button type="button" class="btn btn--ghost btn--sm" id="btnAddProjetistaExtra">Adicionar</button>
+                </div>
               </div>
             </div>
-            <label class="field">
-              <span class="field-label--required">Regional</span>
-              <select id="demRegional" required>
-                <option value="">Selecione a regional…</option>
-              </select>
-            </label>
-            <label class="field">
-              <span class="field-label--required">Cidade</span>
-              <select id="demCidade" required disabled>
-                <option value="">Selecione a regional primeiro…</option>
-              </select>
-            </label>
-            <div class="field field--span" id="fieldCidadesExtra">
-              <span>Cidades extras</span>
-              <p class="muted small">O projeto também entra nos totais dessas cidades e regionais.</p>
-              <div id="demCidadesExtraList" class="cidades-extra-list"></div>
-              <div class="cidades-extra-add">
-                <select id="demExtraRegional" aria-label="Regional da cidade extra">
-                  <option value="">Regional…</option>
-                </select>
-                <select id="demExtraCidade" disabled aria-label="Cidade extra">
-                  <option value="">Selecione a regional…</option>
-                </select>
-                <button type="button" class="btn btn--ghost btn--sm" id="btnAddCidadeExtra">Adicionar</button>
+            <div class="atribuicao-pair atribuicao-pair--geo">
+              <div class="atribuicao-pair__principal">
+                <label class="field">
+                  <span class="field-label--required">Regional</span>
+                  <select id="demRegional" required>
+                    <option value="">Selecione a regional…</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span class="field-label--required">Cidade</span>
+                  <select id="demCidade" required disabled>
+                    <option value="">Selecione a regional primeiro…</option>
+                  </select>
+                </label>
+              </div>
+              <div class="field" id="fieldCidadesExtra" title="O projeto também entra nos totais dessas cidades e regionais.">
+                <span>Cidades extras</span>
+                <div id="demCidadesExtraList" class="cidades-extra-list"></div>
+                <div class="cidades-extra-add">
+                  <select id="demExtraRegional" aria-label="Regional da cidade extra">
+                    <option value="">Regional…</option>
+                  </select>
+                  <select id="demExtraCidade" disabled aria-label="Cidade extra">
+                    <option value="">Selecione a regional…</option>
+                  </select>
+                  <button type="button" class="btn btn--ghost btn--sm" id="btnAddCidadeExtra">Adicionar</button>
+                </div>
               </div>
             </div>
             <label class="field is-hidden" id="fieldDemSetorSolicitanteB2b" hidden>

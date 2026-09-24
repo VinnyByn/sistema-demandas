@@ -408,7 +408,25 @@ textarea {
 }
 .field--grow { min-width: 0; width: 100%; }
 .field--span { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+.atribuicao-pair {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(150px, 0.85fr) minmax(190px, 1.25fr);
+  gap: 0.75rem;
+  align-items: start;
+  min-width: 0;
+}
+.atribuicao-pair__principal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  min-width: 0;
+}
 .cidades-extra-list { display: flex; flex-wrap: wrap; gap: 0.4rem; min-height: 0; }
+@media (max-width: 520px) {
+  .atribuicao-pair,
+  .atribuicao-pair__principal { grid-template-columns: minmax(0, 1fr); }
+}
 .cidade-extra-chip {
   display: inline-flex; align-items: center; gap: 0.35rem;
   max-width: 100%; padding: 0.28rem 0.45rem 0.28rem 0.55rem;
