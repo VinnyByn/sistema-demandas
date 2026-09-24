@@ -5225,6 +5225,7 @@ let pdfCustoAppliedInSession = false;
 let editingLancamentoCabos = [];
 let editingComentarios = [];
 let editingChecklist = [];
+let editingChecklistItemId = "";
 
 function checklistCardHtml(dm) {
   const items = normalizeChecklist(dm?.checklist);
@@ -5254,6 +5255,64 @@ function renderChecklistDots(el, items) {
     .join("");
 }
 
+function createChecklistField({ id, label, type = "text", value = "", maxLength, placeholder }) {
+  const wrap = document.createElement("label");
+  wrap.className = "field";
+  const span = document.createElement("span");
+  span.textContent = label;
+  const input = document.createElement("input");
+  input.id = id;
+  input.type = type;
+  input.value = value || "";
+  input.autocomplete = "off";
+  if (maxLength) input.maxLength = maxLength;
+  if (placeholder) input.placeholder = placeholder;
+  wrap.append(span, input);
+  return { wrap, input };
+}
+
+function readChecklistEtapaDraft(ids) {
+  return {
+    name: (document.getElementById(ids.name)?.value || "").trim(),
+    who: (document.getElementById(ids.who)?.value || "").trim(),
+    dateInicio: (document.getElementById(ids.dateInicio)?.value || "").trim(),
+    date: (document.getElementById(ids.date)?.value || "").trim(),
+  };
+}
+
+function validateChecklistEtapa(draft, focusId) {
+  if (!draft.name || !draft.who || !draft.dateInicio || !draft.date) {
+    toast("Preencha etapa, responsável, previsão de início e término.");
+    return false;
+  }
+  if (draft.dateInicio > draft.date) {
+    toast("A previsão de início deve ser anterior ou igual ao término.");
+    if (focusId) document.getElementById(focusId)?.focus();
+    return false;
+  }
+  return true;
+}
+
+function applyChecklistItemPatch(id, patch) {
+  editingChecklist = normalizeChecklist(editingChecklist).map((row) =>
+    row.id === id ? { ...row, ...patch } : row,
+  );
+}
+
+function saveChecklistItemEdit(id) {
+  if (!requireWriteAccess()) return;
+  const draft = readChecklistEtapaDraft({
+    name: "demChecklistEditName",
+    who: "demChecklistEditWho",
+    dateInicio: "demChecklistEditInicio",
+    date: "demChecklistEditFim",
+  });
+  if (!validateChecklistEtapa(draft, "demChecklistEditInicio")) return;
+  applyChecklistItemPatch(id, draft);
+  editingChecklistItemId = "";
+  renderChecklistEditor();
+}
+
 function renderChecklistEditor() {
   const items = normalizeChecklist(editingChecklist);
   const n = items.length;
@@ -5268,8 +5327,9 @@ function renderChecklistEditor() {
   const readOnly = isReadOnlyUser();
   list.innerHTML = "";
   items.forEach((it) => {
+    const editing = !readOnly && editingChecklistItemId === it.id;
     const li = document.createElement("li");
-    li.className = "checklist-item" + (it.done ? "" : " is-off");
+    li.className = "checklist-item" + (it.done ? "" : " is-off") + (editing ? " is-editing" : "");
     const box = document.createElement("label");
     box.className = "checklist-check";
     const cb = document.createElement("input");
@@ -5279,29 +5339,24 @@ function renderChecklistEditor() {
     cb.setAttribute("aria-label", it.name);
     cb.addEventListener("change", () => {
       const done = cb.checked;
-      editingChecklist = normalizeChecklist(editingChecklist).map((row) =>
-        row.id === it.id ? { ...row, done } : row,
-      );
+      const draft = editing
+        ? readChecklistEtapaDraft({
+            name: "demChecklistEditName",
+            who: "demChecklistEditWho",
+            dateInicio: "demChecklistEditInicio",
+            date: "demChecklistEditFim",
+          })
+        : {};
+      applyChecklistItemPatch(it.id, { ...draft, done });
       renderChecklistEditor();
     });
     const mark = document.createElement("i");
     mark.setAttribute("aria-hidden", "true");
     box.append(cb, mark);
-    const name = document.createElement("span");
-    name.className = "checklist-item__name";
-    name.textContent = it.name;
-    const meta = document.createElement("span");
-    meta.className = "checklist-item__meta";
-    const who = document.createElement("span");
-    who.className = "checklist-item__who";
-    who.textContent = it.who || "—";
-    const start = document.createElement("time");
-    start.dateTime = it.dateInicio || "";
-    start.textContent = it.dateInicio ? `Início ${formatDataCurta(it.dateInicio)}` : "Início —";
-    const when = document.createElement("time");
-    when.dateTime = it.date || "";
-    when.textContent = it.date ? `Término ${formatDataCurta(it.date)}` : "Término —";
-    meta.append(who, start, when);
+
+    const actions = document.createElement("div");
+    actions.className = "checklist-item__actions";
+
     const rm = document.createElement("button");
     rm.type = "button";
     rm.className = "checklist-item__remove";
@@ -5317,10 +5372,95 @@ function renderChecklistEditor() {
         variant: "danger",
       });
       if (!ok) return;
+      if (editingChecklistItemId === it.id) editingChecklistItemId = "";
       editingChecklist = editingChecklist.filter((x) => x.id !== it.id);
       renderChecklistEditor();
     });
-    li.append(box, name, meta, rm);
+
+    if (editing) {
+      const edit = document.createElement("div");
+      edit.className = "checklist-item__edit";
+      const nameField = createChecklistField({
+        id: "demChecklistEditName",
+        label: "Etapa",
+        value: it.name,
+        maxLength: 80,
+        placeholder: "PDF do levantamento",
+      });
+      const whoField = createChecklistField({
+        id: "demChecklistEditWho",
+        label: "Responsável",
+        value: it.who,
+        maxLength: 80,
+        placeholder: "Nome do responsável",
+      });
+      const startField = createChecklistField({
+        id: "demChecklistEditInicio",
+        label: "Previsão de início",
+        type: "date",
+        value: it.dateInicio,
+      });
+      const endField = createChecklistField({
+        id: "demChecklistEditFim",
+        label: "Previsão de término",
+        type: "date",
+        value: it.date,
+      });
+      [nameField.input, whoField.input].forEach((input) => {
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            saveChecklistItemEdit(it.id);
+          }
+        });
+      });
+      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap);
+
+      const save = document.createElement("button");
+      save.type = "button";
+      save.className = "checklist-item__save";
+      save.textContent = "Salvar";
+      save.addEventListener("click", () => saveChecklistItemEdit(it.id));
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "checklist-item__cancel";
+      cancel.textContent = "Cancelar";
+      cancel.addEventListener("click", () => {
+        editingChecklistItemId = "";
+        renderChecklistEditor();
+      });
+      actions.append(save, cancel, rm);
+      li.append(box, edit, actions);
+    } else {
+      const name = document.createElement("span");
+      name.className = "checklist-item__name";
+      name.textContent = it.name;
+      const meta = document.createElement("span");
+      meta.className = "checklist-item__meta";
+      const who = document.createElement("span");
+      who.className = "checklist-item__who";
+      who.textContent = it.who || "—";
+      const start = document.createElement("time");
+      start.dateTime = it.dateInicio || "";
+      start.textContent = it.dateInicio ? `Início ${formatDataCurta(it.dateInicio)}` : "Início —";
+      const when = document.createElement("time");
+      when.dateTime = it.date || "";
+      when.textContent = it.date ? `Término ${formatDataCurta(it.date)}` : "Término —";
+      meta.append(who, start, when);
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "checklist-item__edit-btn";
+      editBtn.textContent = "Editar";
+      editBtn.disabled = readOnly;
+      editBtn.addEventListener("click", () => {
+        if (readOnly || !requireWriteAccess()) return;
+        editingChecklistItemId = it.id;
+        renderChecklistEditor();
+        document.getElementById("demChecklistEditName")?.focus();
+      });
+      actions.append(editBtn, rm);
+      li.append(box, name, meta, actions);
+    }
     list.appendChild(li);
   });
   renderChecklistGantt();
@@ -5590,22 +5730,17 @@ function renderChecklistGantt() {
 
 function addChecklistEtapaFromForm() {
   if (!requireWriteAccess()) return;
-  const name = (document.getElementById("demChecklistEtapa")?.value || "").trim();
-  const who = (document.getElementById("demChecklistWho")?.value || "").trim();
-  const dateInicio = (document.getElementById("demChecklistDateInicio")?.value || "").trim();
-  const date = (document.getElementById("demChecklistDate")?.value || "").trim();
-  if (!name || !who || !dateInicio || !date) {
-    toast("Preencha etapa, responsável, previsão de início e término.");
-    return;
-  }
-  if (dateInicio > date) {
-    toast("A previsão de início deve ser anterior ou igual ao término.");
-    document.getElementById("demChecklistDateInicio")?.focus();
-    return;
-  }
+  const draft = readChecklistEtapaDraft({
+    name: "demChecklistEtapa",
+    who: "demChecklistWho",
+    dateInicio: "demChecklistDateInicio",
+    date: "demChecklistDate",
+  });
+  if (!validateChecklistEtapa(draft, "demChecklistDateInicio")) return;
+  editingChecklistItemId = "";
   editingChecklist = [
     ...normalizeChecklist(editingChecklist),
-    { id: uid(), name, who, dateInicio, date, done: true },
+    { id: uid(), name: draft.name, who: draft.who, dateInicio: draft.dateInicio, date: draft.date, done: true },
   ];
   const etapa = document.getElementById("demChecklistEtapa");
   const resp = document.getElementById("demChecklistWho");
@@ -5808,6 +5943,7 @@ function openDemandaModal(id) {
   lastPdfParseResult = null;
   editingComentarios = JSON.parse(JSON.stringify(normalizeComentarios(dm?.comentarios || d?.comentarios || [])));
   editingChecklist = JSON.parse(JSON.stringify(normalizeChecklist(dm?.checklist || d?.checklist || [])));
+  editingChecklistItemId = "";
   const expandBtn = document.getElementById("btnChecklistExpand");
   const details = document.getElementById("demChecklistDetails");
   if (expandBtn) {
