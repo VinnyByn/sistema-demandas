@@ -6837,8 +6837,7 @@ function initDashBlocks() {
         id === "tempo" ||
         id === "indicadores-b2c" ||
         id === "indicadores-b2b" ||
-        id === "projetistas" ||
-        id === "kpi-geral"
+        id === "projetistas"
       ) {
         if (nowVisible && panels.dashboard && !panels.dashboard.hidden) renderDashboard();
       }
@@ -7261,12 +7260,7 @@ function makeDashChartMetricBar(canvasId, labels, data, options = {}) {
           stepSize: options.stepSize,
           callback: options.yFormat || ((v) => formatValue(v)),
         },
-        categoryTicks: {
-          color: "#94a3b8",
-          font: { size: 11 },
-          maxRotation: options.maxRotation ?? 0,
-          minRotation: 0,
-        },
+        categoryTicks: { color: "#94a3b8", font: { size: 11 } },
       }),
       plugins: {
         legend: { display: false },
@@ -8713,20 +8707,6 @@ function labelDashGeoSlice(slice) {
   return "";
 }
 
-function demandaMesChegadaKey(d) {
-  const p = parsePeriodoFromDate(demandaDataChegadaDash(d));
-  if (!p) return "";
-  return `${p.year}-${String(p.month).padStart(2, "0")}`;
-}
-
-function labelMesAnoFromKey(key, short = false) {
-  const p = parsePeriodoFromDate(`${String(key || "")}-01`);
-  if (!p) return key || "—";
-  const nome = MESES_PT[p.month - 1] || String(p.month);
-  const mes = short ? nome.slice(0, 3) : nome;
-  return `${mes} de ${p.year}`;
-}
-
 function listDemandasDashGeo(kind, key, slice) {
   const alvo = String(key || "");
   if (kind === "segmento") {
@@ -8736,9 +8716,6 @@ function listDemandasDashGeo(kind, key, slice) {
     return filterDemandasPjSlice(demandasDoProjetista(alvo, demandasDashOperacionalList()), slice);
   }
   const list = demandasDashOperacionalList();
-  if (kind === "mes") {
-    return list.filter((d) => demandaMesChegadaKey(d) === alvo);
-  }
   const geo =
     kind === "regional"
       ? list.filter((d) => labelRegionalDemanda(d) === alvo)
@@ -8830,21 +8807,12 @@ function renderDashGeoProjetosTable() {
 
   const kind = ctx.kind;
   const kindLabel =
-    kind === "regional"
-      ? "Regional"
-      : kind === "segmento"
-        ? "Segmento"
-        : kind === "projetista"
-          ? "Projetista"
-          : kind === "mes"
-            ? "Mês"
-            : "Cidade";
-  const keyLabel = kind === "mes" ? labelMesAnoFromKey(ctx.key) : ctx.key;
+    kind === "regional" ? "Regional" : kind === "segmento" ? "Segmento" : kind === "projetista" ? "Projetista" : "Cidade";
   const filtroLabels = labelDashGeoFiltrosAtivos(filtros);
   if (titleEl) {
     titleEl.textContent = filtroLabels.length
-        ? `Projetos — ${kindLabel}: ${keyLabel} · ${filtroLabels.join(" · ")}`
-        : `Projetos — ${kindLabel}: ${keyLabel}`;
+      ? `Projetos — ${kindLabel}: ${ctx.key} · ${filtroLabels.join(" · ")}`
+      : `Projetos — ${kindLabel}: ${ctx.key}`;
   }
   if (subEl) {
     const periodo = labelDashPeriodoFiltro();
@@ -11340,67 +11308,6 @@ function renderDashEntregaAtraso() {
     "</tbody></table>";
 }
 
-function monthsBetweenInclusive(start, end) {
-  const out = [];
-  if (!start || !end) return out;
-  let year = start.year;
-  let month = start.month;
-  while (year < end.year || (year === end.year && month <= end.month)) {
-    out.push({
-      year,
-      month,
-      key: `${year}-${String(month).padStart(2, "0")}`,
-    });
-    month += 1;
-    if (month > 12) {
-      month = 1;
-      year += 1;
-    }
-  }
-  return out;
-}
-
-function buildProjetosPorMes(list) {
-  const counts = new Map();
-  let minKey = "";
-  let maxKey = "";
-  for (const d of list) {
-    const key = demandaMesChegadaKey(d);
-    if (!key) continue;
-    counts.set(key, (counts.get(key) || 0) + 1);
-    if (!minKey || key < minKey) minKey = key;
-    if (!maxKey || key > maxKey) maxKey = key;
-  }
-  const start = parsePeriodoFromDate(`${minKey}-01`);
-  const end = parsePeriodoFromDate(`${maxKey}-01`);
-  const multiYear = start && end && start.year !== end.year;
-  return monthsBetweenInclusive(start, end).map((it) => ({
-    ...it,
-    n: counts.get(it.key) || 0,
-    label: multiYear ? labelMesAnoFromKey(it.key, true) : (MESES_PT[it.month - 1] || it.key).slice(0, 3),
-  }));
-}
-
-function renderDashGeralProjetosMes(list = demandasDashOperacionalList()) {
-  const rows = buildProjetosPorMes(list);
-  makeDashChartMetricBar(
-    "chartGeralProjetosMes",
-    rows.map((r) => r.label),
-    rows.map((r) => r.n),
-    {
-      color: "#6366f1",
-      datasetLabel: "Projetos",
-      stepSize: 1,
-      maxRotation: rows.length > 8 ? 45 : 0,
-      onBarClick: (_label, i) => {
-        const row = rows[i];
-        if (!row?.key) return;
-        openDashGeoProjetosLista("mes", row.key, "total");
-      },
-    },
-  );
-}
-
 function renderDashboard() {
   initDashBlocks();
   destroyDashboardCharts();
@@ -11420,7 +11327,6 @@ function renderDashboard() {
     kpiCard("Em atraso", g.atraso, g.atraso ? "bad" : "ok");
 
   renderDashValoresFinanceirosKpis(todas);
-  renderDashGeralProjetosMes(todas);
   renderKpiGeralPorTipo(todas);
   renderKpiProjetistas(demandasDashOperacionalList());
 
