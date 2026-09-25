@@ -2022,7 +2022,7 @@ function refreshAllViews() {
   if (panels.esteira && !panels.esteira.hidden) renderBoard();
   updateEsteiraStatusLine();
   if (panels.dashboard && !panels.dashboard.hidden) renderDashboard();
-  if (panels.usuarios && !panels.usuarios.hidden) renderUsuariosPanel();
+  if (usuariosModalAberto()) renderUsuariosPanel();
   applyRoleUi({ light: true });
   syncDemandaModalAlerts();
   syncDemClickupUi();
@@ -2593,7 +2593,7 @@ function applyRoleUi(opts = {}) {
   const info = currentRoleInfo();
   const appRoot = document.getElementById("appRoot");
   const roleEl = document.getElementById("authUserRole");
-  const tabUsers = document.getElementById("btnTabUsuarios");
+  const tabUsers = document.getElementById("btnMenuUsuarios");
   if (appRoot) appRoot.classList.toggle("app--readonly", info.isReadOnly || info.isBlocked);
   if (roleEl) {
     if (info.email) {
@@ -2604,17 +2604,333 @@ function applyRoleUi(opts = {}) {
       roleEl.hidden = true;
     }
   }
-  if (tabUsers) {
-    tabUsers.hidden = !info.isAdmin;
-    if (!info.isAdmin && panels.usuarios && !panels.usuarios.hidden) {
-      switchMainTab("esteira");
-    }
+  if (tabUsers) tabUsers.hidden = !info.isAdmin;
+  if (!info.isAdmin && usuariosModalAberto()) {
+    document.getElementById("panelUsuarios")?.close();
   }
+  const exportMenu = document.getElementById("exportMenu");
+  const importMenu = document.getElementById("importMenu");
+  if (exportMenu) exportMenu.hidden = !info.isAdmin;
+  if (importMenu) importMenu.hidden = !info.isAdmin;
+  if (!info.isAdmin) {
+    setExportMenuOpen(false);
+    setImportMenuOpen(false);
+  }
+  updateUserMenuAvatar(info.email);
   // Evita recriar selects e painel de usuários a cada sync da esteira.
   if (!opts.light) {
     refreshProjetistaAssignmentLists();
-    if (info.isAdmin && panels.usuarios && !panels.usuarios.hidden) renderUsuariosPanel();
+    if (info.isAdmin && usuariosModalAberto()) renderUsuariosPanel();
   }
+}
+
+function userInitialsFromEmail(email) {
+  const local = String(email || "").split("@")[0].trim();
+  const parts = local.split(/[.\-_]+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return (local.slice(0, 2) || "?").toUpperCase();
+}
+
+function updateUserMenuAvatar(email) {
+  const el = document.getElementById("userMenuAvatar");
+  const initials = userInitialsFromEmail(email);
+  if (el) el.textContent = initials;
+  const btn = document.getElementById("btnUserMenu");
+  if (btn) btn.title = email ? `${email} — Minha conta` : "Minha conta";
+}
+
+function currentTheme() {
+  return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+}
+
+function chartInk() {
+  const light = document.documentElement.getAttribute("data-theme") === "light";
+  return light
+    ? { tick: "#475569", label: "#1e293b", grid: "rgba(15,23,42,0.08)" }
+    : { tick: "#94a3b8", label: "#cbd5e1", grid: chartInk().grid };
+}
+
+function applyTheme(theme) {
+  const t = theme === "light" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", t);
+  try {
+    localStorage.setItem("demandas-theme", t);
+  } catch (_) {}
+  const toggle = document.getElementById("themeToggle");
+  if (toggle) toggle.checked = t === "light";
+  const dash = document.getElementById("panelDashboard");
+  if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
+}
+
+function isMobileShell() {
+  return window.matchMedia("(max-width: 720px)").matches;
+}
+
+function applySidebarCollapsed(collapsed) {
+  const app = document.getElementById("appRoot");
+  const btn = document.getElementById("btnSidebarToggle");
+  app?.classList.toggle("app--sidebar-collapsed", !!collapsed);
+  if (btn) {
+    btn.setAttribute("aria-pressed", collapsed ? "true" : "false");
+    const tip = collapsed ? "Expandir menu" : "Recolher menu";
+    btn.dataset.tip = tip;
+    btn.setAttribute("aria-label", tip);
+  }
+  try {
+    localStorage.setItem("demandas-sidebar-collapsed", collapsed ? "1" : "0");
+  } catch (_) {}
+}
+
+function setMobileSidebarOpen(open) {
+  const app = document.getElementById("appRoot");
+  const backdrop = document.getElementById("sidebarBackdrop");
+  app?.classList.toggle("is-sidebar-open", !!open);
+  if (backdrop) backdrop.hidden = !open;
+}
+
+function setUserMenuOpen(open) {
+  setDropdownMenuOpen("userMenuPanel", "btnUserMenu", open);
+  document.getElementById("btnUserMenu")?.classList.toggle("is-active", !!open);
+}
+
+function fillContaScreen() {
+  const info = currentRoleInfo();
+  const nome = getLoggedInComentarioAutor();
+  const primeiro = nome.split(" ")[0] || nome;
+  const initials = userInitialsFromEmail(info.email);
+  const emailEl = document.getElementById("userDadosEmail");
+  const papelEl = document.getElementById("userDadosPapel");
+  const regionalEl = document.getElementById("userDadosRegional");
+  const emailTxt = info.email || "—";
+  if (emailEl) emailEl.textContent = emailTxt;
+  const emailCampo = document.getElementById("contaPerfilEmail");
+  if (emailCampo) emailCampo.textContent = emailTxt;
+  if (papelEl) papelEl.textContent = info.label || "—";
+  const regional =
+    typeof DemandasRoles !== "undefined" && DemandasRoles.regionalForEmail
+      ? DemandasRoles.regionalForEmail(info.email)
+      : "";
+  if (regionalEl) regionalEl.textContent = regional || "Todas";
+  const navNome = document.getElementById("contaNavNome");
+  const perfilNome = document.getElementById("contaPerfilNome");
+  const nomeCampo = document.getElementById("contaPerfilNomeCampo");
+  const navSub = document.getElementById("contaNavSub");
+  if (navNome) navNome.textContent = primeiro;
+  if (perfilNome) perfilNome.textContent = nome;
+  if (nomeCampo) nomeCampo.textContent = nome;
+  if (navSub) navSub.textContent = `${info.label || "Conta"} · configurações da conta`;
+  ["contaNavAvatar", "contaPerfilAvatar"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = initials;
+  });
+  const situacao = document.getElementById("contaSituacao");
+  if (situacao) {
+    situacao.classList.remove("is-warn", "is-off");
+    if (info.isBlocked) {
+      situacao.textContent = "Sem acesso";
+      situacao.classList.add("is-off");
+    } else if (info.isDisabled) {
+      situacao.textContent = "Desabilitado";
+      situacao.classList.add("is-off");
+    } else if (info.isReadOnly) {
+      situacao.textContent = "Somente leitura";
+      situacao.classList.add("is-warn");
+    } else {
+      situacao.textContent = "Ativo";
+    }
+  }
+  const toggle = document.getElementById("themeToggle");
+  if (toggle) toggle.checked = currentTheme() === "light";
+  const segEmail = document.getElementById("userSegurancaEmail");
+  if (segEmail) segEmail.textContent = info.email || "—";
+}
+
+function syncTrocarSenhaForm() {
+  const atual = document.getElementById("userSenhaAtual")?.value || "";
+  const nova = document.getElementById("userSenhaNova")?.value || "";
+  const nova2 = document.getElementById("userSenhaNova2")?.value || "";
+  const hint = document.getElementById("userSenhaHint");
+  const btn = document.getElementById("btnTrocarSenha");
+  let msg = "Use ao menos 6 caracteres.";
+  let state = "";
+  if (nova && nova.length < 6) {
+    msg = "A nova senha precisa de ao menos 6 caracteres.";
+    state = "is-bad";
+  } else if (nova && atual && nova === atual) {
+    msg = "A nova senha precisa ser diferente da atual.";
+    state = "is-bad";
+  } else if (nova2 && nova !== nova2) {
+    msg = "A confirmação não confere.";
+    state = "is-bad";
+  } else if (nova.length >= 6 && nova === nova2 && atual && nova !== atual) {
+    msg = "Pronto para salvar.";
+    state = "is-ok";
+  }
+  if (hint) {
+    hint.textContent = msg;
+    hint.classList.toggle("is-bad", state === "is-bad");
+    hint.classList.toggle("is-ok", state === "is-ok");
+  }
+  if (btn && btn.dataset.busy !== "1") btn.disabled = state !== "is-ok";
+}
+
+function showContaPane(pane) {
+  const titles = { perfil: "Perfil", seguranca: "Segurança", aparencia: "Aparência" };
+  const next = titles[pane] ? pane : "perfil";
+  document.querySelectorAll("[data-conta-pane]").forEach((btn) => {
+    const on = btn.dataset.contaPane === next;
+    btn.classList.toggle("is-active", on);
+    if (on) btn.setAttribute("aria-current", "page");
+    else btn.removeAttribute("aria-current");
+  });
+  document.querySelectorAll("[data-conta-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.contaPanel !== next;
+  });
+  const title = document.getElementById("contaPaneTitulo");
+  if (title) title.textContent = titles[next];
+}
+
+function initShellUi() {
+  try {
+    applyTheme(localStorage.getItem("demandas-theme") === "light" ? "light" : currentTheme());
+    applySidebarCollapsed(localStorage.getItem("demandas-sidebar-collapsed") === "1");
+  } catch (_) {
+    applyTheme(currentTheme());
+  }
+  document.getElementById("themeToggle")?.addEventListener("change", (e) => {
+    applyTheme(e.target.checked ? "light" : "dark");
+  });
+  document.getElementById("btnSidebarToggle")?.addEventListener("click", () => {
+    const app = document.getElementById("appRoot");
+    applySidebarCollapsed(!app?.classList.contains("app--sidebar-collapsed"));
+  });
+  document.getElementById("btnSidebarOpen")?.addEventListener("click", () => setMobileSidebarOpen(true));
+  document.getElementById("sidebarBackdrop")?.addEventListener("click", () => setMobileSidebarOpen(false));
+  document.getElementById("btnUserMenu")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setImportMenuOpen(false);
+    setExportMenuOpen(false);
+    setEsteiraTabMenuOpen(false);
+    const panel = document.getElementById("userMenuPanel");
+    setUserMenuOpen(panel?.hidden !== false);
+  });
+  document.querySelectorAll("[data-user-modal]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setUserMenuOpen(false);
+      fillContaScreen();
+      if (btn.dataset.userModal === "modalUserConta") showContaPane("perfil");
+      document.getElementById(btn.dataset.userModal)?.showModal();
+    });
+  });
+  document.querySelectorAll("[data-conta-pane]").forEach((btn) => {
+    btn.addEventListener("click", () => showContaPane(btn.dataset.contaPane));
+  });
+  document.getElementById("btnMenuUsuarios")?.addEventListener("click", () => {
+    setUserMenuOpen(false);
+    openUsuariosModal();
+  });
+  document.querySelectorAll("[data-close-user-modal]").forEach((btn) => {
+    btn.addEventListener("click", () => btn.closest("dialog")?.close());
+  });
+  document.querySelectorAll("[data-seg-eye]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const input = document.getElementById(btn.dataset.segEye);
+      if (!input) return;
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.setAttribute("aria-label", show ? "Ocultar senha" : "Mostrar senha");
+    });
+  });
+  ["userSenhaAtual", "userSenhaNova", "userSenhaNova2"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", syncTrocarSenhaForm);
+  });
+  document.getElementById("formTrocarSenha")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const err = document.getElementById("userSenhaError");
+    const ok = document.getElementById("userSenhaOk");
+    const atual = document.getElementById("userSenhaAtual")?.value || "";
+    const nova = document.getElementById("userSenhaNova")?.value || "";
+    const nova2 = document.getElementById("userSenhaNova2")?.value || "";
+    if (err) { err.hidden = true; err.textContent = ""; }
+    if (ok) ok.hidden = true;
+    if (nova.length < 6) {
+      if (err) { err.hidden = false; err.textContent = "A nova senha precisa de ao menos 6 caracteres."; }
+      return;
+    }
+    if (nova === atual) {
+      if (err) { err.hidden = false; err.textContent = "A nova senha precisa ser diferente da atual."; }
+      return;
+    }
+    if (nova !== nova2) {
+      if (err) { err.hidden = false; err.textContent = "A confirmação não confere com a nova senha."; }
+      return;
+    }
+    if (typeof DemandasAuth?.updatePassword !== "function") {
+      if (err) { err.hidden = false; err.textContent = "Troca de senha indisponível. Recarregue a página."; }
+      return;
+    }
+    const btn = document.getElementById("btnTrocarSenha");
+    if (btn) {
+      btn.disabled = true;
+      btn.dataset.busy = "1";
+      btn.textContent = "Salvando…";
+    }
+    try {
+      await DemandasAuth.updatePassword(atual, nova);
+      document.getElementById("formTrocarSenha")?.reset();
+      document.querySelectorAll(".seg-input input").forEach((input) => {
+        input.type = "password";
+      });
+      if (ok) {
+        ok.hidden = false;
+        ok.textContent = "Senha atualizada.";
+      }
+    } catch (ex) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = ex?.message || "Não foi possível trocar a senha.";
+      }
+    } finally {
+      if (btn) {
+        btn.dataset.busy = "";
+        btn.textContent = "Salvar nova senha";
+      }
+      syncTrocarSenhaForm();
+    }
+  });
+  document.getElementById("btnUserResetEmail")?.addEventListener("click", async () => {
+    const email = currentRoleInfo().email || getCurrentUserEmail();
+    const err = document.getElementById("userResetError");
+    const ok = document.getElementById("userResetOk");
+    if (err) { err.hidden = true; err.textContent = ""; }
+    if (ok) ok.hidden = true;
+    if (!email || typeof DemandasAuth?.sendPasswordReset !== "function") {
+      if (err) { err.hidden = false; err.textContent = "Não foi possível enviar o e-mail."; }
+      return;
+    }
+    const btn = document.getElementById("btnUserResetEmail");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Enviando…";
+    }
+    try {
+      await DemandasAuth.sendPasswordReset(email);
+      if (ok) {
+        ok.hidden = false;
+        ok.textContent = `Enviamos um link para ${email}.`;
+      }
+    } catch (ex) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = ex?.message || "Não foi possível enviar o e-mail.";
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Enviar link";
+      }
+    }
+  });
 }
 
 function normalizeEditingBy(v) {
@@ -3599,15 +3915,25 @@ let state = defaultState();
 const panels = {
   esteira: document.getElementById("panelEsteira"),
   dashboard: document.getElementById("panelDashboard"),
-  usuarios: document.getElementById("panelUsuarios"),
 };
 
-function switchMainTab(tab) {
-  if (tab === "diarias" || tab === "projetistas") tab = "esteira";
-  if (tab === "usuarios" && !isAdminUser()) {
+function usuariosModalAberto() {
+  return document.getElementById("panelUsuarios")?.open === true;
+}
+
+function openUsuariosModal() {
+  if (!isAdminUser()) {
     toast("Apenas administrador acessa Usuarios");
-    tab = "esteira";
+    return;
   }
+  const dlg = document.getElementById("panelUsuarios");
+  if (!dlg) return;
+  if (!dlg.open) dlg.showModal();
+  renderUsuariosPanel();
+}
+
+function switchMainTab(tab) {
+  if (tab === "diarias" || tab === "projetistas" || tab === "usuarios") tab = "esteira";
   document.querySelectorAll(".tabs__btn[data-tab]").forEach((b) => {
     const on = b.dataset.tab === tab;
     b.classList.toggle("is-active", on);
@@ -3621,7 +3947,8 @@ function switchMainTab(tab) {
   });
   if (tab === "dashboard") renderDashboard();
   if (tab === "esteira") renderBoard();
-  if (tab === "usuarios") renderUsuariosPanel();
+  updateTopbarTitle(tab);
+  if (isMobileShell()) setMobileSidebarOpen(false);
 }
 
 document.querySelectorAll(".tabs__btn[data-tab]").forEach((btn) => {
@@ -3637,6 +3964,7 @@ document.getElementById("btnTabEsteira")?.addEventListener("click", (e) => {
   if (willOpen) {
     setImportMenuOpen(false);
     setExportMenuOpen(false);
+    setUserMenuOpen(false);
   }
   switchMainTab("esteira");
 });
@@ -4381,13 +4709,29 @@ function setEsteiraTabMenuOpen(open) {
   setDropdownMenuOpen("esteiraTabPanel", "btnTabEsteira", open);
 }
 
+function updateTopbarTitle(tab) {
+  const el = document.getElementById("topbarTitle");
+  if (!el) return;
+  const current = tab || document.querySelector(".tabs__btn.is-active")?.dataset.tab || "esteira";
+  if (current === "dashboard") el.textContent = "Dashboard";
+  else if (current === "usuarios") el.textContent = "Usuários";
+  else el.textContent = activeEsteiraCanal === LINHA_ESTEIRA_B2B ? "Esteira B2B" : "Esteira Projetos";
+}
+
 function updateEsteiraTabLabel() {
   const el = document.getElementById("esteiraTabLabel");
   if (!el) return;
+  const nome = activeEsteiraCanal === LINHA_ESTEIRA_B2B ? "Esteira B2B" : "Esteira Projetos";
   el.textContent = activeEsteiraCanal === LINHA_ESTEIRA_B2B ? "· B2B" : "· Projetos";
+  const tab = document.getElementById("btnTabEsteira");
+  if (tab) {
+    tab.dataset.tip = nome;
+    tab.setAttribute("aria-label", nome);
+  }
   document.querySelectorAll("[data-esteira-linha]").forEach((item) => {
     item.classList.toggle("is-active", item.dataset.esteiraLinha === activeEsteiraCanal);
   });
+  updateTopbarTitle("esteira");
 }
 
 function setActiveEsteiraCanal(linha) {
@@ -7940,11 +8284,11 @@ function dashChartBarScales(options, { valueTicks, categoryTicks }) {
   const valueScale = {
     beginAtZero: true,
     ticks: valueTicks,
-    grid: { color: "rgba(148,163,184,0.12)" },
+    grid: { color: chartInk().grid },
   };
   const categoryScale = {
     ticks: categoryTicks,
-    grid: horizontal ? { display: false } : { color: "rgba(148,163,184,0.12)" },
+    grid: horizontal ? { display: false } : { color: chartInk().grid },
   };
   return horizontal
     ? { indexAxis: "y", scales: { x: valueScale, y: categoryScale } }
@@ -7973,8 +8317,8 @@ function makeDashChartMoneyBar(canvasId, labels, data, color = "#22c55e", option
       maintainAspectRatio: false,
       ...dashChartBarInteractOptions(options),
       ...dashChartBarScales(options, {
-        valueTicks: { color: "#94a3b8", callback: (v) => formatBRL(v) },
-        categoryTicks: { color: "#94a3b8", maxRotation: 45, minRotation: 0, font: { size: 10 } },
+        valueTicks: { color: chartInk().tick, callback: (v) => formatBRL(v) },
+        categoryTicks: { color: chartInk().tick, maxRotation: 45, minRotation: 0, font: { size: 10 } },
       }),
       plugins: {
         legend: { display: false },
@@ -8011,11 +8355,11 @@ function makeDashChartMetricBar(canvasId, labels, data, options = {}) {
       ...dashChartBarInteractOptions(options),
       ...dashChartBarScales(options, {
         valueTicks: {
-          color: "#94a3b8",
+          color: chartInk().tick,
           stepSize: options.stepSize,
           callback: options.yFormat || ((v) => formatValue(v)),
         },
-        categoryTicks: { color: "#94a3b8", font: { size: 11 } },
+        categoryTicks: { color: chartInk().tick, font: { size: 11 } },
       }),
       plugins: {
         legend: { display: false },
@@ -9023,10 +9367,10 @@ function makeDashChartSolicitantes(canvasId, labels, abertas, fechadas, fechadas
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: true, labels: { color: "#cbd5e1", boxWidth: 12 } } },
+      plugins: { legend: { display: true, labels: { color: chartInk().label, boxWidth: 12 } } },
       scales: {
-        x: { ticks: { color: "#94a3b8", maxRotation: 45, minRotation: 0, font: { size: 10 } }, grid: { color: "rgba(148,163,184,0.12)" } },
-        y: { beginAtZero: true, ticks: { color: "#94a3b8", stepSize: 1 }, grid: { color: "rgba(148,163,184,0.12)" } },
+        x: { ticks: { color: chartInk().tick, maxRotation: 45, minRotation: 0, font: { size: 10 } }, grid: { color: chartInk().grid } },
+        y: { beginAtZero: true, ticks: { color: chartInk().tick, stepSize: 1 }, grid: { color: chartInk().grid } },
       },
     },
   });
@@ -10560,24 +10904,24 @@ function makeDashChartProjetistaStacked(canvasId, labels, datasets, chartOpts = 
   const formatValue = chartOpts.formatValue || ((n) => String(n));
   const horizontal = Boolean(chartOpts.horizontal);
   const valueTicks = {
-    color: "#94a3b8",
+    color: chartInk().tick,
     stepSize: chartOpts.stepSize,
     callback: chartOpts.yFormat || ((v) => formatValue(v)),
   };
   const categoryTicks = {
-    color: "#94a3b8",
+    color: chartInk().tick,
     font: { size: 11 },
     maxRotation: horizontal ? 0 : 45,
     minRotation: 0,
   };
   const scales = horizontal
     ? {
-        x: { stacked: true, beginAtZero: true, ticks: valueTicks, grid: { color: "rgba(148,163,184,0.12)" } },
+        x: { stacked: true, beginAtZero: true, ticks: valueTicks, grid: { color: chartInk().grid } },
         y: { stacked: true, ticks: categoryTicks, grid: { display: false } },
       }
     : {
-        x: { stacked: true, ticks: categoryTicks, grid: { color: "rgba(148,163,184,0.12)" } },
-        y: { stacked: true, beginAtZero: true, ticks: valueTicks, grid: { color: "rgba(148,163,184,0.12)" } },
+        x: { stacked: true, ticks: categoryTicks, grid: { color: chartInk().grid } },
+        y: { stacked: true, beginAtZero: true, ticks: valueTicks, grid: { color: chartInk().grid } },
       };
   dashCharts[canvasId] = new Chart(el, {
     type: "bar",
@@ -10588,7 +10932,7 @@ function makeDashChartProjetistaStacked(canvasId, labels, datasets, chartOpts = 
       indexAxis: horizontal ? "y" : "x",
       ...dashChartBarInteractOptions(chartOpts),
       plugins: {
-        legend: { display: true, labels: { color: "#cbd5e1", boxWidth: 12, font: { size: 11 } } },
+        legend: { display: true, labels: { color: chartInk().label, boxWidth: 12, font: { size: 11 } } },
         tooltip: {
           callbacks: {
             label: (ctx) => {
@@ -11035,10 +11379,10 @@ function makeDashChartChegadasFin(labels, chegadas, finalizacoes) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: true, labels: { color: "#cbd5e1", boxWidth: 12 } } },
+      plugins: { legend: { display: true, labels: { color: chartInk().label, boxWidth: 12 } } },
       scales: {
-        x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
-        y: { beginAtZero: true, ticks: { color: "#94a3b8", stepSize: 1 }, grid: { color: "rgba(148,163,184,0.12)" } },
+        x: { ticks: { color: chartInk().tick }, grid: { color: chartInk().grid } },
+        y: { beginAtZero: true, ticks: { color: chartInk().tick, stepSize: 1 }, grid: { color: chartInk().grid } },
       },
     },
   });
@@ -11070,7 +11414,7 @@ function makeDashChart(canvasId, type, labels, data, options = {}) {
       maintainAspectRatio: false,
       ...dashChartBarInteractOptions(options),
       plugins: {
-        legend: { display: type === "doughnut", labels: { color: "#cbd5e1", boxWidth: 12 } },
+        legend: { display: type === "doughnut", labels: { color: chartInk().label, boxWidth: 12 } },
         tooltip: {
           callbacks: {
             label: (ctx) => {
@@ -11081,7 +11425,7 @@ function makeDashChart(canvasId, type, labels, data, options = {}) {
         },
         ...(options.plugins || {}),
       },
-      scales: type === "bar" ? { x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } }, y: { beginAtZero: true, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } } } : undefined,
+      scales: type === "bar" ? { x: { ticks: { color: chartInk().tick }, grid: { color: chartInk().grid } }, y: { beginAtZero: true, ticks: { color: chartInk().tick }, grid: { color: chartInk().grid } } } : undefined,
     },
   });
 }
@@ -11217,11 +11561,11 @@ function makeDashChartTempoSetorResumo(items, cfg = DASH_TEMPO_CFG_OP) {
       scales: {
         x: {
           beginAtZero: true,
-          title: { display: true, text: "Média de dias", color: "#94a3b8", font: { size: 11 } },
-          ticks: { color: "#94a3b8" },
-          grid: { color: "rgba(148,163,184,0.12)" },
+          title: { display: true, text: "Média de dias", color: chartInk().tick, font: { size: 11 } },
+          ticks: { color: chartInk().tick },
+          grid: { color: chartInk().grid },
         },
-        y: { ticks: { color: "#cbd5e1", font: { size: 11 } }, grid: { display: false } },
+        y: { ticks: { color: chartInk().label, font: { size: 11 } }, grid: { display: false } },
       },
     },
   });
@@ -11321,11 +11665,11 @@ function makeDashChartTempoFase(canvasId, faseKeys, msPerFase, cfg = DASH_TEMPO_
       scales: {
         x: {
           beginAtZero: true,
-          title: { display: true, text: "Dias (média)", color: "#94a3b8", font: { size: 11 } },
-          ticks: { color: "#94a3b8" },
-          grid: { color: "rgba(148,163,184,0.12)" },
+          title: { display: true, text: "Dias (média)", color: chartInk().tick, font: { size: 11 } },
+          ticks: { color: chartInk().tick },
+          grid: { color: chartInk().grid },
         },
-        y: { ticks: { color: "#cbd5e1", font: { size: 11 } }, grid: { display: false } },
+        y: { ticks: { color: chartInk().label, font: { size: 11 } }, grid: { display: false } },
       },
     },
   });
@@ -11356,7 +11700,7 @@ function makeDashChartTempoSetor(canvasId, setores, msPerSetor, cfg = DASH_TEMPO
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: "bottom", labels: { color: "#cbd5e1", boxWidth: 12 } },
+        legend: { position: "bottom", labels: { color: chartInk().label, boxWidth: 12 } },
         tooltip: {
           callbacks: { label: (ctx) => chartTooltipDur(ctx, msPerSetor) },
         },
@@ -11387,7 +11731,7 @@ function makeDashChartTempoSetorStack(canvasId, projectLabels, setorSeries, msMa
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: true, labels: { color: "#cbd5e1", boxWidth: 12 } },
+        legend: { display: true, labels: { color: chartInk().label, boxWidth: 12 } },
         tooltip: {
           callbacks: {
             label: (ctx) => {
@@ -11401,15 +11745,15 @@ function makeDashChartTempoSetorStack(canvasId, projectLabels, setorSeries, msMa
       scales: {
         x: {
           stacked: true,
-          ticks: { color: "#94a3b8", maxRotation: 45, minRotation: 0, font: { size: 10 } },
-          grid: { color: "rgba(148,163,184,0.12)" },
+          ticks: { color: chartInk().tick, maxRotation: 45, minRotation: 0, font: { size: 10 } },
+          grid: { color: chartInk().grid },
         },
         y: {
           stacked: true,
           beginAtZero: true,
-          title: { display: true, text: "Dias", color: "#94a3b8", font: { size: 11 } },
-          ticks: { color: "#94a3b8" },
-          grid: { color: "rgba(148,163,184,0.12)" },
+          title: { display: true, text: "Dias", color: chartInk().tick, font: { size: 11 } },
+          ticks: { color: chartInk().tick },
+          grid: { color: chartInk().grid },
         },
       },
     },
@@ -12291,12 +12635,20 @@ function setExportMenuOpen(open) {
 }
 
 function exportStateJson() {
+  if (!isAdminUser()) {
+    toast("Apenas administrador exporta");
+    return;
+  }
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   downloadBlob(blob, `demandas-backup-${todayISODate()}.json`);
   toast("Exportação JSON gerada");
 }
 
 function exportStateCsvFollowUp() {
+  if (!isAdminUser()) {
+    toast("Apenas administrador exporta");
+    return;
+  }
   if (typeof DemandasCsvImport === "undefined") {
     toast("Módulo csv-import.js não carregou. Recarregue a página.");
     return;
@@ -12318,10 +12670,17 @@ function exportStateCsvFollowUp() {
 
 document.getElementById("btnExportToggle")?.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (!isAdminUser()) {
+    toast("Apenas administrador exporta");
+    return;
+  }
   const panel = document.getElementById("exportMenuPanel");
   const willOpen = panel?.hidden !== false;
   setExportMenuOpen(willOpen);
-  if (willOpen) setImportMenuOpen(false);
+  if (willOpen) {
+    setImportMenuOpen(false);
+    setUserMenuOpen(false);
+  }
 });
 
 document.getElementById("btnExportJson")?.addEventListener("click", () => {
@@ -12336,6 +12695,10 @@ document.getElementById("btnExportCsv")?.addEventListener("click", () => {
 
 document.getElementById("btnImportToggle")?.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (!isAdminUser()) {
+    toast("Apenas administrador importa");
+    return;
+  }
   if (!requireWriteAccess("import")) return;
   const panel = document.getElementById("importMenuPanel");
   const willOpen = panel?.hidden !== false;
@@ -12359,9 +12722,11 @@ document.addEventListener("click", (e) => {
   const importMenu = document.getElementById("importMenu");
   const exportMenu = document.getElementById("exportMenu");
   const esteiraMenu = document.getElementById("esteiraTabMenu");
+  const userMenu = document.getElementById("userMenu");
   if (!importMenu?.contains(e.target)) setImportMenuOpen(false);
   if (!exportMenu?.contains(e.target)) setExportMenuOpen(false);
   if (!esteiraMenu?.contains(e.target)) setEsteiraTabMenuOpen(false);
+  if (!userMenu?.contains(e.target)) setUserMenuOpen(false);
 });
 
 document.addEventListener("keydown", (e) => {
@@ -12369,6 +12734,7 @@ document.addEventListener("keydown", (e) => {
     setImportMenuOpen(false);
     setExportMenuOpen(false);
     setEsteiraTabMenuOpen(false);
+    setUserMenuOpen(false);
   }
 });
 
@@ -12603,6 +12969,22 @@ function fillUserNovoRegionalSelect() {
   if (!sel) return;
   const cur = sel.value;
   sel.innerHTML = regionalOptionsHtml(cur);
+  syncNovoUsuarioHint();
+}
+
+function syncNovoUsuarioHint() {
+  const el = document.getElementById("userNovoHint");
+  if (!el) return;
+  const role = document.getElementById("userNovoRole")?.value || "projetista";
+  const regional = document.getElementById("userNovoRegional")?.value || "";
+  const papel =
+    role === "admin"
+      ? "Acesso total, inclusive a usuários."
+      : role === "visibilidade"
+        ? "Só consulta, sem alterar."
+        : "Pode operar as demandas.";
+  const regiao = regional ? "Entra filtrado nesta regional." : "Entra vendo todas as regionais.";
+  el.textContent = `${papel} ${regiao}`;
 }
 
 function renderUsuariosPanel() {
@@ -12631,33 +13013,60 @@ function renderUsuariosPanel() {
       const disabled = typeof DemandasRoles !== "undefined" && DemandasRoles.isDisabled?.(email);
       const assigned = demandasAssignedToEmail(email).length;
       const status = disabled
-        ? `<span class="usuarios-row__badge usuarios-row__badge--off">Desabilitado</span>`
-        : `<span class="usuarios-row__badge usuarios-row__badge--on">Ativo</span>`;
+        ? `<span class="usuarios-row__status usuarios-row__status--off">Desabilitado</span>`
+        : `<span class="usuarios-row__status usuarios-row__status--on">Ativo</span>`;
       const toggleLabel = disabled ? "Habilitar" : "Desabilitar";
-      const toggleClass = disabled ? "btn--primary" : "btn--ghost";
+      const demandasTxt = assigned
+        ? `${assigned} demanda${assigned > 1 ? "s" : ""}`
+        : "Sem demandas";
+      const regVal = regional || "";
       return (
-        `<div class="usuarios-row${disabled ? " is-disabled" : ""}" data-email="${escapeHtml(email)}">` +
-        `<div class="usuarios-row__main">` +
+        `<div class="usuarios-row${disabled ? " is-disabled" : ""}" data-email="${escapeHtml(email)}" data-role="${escapeHtml(role)}" data-regional="${escapeHtml(regVal)}">` +
+        `<div class="usuarios-row__head">` +
+        `<div class="usuarios-row__id">` +
         `<span class="usuarios-row__email">${escapeHtml(email)}</span>` +
-        status +
-        (assigned
-          ? `<span class="usuarios-row__meta muted small">${assigned} demanda${assigned > 1 ? "s" : ""} atribuída${assigned > 1 ? "s" : ""}</span>`
-          : `<span class="usuarios-row__meta muted small">Sem demandas atribuídas</span>`) +
+        `<span class="usuarios-row__sub">${status}<span class="usuarios-row__meta muted">${demandasTxt}</span></span>` +
         `</div>` +
-        `<select class="user-role-select" aria-label="Papel de ${escapeHtml(email)}"${disabled ? " disabled" : ""}>${roleOptionsHtml(role)}</select>` +
-        `<select class="user-regional-select" aria-label="Regional de ${escapeHtml(email)}"${disabled ? " disabled" : ""}>${regionalOptionsHtml(regional)}</select>` +
-        `<div class="usuarios-row__actions">` +
-        `<button type="button" class="btn btn--ghost btn--sm user-role-save"${disabled ? " disabled" : ""}>Salvar</button>` +
-        `<button type="button" class="btn btn--ghost btn--sm user-role-reset">Recuperar senha</button>` +
-        `<button type="button" class="btn ${toggleClass} btn--sm user-role-toggle">${toggleLabel}</button>` +
-        `<button type="button" class="btn btn--danger btn--sm user-role-del">Remover do sistema</button>` +
+        `<div class="usuarios-row__more">` +
+        `<button type="button" class="icon-btn user-row-more" aria-label="Mais ações de ${escapeHtml(email)}" aria-expanded="false" aria-haspopup="menu">⋯</button>` +
+        `<div class="usuarios-row__menu" role="menu" hidden>` +
+        `<button type="button" class="user-role-reset" role="menuitem">Recuperar senha</button>` +
+        `<button type="button" class="user-role-toggle" role="menuitem">${toggleLabel}</button>` +
+        `<button type="button" class="user-role-del" role="menuitem">Remover</button>` +
+        `</div></div></div>` +
+        `<div class="usuarios-row__edit">` +
+        `<label><span>Papel</span><select class="user-role-select" aria-label="Papel de ${escapeHtml(email)}"${disabled ? " disabled" : ""}>${roleOptionsHtml(role)}</select></label>` +
+        `<label><span>Regional</span><select class="user-regional-select" aria-label="Regional de ${escapeHtml(email)}"${disabled ? " disabled" : ""}>${regionalOptionsHtml(regional)}</select></label>` +
+        `<button type="button" class="btn btn--primary btn--sm user-role-save" disabled>Salvar</button>` +
         `</div></div>`
       );
     })
     .join("");
 
+  const busca = document.getElementById("usuariosBusca");
+  const q = String(busca?.value || "").trim().toLowerCase();
   list.querySelectorAll(".usuarios-row").forEach((row) => {
     const email = row.dataset.email;
+    if (q) row.hidden = !String(email || "").includes(q);
+    const syncDirty = () => {
+      const role = row.querySelector(".user-role-select")?.value || "";
+      const regional = row.querySelector(".user-regional-select")?.value || "";
+      const dirty = role !== (row.dataset.role || "") || regional !== (row.dataset.regional || "");
+      const btn = row.querySelector(".user-role-save");
+      if (btn) btn.disabled = !dirty;
+    };
+    row.querySelector(".user-role-select")?.addEventListener("change", syncDirty);
+    row.querySelector(".user-regional-select")?.addEventListener("change", syncDirty);
+    row.querySelector(".user-row-more")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const menu = row.querySelector(".usuarios-row__menu");
+      const open = menu?.hidden !== false;
+      closeUserRowMenus();
+      if (menu && open) {
+        menu.hidden = false;
+        ev.currentTarget.setAttribute("aria-expanded", "true");
+      }
+    });
     row.querySelector(".user-role-save")?.addEventListener("click", () => {
       void saveUserAccess(email, {
         role: row.querySelector(".user-role-select")?.value,
@@ -12665,14 +13074,38 @@ function renderUsuariosPanel() {
       });
     });
     row.querySelector(".user-role-reset")?.addEventListener("click", () => {
+      closeUserRowMenus();
       void sendUserPasswordReset(email);
     });
     row.querySelector(".user-role-toggle")?.addEventListener("click", () => {
+      closeUserRowMenus();
       void toggleUserDisabled(email);
     });
     row.querySelector(".user-role-del")?.addEventListener("click", () => {
+      closeUserRowMenus();
       void removeUserFromSystem(email);
     });
+  });
+  bindUsuariosBusca();
+}
+
+function closeUserRowMenus() {
+  document.querySelectorAll(".usuarios-row__menu").forEach((menu) => {
+    menu.hidden = true;
+    menu.previousElementSibling?.setAttribute("aria-expanded", "false");
+  });
+}
+
+let usuariosBuscaBound = false;
+function bindUsuariosBusca() {
+  if (usuariosBuscaBound) return;
+  usuariosBuscaBound = true;
+  document.getElementById("usuariosBusca")?.addEventListener("input", () => {
+    if (usuariosModalAberto()) renderUsuariosPanel();
+  });
+  document.addEventListener("click", (ev) => {
+    if (ev.target.closest(".usuarios-row__more")) return;
+    closeUserRowMenus();
   });
 }
 
@@ -12879,6 +13312,9 @@ async function removeUserFromSystem(email) {
   }
 }
 
+document.getElementById("userNovoRole")?.addEventListener("change", syncNovoUsuarioHint);
+document.getElementById("userNovoRegional")?.addEventListener("change", syncNovoUsuarioHint);
+
 document.getElementById("formNovoUsuario")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!isAdminUser()) {
@@ -12993,7 +13429,7 @@ async function bootstrap() {
           applyUserRegionalFilter(DemandasAuth?.currentUser?.());
           if (panels.esteira && !panels.esteira.hidden) renderBoard();
         }
-        if (panels.usuarios && !panels.usuarios.hidden) renderUsuariosPanel();
+        if (usuariosModalAberto()) renderUsuariosPanel();
       },
     });
     persistenceReady = persistenceApi.mode === "firebase";
@@ -13117,6 +13553,7 @@ function setAuthUi(user) {
       emailEl.hidden = false;
     }
     if (btnOut) btnOut.hidden = false;
+    updateUserMenuAvatar(user.email);
     applyRoleUi();
   } else {
     const syncEl = document.getElementById("syncBadge");
@@ -13254,13 +13691,19 @@ async function doLogin() {
 }
 
 function bindLoginUi() {
-  document.getElementById("btnSignOut")?.addEventListener("click", async () => {
-    try {
-      await DemandasAuth.signOut();
-      toast("Sessão encerrada");
-    } catch (err) {
-      toast(DemandasAuth.mapAuthError(err));
-    }
+  initShellUi();
+  document.querySelectorAll("[data-sign-out]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      setUserMenuOpen(false);
+      document.getElementById("modalUserConta")?.close();
+      document.getElementById("panelUsuarios")?.close();
+      try {
+        await DemandasAuth.signOut();
+        toast("Sessão encerrada");
+      } catch (err) {
+        toast(DemandasAuth.mapAuthError(err));
+      }
+    });
   });
 }
 
