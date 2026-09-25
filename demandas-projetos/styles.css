@@ -1,2702 +1,1644 @@
-:root {
-  --bg: #0c1116;
-  --surface: #151b24;
-  --surface2: #1c2430;
-  --border: #2a3544;
-  --text: #e8edf5;
-  --muted: #9aa7b8;
-  --accent: #3b82f6;
-  --accent2: #22c55e;
-  --danger: #ef4444;
-  --warn: #f59e0b;
-  --b2c: #6366f1;
-  --swap: #eab308;
-  --bb: #0ea5e9;
-  --licenciamento: #10b981;
-  --mapeamento: #ec4899;
-  --migracao: #14b8a6;
-  --tipo-diaria: #a855f7;
-  --esteira-b2b: #6366f1;
-  --esteira-projetos: #a855f7;
-  --esteira-b2b-rgb: 99, 102, 241;
-  --esteira-projetos-rgb: 168, 85, 247;
-  --form-segment-border: rgba(59, 130, 246, 0.3);
-  --form-segment-bg: rgba(59, 130, 246, 0.05);
-  --form-segment-title: #bfdbfe;
-  --form-segment-atraso-border: rgba(239, 68, 68, 0.4);
-  --form-segment-atraso-bg: rgba(239, 68, 68, 0.06);
-  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
-  --radius: 12px;
-  --font: "DM Sans", system-ui, sans-serif;
-}
-* { box-sizing: border-box; }
-html {
-  min-height: 100%;
-  background: var(--bg);
-}
-body {
-  margin: 0;
-  min-height: 100%;
-  font-family: var(--font);
-  background: radial-gradient(1200px 600px at 10% -10%, #1a2540 0%, transparent 55%), var(--bg);
-  background-attachment: fixed;
-  color: var(--text);
-  line-height: 1.45;
-}
-.login-screen {
-  position: fixed; inset: 0; z-index: 110;
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  padding: 1.5rem;
-  background: radial-gradient(1200px 600px at 10% -10%, #1a2540 0%, transparent 55%), var(--bg);
-}
-.login-screen[hidden] { display: none !important; }
-.login-card {
-  width: 100%; max-width: 400px; padding: 2rem;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
-.login-card__brand { display: flex; gap: 0.85rem; align-items: center; margin-bottom: 1.5rem; }
-.login-card__logo {
-  width: 52px;
-  height: 52px;
-  object-fit: contain;
-  flex-shrink: 0;
-  border-radius: 10px;
-}
-.login-card__brand h1 { margin: 0; font-size: 1.35rem; }
-.login-card__brand p { margin: 0.15rem 0 0; font-size: 0.85rem; }
-.login-form { display: flex; flex-direction: column; gap: 1rem; }
-.login-form__error {
-  margin: 0; padding: 0.5rem 0.65rem; font-size: 0.85rem; color: #fecaca;
-  background: rgba(239, 68, 68, 0.15); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.35);
-}
-.login-form__ok {
-  margin: 0; padding: 0.5rem 0.65rem; font-size: 0.85rem; color: #bbf7d0;
-  background: rgba(34, 197, 94, 0.15); border-radius: 8px; border: 1px solid rgba(34, 197, 94, 0.35);
-}
-.login-card__hint { margin: 1.25rem 0 0; text-align: center; line-height: 1.4; }
-.btn--block { width: 100%; justify-content: center; }
-.user-badge {
-  font-size: 0.78rem; color: var(--muted); max-width: 160px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.role-badge {
-  font-size: 0.72rem;
-  font-weight: 600;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(59, 130, 246, 0.15);
-  color: #bfdbfe;
-}
-.role-badge[data-role="admin"] {
-  background: rgba(245, 158, 11, 0.18);
-  color: #fde68a;
-  border-color: rgba(245, 158, 11, 0.35);
-}
-.role-badge[data-role="projetista"] {
-  background: rgba(34, 197, 94, 0.15);
-  color: #bbf7d0;
-  border-color: rgba(34, 197, 94, 0.35);
-}
-.role-badge[data-role="visibilidade"] {
-  background: rgba(148, 163, 184, 0.18);
-  color: #cbd5e1;
-}
-.app--readonly .btn--primary#btnNovaDemanda,
-.app--readonly #btnSalvarDemanda,
-.app--readonly #btnExcluirDemanda,
-.app--readonly #btnNovaDiaria,
-.app--readonly #importMenu,
-.app--readonly .inbox-alertas__adiar,
-.app--readonly .card-prio-btn,
-.app--readonly .pj-save,
-.app--readonly #btnSalvarDiaria,
-.app--readonly #btnExcluirDiaria,
-.app--readonly #btnAddComentario,
-.app--readonly .comments-compose {
-  display: none !important;
-}
-.app--readonly .card { cursor: pointer; }
-.app--readonly .card[draggable="true"] { cursor: pointer; }
-.usuarios-layout {
-  display: grid;
-  grid-template-columns: minmax(260px, 340px) 1fr;
-  gap: 1.25rem;
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .usuarios-layout { grid-template-columns: 1fr; }
-}
-.usuarios-form,
-.usuarios-list-wrap {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem;
-}
-.usuarios-form__title {
-  margin: 0 0 0.75rem;
-  font-size: 0.95rem;
-}
-.usuarios-form .field { margin-bottom: 0.75rem; }
-.usuarios-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-.usuarios-row {
-  display: grid;
-  grid-template-columns: 1fr minmax(120px, 150px) minmax(140px, 1fr) auto;
-  gap: 0.5rem;
-  align-items: center;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface2);
-}
-.usuarios-row.is-disabled {
-  opacity: 0.78;
-}
-@media (max-width: 900px) {
-  .usuarios-row { grid-template-columns: 1fr; }
-}
-.usuarios-row .user-role-select,
-.usuarios-row .user-regional-select {
-  width: 100%;
-  min-width: 0;
-}
-.usuarios-row__main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-}
-.usuarios-row__email {
-  font-size: 0.85rem;
-  word-break: break-all;
-}
-.usuarios-row__badge {
-  display: inline-flex;
-  align-self: flex-start;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-}
-.usuarios-row__badge--on {
-  color: #86efac;
-  border-color: rgba(134, 239, 172, 0.35);
-  background: rgba(22, 101, 52, 0.25);
-}
-.usuarios-row__badge--off {
-  color: #fca5a5;
-  border-color: rgba(252, 165, 165, 0.35);
-  background: rgba(127, 29, 29, 0.28);
-}
-.usuarios-row__meta { font-size: 0.75rem; }
-.usuarios-row__actions {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
+  <!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Projetos Master — Controle de demandas</title>
+  <link rel="icon" href="favicon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("demandas-theme");
+        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <div class="login-screen" id="loginScreen">
+    <div class="login-card">
+      <div class="login-card__brand">
+        <img class="login-card__logo" src="favicon.png" alt="" width="52" height="52" decoding="async" />
+        <div>
+          <h1>Projetos Master</h1>
+          <p class="muted">Controle de demandas e esteira</p>
+        </div>
+      </div>
+      <form class="login-form" id="loginForm" autocomplete="on">
+        <label class="field">
+          <span>E-mail</span>
+          <input type="email" id="loginEmail" name="email" required autocomplete="username" placeholder="seu@email.com" />
+        </label>
+        <label class="field">
+          <span>Senha</span>
+          <input type="password" id="loginPassword" name="password" required autocomplete="current-password" placeholder="••••••••" />
+        </label>
+        <p class="login-form__error" id="loginError" role="alert" hidden></p>
+        <p class="login-form__ok" id="loginOk" role="status" hidden></p>
+        <button type="submit" class="btn btn--primary btn--block" id="btnLoginSubmit">Entrar</button>
+        <button type="button" class="btn btn--ghost btn--block" id="btnForgotPassword">Esqueci a senha</button>
+      </form>
+      <p class="login-card__hint muted small">
+        A recuperação envia um link para o e-mail cadastrado. Não é possível ver a senha atual — só criar uma nova.
+      </p>
+    </div>
+  </div>
 
-.app { min-height: 100%; display: flex; flex-direction: column; }
-main { flex: 1; padding: 0 1.25rem 2rem; max-width: 1680px; margin: 0 auto; width: 100%; }
-.topbar {
-  display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between;
-  padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
-  background: rgba(12, 17, 22, 0.85); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 20;
-}
-.brand { display: flex; gap: 0.75rem; align-items: center; }
-.brand__logo {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
-  flex-shrink: 0;
-  border-radius: 8px;
-}
-.brand__dot {
-  width: 12px; height: 12px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  box-shadow: 0 0 18px rgba(59, 130, 246, 0.55);
-}
-.brand h1 { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
-.brand__sub { margin: 0; font-size: 0.8rem; color: var(--muted); }
-.brand__link {
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 500;
-}
-.brand__link:hover { text-decoration: underline; }
-.sync-badge {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  max-width: min(320px, 42vw);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.35rem 0.65rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  color: var(--warn);
-  background: var(--surface2);
-}
-.sync-badge[hidden] { display: none !important; }
-.sync-badge[data-status="synced"] { color: var(--accent2); border-color: rgba(34, 197, 94, 0.35); }
-.sync-badge[data-status="saving"],
-.sync-badge[data-status="connecting"] { color: var(--warn); border-color: rgba(245, 158, 11, 0.35); }
-.sync-badge[data-status="error"] { color: var(--danger); border-color: rgba(239, 68, 68, 0.35); }
-.sync-badge[data-status="local"] { color: var(--muted); }
-.sync-badge[data-status="waiting"],
-.sync-badge[data-status="empty"] { color: var(--muted); border-color: var(--border); }
-.esteira-status-line {
-  width: 100%;
-  margin: 0 0 0.5rem;
-  flex: 1 1 100%;
-  line-height: 1.4;
-}
-.app-loader {
-  position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
-  background: rgba(12, 17, 22, 0.82); backdrop-filter: blur(4px);
-}
-.app-loader[hidden] { display: none; }
-.app-loader__box { text-align: center; color: var(--muted); }
-.app-loader__spin {
-  display: inline-block; width: 36px; height: 36px; margin-bottom: 0.75rem;
-  border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.tabs { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; }
-.import-menu__item.is-active {
-  background: rgba(99, 102, 241, 0.18);
-  color: #e0e7ff;
-}
-.tabs__esteira-menu { display: inline-flex; }
-.tabs__esteira-menu .import-menu__panel { left: 0; right: auto; min-width: 200px; }
-.tabs__esteira-label { font-weight: 500; color: var(--muted); font-size: 0.88em; }
-.tabs__btn--menu.is-active .tabs__esteira-label { color: #c7d2fe; }
-.esteira-view[hidden] { display: none !important; }
-.esteira-block--b2b .esteira-title { color: #a5b4fc; }
-.board--b2b .column__head { border-top: 2px solid rgba(var(--esteira-b2b-rgb), 0.5); }
-.card--b2b { border-left: 3px solid rgba(var(--esteira-b2b-rgb), 0.55); }
+  <div class="app" id="appRoot" hidden>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+    <aside class="sidebar" id="appSidebar">
+      <div class="sidebar__brand">
+        <img class="brand__logo" src="favicon.png" alt="" width="36" height="36" decoding="async" />
+        <div class="sidebar__brand-text">
+          <h1>Projetos Master</h1>
+          <a class="brand__link" id="appPublicLink" href="https://demproj-fdeac.web.app" target="_blank" rel="noopener noreferrer">demproj-fdeac.web.app</a>
+        </div>
+      </div>
+      <button type="button" class="sidebar__collapse" id="btnSidebarToggle" aria-pressed="false" data-tip="Recolher menu" aria-label="Recolher menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <nav class="sidebar__nav" role="tablist" aria-label="Seções principais">
+        <button type="button" class="sidebar__item sidebar__item--primary btn btn--primary" id="btnNovaDemanda" data-tip="Nova demanda" aria-label="Nova demanda">
+          <span class="sidebar__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg>
+          </span>
+          <span class="sidebar__label">Nova demanda</span>
+        </button>
 
-.esteira-block--projetos .esteira-title { color: #c4b5fd; }
-.board--projetos .column__head { border-top: 2px solid rgba(var(--esteira-projetos-rgb), 0.45); }
-.card--esteira-projetos { border-left: 3px solid rgba(var(--esteira-projetos-rgb), 0.55); }
-.tabs__btn {
-  border: 1px solid transparent; background: transparent; color: var(--muted);
-  padding: 0.45rem 0.85rem; border-radius: 999px; cursor: pointer; font: inherit; font-weight: 500;
-}
-.tabs__btn:hover { color: var(--text); background: var(--surface2); }
-.tabs__btn.is-active {
-  color: var(--text); border-color: var(--border); background: var(--surface);
-  box-shadow: var(--shadow);
-}
-.topbar__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
-.btn {
-  border: 1px solid var(--border); background: var(--surface2); color: var(--text);
-  padding: 0.5rem 0.9rem; border-radius: 10px; cursor: pointer; font: inherit; font-weight: 600;
-}
-.btn--primary { background: var(--accent); border-color: #2563eb; }
-.btn--primary:hover { filter: brightness(1.06); }
-.btn--ghost { background: transparent; }
-.btn--danger { border-color: #7f1d1d; background: #3f1012; color: #fecaca; }
-.btn--file { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; }
-.import-menu { position: relative; display: inline-flex; }
-.import-menu__toggle::after {
-  content: "▾";
-  margin-left: 0.35rem;
-  font-size: 0.75em;
-  opacity: 0.75;
-}
-.import-menu__panel {
-  position: absolute;
-  top: calc(100% + 0.35rem);
-  right: 0;
-  z-index: 200;
-  min-width: 220px;
-  padding: 0.35rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-.import-menu__panel[hidden] { display: none !important; }
-.import-menu__item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  padding: 0.55rem 0.7rem;
-  border-radius: 8px;
-  font: inherit;
-  font-weight: 500;
-  cursor: pointer;
-}
-.import-menu__item:hover,
-.import-menu__item:focus-visible {
-  background: var(--surface2);
-  outline: none;
-}
-.icon-btn {
-  border: none; background: transparent; color: var(--muted); font-size: 1.5rem; line-height: 1;
-  cursor: pointer; padding: 0.2rem 0.45rem; border-radius: 8px;
-}
-.icon-btn:hover { color: var(--text); background: var(--surface2); }
-.panel { display: none; }
-.panel.is-visible { display: block; }
-.panel__toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.75rem 1rem;
-  margin-bottom: 1rem;
-}
-.panel__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
-.panel__head h2 { margin: 0; font-size: 1.25rem; }
-.section-title { margin: 1.75rem 0 0.75rem; font-size: 1rem; color: var(--muted); font-weight: 600; }
-.filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; }
-.filters .field--inline select { min-width: 10.5rem; max-width: 16rem; }
-.filters .field--busca { flex: 1 1 16rem; min-width: 14rem; }
-.filters .field--busca input[type="search"] {
-  width: 100%;
-  min-width: 14rem;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.9rem;
-}
-.filters .field--busca input[type="search"]:focus {
-  outline: 2px solid rgba(99, 102, 241, 0.45);
-  border-color: var(--accent);
-}
-.field { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; }
-.field[hidden],
-.field.is-hidden { display: none !important; }
-.field--inline { min-width: 140px; }
-.field span { color: var(--muted); font-weight: 500; }
-.field-label--required::after {
-  content: " *";
-  color: #f87171;
-  font-weight: 700;
-}
-input, select, textarea {
-  font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; padding: 0.5rem 0.65rem;
-  max-width: 100%; box-sizing: border-box;
-}
-textarea {
-  resize: vertical; min-height: 72px;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.field--grow { min-width: 0; width: 100%; }
-.field--span { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
-.atribuicao-pair {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: minmax(150px, 0.85fr) minmax(190px, 1.25fr);
-  gap: 0.75rem;
-  align-items: start;
-  min-width: 0;
-}
-.atribuicao-pair__principal {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.75rem;
-  min-width: 0;
-  align-items: start;
-}
-.atribuicao-pair .cidades-extra-add {
-  align-items: stretch;
-}
-.atribuicao-pair .cidades-extra-add .btn {
-  align-self: stretch;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-.cidades-extra-list { display: flex; flex-wrap: wrap; gap: 0.4rem; min-height: 0; }
-.cidades-extra-list:empty { display: none; }
-@media (max-width: 520px) {
-  .atribuicao-pair,
-  .atribuicao-pair__principal { grid-template-columns: minmax(0, 1fr); }
-}
-.cidade-extra-chip {
-  display: inline-flex; align-items: center; gap: 0.35rem;
-  max-width: 100%; padding: 0.28rem 0.45rem 0.28rem 0.55rem;
-  border: 1px solid var(--border); border-radius: 999px;
-  background: var(--surface); font-size: 0.82rem; line-height: 1.2;
-}
-.cidade-extra-chip__rm {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 1.2rem; height: 1.2rem; padding: 0; border: 0; border-radius: 50%;
-  background: transparent; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1;
-}
-.cidade-extra-chip__rm:hover { color: var(--text); background: rgba(148, 163, 184, 0.18); }
-.cidades-extra-add {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 0.45rem; align-items: center;
-}
-.cidades-extra-add--single { grid-template-columns: minmax(0, 1fr) auto; }
-@media (max-width: 640px) {
-  .cidades-extra-add,
-  .cidades-extra-add--single { grid-template-columns: minmax(0, 1fr); }
-}
-.checkbox { flex-direction: row; align-items: center; gap: 0.5rem; }
-.muted { color: var(--muted); margin: 0.25rem 0 0; }
-.small { font-size: 0.8rem; }
-.hint { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
-.esteiras { display: flex; flex-direction: column; gap: 1.35rem; }
-.esteira-row {
-  display: flex; flex-direction: column; gap: 1.25rem; align-items: stretch;
-}
-.esteira-block { min-width: 0; }
-.esteira-title { margin: 0 0 0.35rem; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em; }
-.esteira-sub { margin: 0 0 0.65rem; }
-.esteira-inbox-layout {
-  display: grid;
-  grid-template-columns: minmax(260px, min(420px, 42%)) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
-  border: 1px dashed rgba(245, 158, 11, 0.45);
-  border-radius: var(--radius);
-  padding: 0.65rem;
-  background: rgba(245, 158, 11, 0.04);
-}
-.esteira-inbox-layout--b2b {
-  border-color: rgba(var(--esteira-b2b-rgb), 0.45);
-  background: rgba(var(--esteira-b2b-rgb), 0.06);
-}
-.esteira-inbox-layout--projetos {
-  border-color: rgba(var(--esteira-projetos-rgb), 0.45);
-  background: rgba(var(--esteira-projetos-rgb), 0.05);
-}
-.esteira-inbox-layout .board--pendente {
-  border: none;
-  padding: 0;
-  background: transparent;
-  min-width: 0;
-}
-.esteira-inbox-alertas {
-  min-width: 0;
-  max-height: min(480px, calc(100vh - 300px));
-  overflow-y: auto;
-}
-.inbox-alertas {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.75rem 0.85rem;
-  height: 100%;
-  min-height: 120px;
-}
-.esteira-inbox-alertas--b2b .inbox-alertas {
-  border-color: rgba(var(--esteira-b2b-rgb), 0.35);
-}
-.esteira-inbox-alertas--projetos .inbox-alertas {
-  border-color: rgba(var(--esteira-projetos-rgb), 0.35);
-}
-.inbox-alertas__title {
-  margin: 0 0 0.5rem;
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-.inbox-alertas__count {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  background: rgba(245, 158, 11, 0.2);
-  color: #fcd34d;
-}
-.esteira-inbox-alertas--b2b .inbox-alertas__count {
-  background: rgba(var(--esteira-b2b-rgb), 0.25);
-  color: #c7d2fe;
-}
-.esteira-inbox-alertas--projetos .inbox-alertas__count {
-  background: rgba(var(--esteira-projetos-rgb), 0.25);
-  color: #e9d5ff;
-}
-.inbox-alertas__ok {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #86efac;
-  text-transform: none;
-  letter-spacing: 0;
-}
-.inbox-alertas__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-.inbox-alertas__row {
-  display: flex;
-  align-items: stretch;
-  gap: 0.4rem;
-}
-.inbox-alertas__item {
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.5rem 0.6rem;
-  background: var(--surface2);
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  transition: border-color 0.15s, background 0.15s;
-}
-.inbox-alertas__item:hover {
-  filter: brightness(1.08);
-}
-.inbox-alertas__item--bad {
-  border-color: rgba(239, 68, 68, 0.5);
-  background: rgba(239, 68, 68, 0.1);
-}
-.inbox-alertas__item--coluna,
-.inbox-alertas__item--prazo {
-  border-color: rgba(249, 115, 22, 0.5);
-  background: rgba(249, 115, 22, 0.08);
-}
-.inbox-alertas__item--warn {
-  border-color: rgba(234, 179, 8, 0.45);
-  background: rgba(234, 179, 8, 0.07);
-}
-.inbox-alertas__item--ok {
-  border-color: rgba(34, 197, 94, 0.5);
-  background: rgba(34, 197, 94, 0.1);
-}
-.inbox-alertas__item-titulo {
-  display: block;
-  font-weight: 600;
-  font-size: 0.82rem;
-  margin-bottom: 0.2rem;
-  line-height: 1.3;
-}
-.inbox-alertas__item-msg {
-  display: block;
-  font-size: 0.78rem;
-  color: #fecaca;
-}
-.inbox-alertas__item--coluna .inbox-alertas__item-msg,
-.inbox-alertas__item--prazo .inbox-alertas__item-msg {
-  color: #fed7aa;
-}
-.inbox-alertas__item--warn .inbox-alertas__item-msg {
-  color: #fef08a;
-}
-.inbox-alertas__item--ok .inbox-alertas__item-msg {
-  color: #bbf7d0;
-}
-.inbox-alertas__item-meta {
-  display: block;
-  font-size: 0.72rem;
-  color: var(--muted);
-  margin-top: 0.15rem;
-}
-.inbox-alertas__adiar {
-  flex-shrink: 0;
-  align-self: stretch;
-  min-width: 4.4rem;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface2);
-  color: inherit;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, filter 0.15s;
-}
-.inbox-alertas__adiar:hover {
-  filter: brightness(1.08);
-}
-.inbox-alertas__adiar.inbox-alertas__item--bad {
-  color: #fecaca;
-}
-.inbox-alertas__adiar.inbox-alertas__item--coluna,
-.inbox-alertas__adiar.inbox-alertas__item--prazo {
-  color: #fed7aa;
-}
-.inbox-alertas__adiar.inbox-alertas__item--warn {
-  color: #fef08a;
-}
-.inbox-alertas__adiar.inbox-alertas__item--ok {
-  color: #bbf7d0;
-}
-.inbox-alertas__count--bad {
-  background: rgba(239, 68, 68, 0.22);
-  color: #fecaca;
-}
-@media (max-width: 900px) {
-  .esteira-inbox-layout {
-    grid-template-columns: 1fr;
-  }
-  .esteira-inbox-alertas {
-    max-height: none;
-  }
-}
-.board {
-  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 280px);
-  gap: 0.75rem; overflow-x: auto; overflow-y: visible; padding-bottom: 0.5rem; align-items: start;
-}
-.column.drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: var(--radius); }
-.column {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  width: 100%; min-width: 260px; max-width: 280px;
-  display: flex; flex-direction: column; overflow: hidden;
-  height: fit-content;
-  max-height: min(720px, calc(100vh - 260px));
-}
-/* Fila pendente: cresce com os cards; scroll só se passar do limite */
-.board--pendente .column {
-  max-height: min(480px, calc(100vh - 300px));
-}
-.board--finalizados {
-  justify-content: flex-start;
-}
-.board--finalizados .column {
-  min-width: min(280px, 86vw);
-  flex: 0 0 280px;
-}
-.column--finalizado .column__head {
-  border-color: rgba(148, 163, 184, 0.35);
-}
-.esteira-empty-modo {
-  padding: 1.25rem 0.5rem;
-}
-.board--pendente .column__body {
-  flex: 0 1 auto;
-  max-height: calc(min(480px, 100vh - 300px) - 2.75rem);
-  overflow-y: auto;
-}
-.column__head {
-  padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 0.78rem;
-  text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted);
-  flex-shrink: 0; background: var(--surface); z-index: 1;
-  display: flex; flex-direction: column; justify-content: flex-start; gap: 0.45rem;
-  min-height: 4.35rem;
-}
-.column__title {
-  flex: 1 1 auto; min-width: 0; min-height: 2.6em; max-height: 2.6em;
-  line-height: 1.3; font-size: 0.72rem;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden; text-overflow: ellipsis;
-}
-.column__head-meta {
-  display: flex; align-items: center; justify-content: space-between; gap: 0.35rem;
-  flex-shrink: 0; min-height: 1.35rem;
-}
-.column__setor {
-  flex: 0 1 auto; min-width: 0;
-  text-transform: none; letter-spacing: 0;
-}
-.column__setor .dash-setor {
-  font-size: 0.62rem;
-  padding: 0.12rem 0.4rem;
-  font-weight: 600;
-  white-space: nowrap;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: inline-block;
-  vertical-align: middle;
-}
-.column__count {
-  opacity: 0.7; font-weight: 700; flex: 0 0 auto; margin-left: auto;
-  font-size: 0.78rem; line-height: 1;
-}
-.column__body {
-  padding: 0.5rem; overflow-x: hidden; overflow-y: auto; flex: 0 1 auto; min-width: 0;
-  max-height: calc(min(720px, 100vh - 260px) - 2.75rem);
-  display: flex; flex-direction: column; gap: 0.5rem; align-items: stretch;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable;
-}
-.column__body::-webkit-scrollbar { width: 8px; }
-.column__body::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.35); border-radius: 4px;
-}
-.column__body::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.5); }
-.card {
-  background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
-  padding: 0.6rem 1.85rem 0.6rem 0.65rem;
-  cursor: grab; box-shadow: 0 4px 14px rgba(0,0,0,0.2); position: relative;
-  flex-shrink: 0; flex-grow: 0; width: 100%; min-width: 0; max-width: 100%;
-  overflow: hidden; box-sizing: border-box;
-}
-.card:active { cursor: grabbing; }
-.card--dragging {
-  opacity: 0.92;
-  cursor: grabbing;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-}
-.board.is-drag-scrolling {
-  scroll-behavior: auto;
-}
-.card__prio {
-  position: absolute;
-  top: 0.4rem;
-  right: 0.35rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.12rem;
-  z-index: 2;
-}
-.card-prio-btn {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  width: 1.4rem;
-  height: 1.15rem;
-  font-size: 0.58rem;
-  line-height: 1;
-  border-radius: 5px;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.card-prio-btn:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--accent);
-  background: rgba(59, 130, 246, 0.15);
-}
-.card-prio-btn:disabled {
-  opacity: 0.22;
-  cursor: default;
-}
-.card--b2c { border-left: 4px solid var(--b2c); }
-.card--swap { border-left: 4px solid var(--swap); }
-.card--bb { border-left: 4px solid var(--bb); }
-.card--licenciamento { border-left: 4px solid var(--licenciamento); }
-.card--mapeamento { border-left: 4px solid var(--mapeamento); }
-.card--migracao { border-left: 4px solid var(--migracao); }
-.card--diaria { border-left: 4px solid var(--tipo-diaria); }
-.card--atraso { outline: 2px solid var(--danger); outline-offset: 0px; }
-.card--pausado { opacity: 0.85; border-style: dashed; }
-.card--reprovado { opacity: 0.75; filter: grayscale(0.25); }
-.card__title {
-  font-weight: 700; font-size: 0.92rem; margin: 0 0 0.35rem;
-  overflow-wrap: anywhere; word-break: break-word;
-}
-.card__meta {
-  font-size: 0.78rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.35rem 0.65rem;
-  max-width: 100%; overflow-wrap: anywhere; word-break: break-word;
-}
-.card__checklist {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0.45rem 0 0.2rem;
-}
-.card__checklist-frac {
-  font-size: 0.78rem;
-  font-weight: 700;
-  min-width: 2rem;
-  color: var(--text);
-}
-.card__checklist-dots {
-  display: flex;
-  gap: 5px;
-  flex: 1;
-  min-width: 0;
-}
-.card__checklist-dot {
-  flex: 1;
-  height: 7px;
-  border-radius: 99px;
-  background: rgba(148, 163, 184, 0.35);
-}
-.card__checklist-dot.is-on { background: #22c55e; }
-.fieldset--checklist .checklist-progress {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  margin: 0.35rem 0 0.25rem;
-}
-.fieldset--checklist .checklist-next { margin: 0.15rem 0 0.65rem; }
-.checklist-toggle {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0.15rem 0;
-  white-space: nowrap;
-}
-.checklist-toggle:hover { color: var(--text); }
-.checklist-gantt {
-  margin: 0.45rem 0 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  overflow: hidden;
-}
-.checklist-gantt[hidden] { display: none !important; }
-.checklist-gantt__empty {
-  margin: 0;
-  padding: 0.8rem 0.9rem;
-}
-.checklist-gantt__scroll {
-  overflow: auto;
-  max-height: min(22rem, 52vh);
-}
-.checklist-gantt__inner {
-  --gantt-w: 20rem;
-  --gantt-col: 32px;
-  min-width: calc(11rem + var(--gantt-w));
-}
-.checklist-gantt__head,
-.checklist-gantt__row {
-  display: grid;
-  grid-template-columns: 11rem var(--gantt-w);
-}
-.checklist-gantt__head {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  background: var(--surface2);
-  border-bottom: 1px solid var(--border);
-}
-.checklist-gantt__label {
-  position: sticky;
-  left: 0;
-  z-index: 2;
-  box-sizing: border-box;
-  width: 11rem;
-  padding: 0.38rem 0.7rem;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
-  min-width: 0;
-}
-.checklist-gantt__head .checklist-gantt__label {
-  z-index: 5;
-  display: flex;
-  align-items: flex-end;
-  background: var(--surface2);
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.checklist-gantt__label strong {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 600;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.checklist-gantt__label span {
-  display: block;
-  color: var(--muted);
-  font-size: 0.72rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.checklist-gantt__row.is-off .checklist-gantt__label strong { font-weight: 500; color: var(--muted); }
-.checklist-gantt__axis,
-.checklist-gantt__track {
-  position: relative;
-  width: var(--gantt-w);
-  min-width: var(--gantt-w);
-}
-.checklist-gantt__months,
-.checklist-gantt__ticks {
-  display: flex;
-}
-.checklist-gantt__month,
-.checklist-gantt__tick {
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  border-left: 1px solid var(--border);
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.68rem;
-  line-height: 1.15;
-}
-.checklist-gantt__month {
-  padding: 0.28rem 0.2rem 0.12rem;
-  font-weight: 700;
-  text-transform: capitalize;
-}
-.checklist-gantt__ticks.is-days .checklist-gantt__tick {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0.08rem 0 0.22rem;
-}
-.checklist-gantt__ticks.is-weeks .checklist-gantt__tick {
-  padding: 0.2rem 0.15rem 0.28rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.checklist-gantt__row {
-  border-top: 1px solid rgba(42, 53, 68, 0.7);
-}
-.checklist-gantt__row:first-child { border-top: none; }
-.checklist-gantt__track {
-  height: 2.45rem;
-  background-image:
-    repeating-linear-gradient(
-      to right,
-      transparent 0,
-      transparent calc(var(--gantt-col) - 1px),
-      rgba(42, 53, 68, 0.85) calc(var(--gantt-col) - 1px),
-      rgba(42, 53, 68, 0.85) var(--gantt-col)
-    );
-}
-.checklist-gantt__bar {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 1.05rem;
-  min-width: 8px;
-  border-radius: 999px;
-  background: var(--accent);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-}
-.checklist-gantt__bar.is-done { background: var(--accent2); }
-.checklist-gantt__mark {
-  position: absolute;
-  top: 50%;
-  width: 0.72rem;
-  height: 0.72rem;
-  transform: translate(-50%, -50%) rotate(45deg);
-  border-radius: 2px;
-  background: var(--warn);
-}
-.checklist-gantt__mark.is-done { background: var(--accent2); }
-.checklist-gantt__today {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--danger);
-  transform: translateX(-50%);
-  pointer-events: none;
-  z-index: 1;
-}
-.checklist-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.checklist-item {
-  display: grid;
-  grid-template-columns: 1.4rem minmax(0, 1fr) auto;
-  grid-template-areas:
-    "cb name rm"
-    "cb meta rm";
-  gap: 0.1rem 0.7rem;
-  align-items: center;
-  padding: 0.62rem 0.7rem;
-  margin: 0 0 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  font-size: 0.85rem;
-}
-.checklist-item.is-editing {
-  grid-template-areas:
-    "cb edit rm";
-  align-items: start;
-}
-.checklist-item.is-off { color: var(--muted); }
-.checklist-item.is-off .checklist-item__name { font-weight: 500; }
-.checklist-check {
-  grid-area: cb;
-  position: relative;
-  width: 1.25rem;
-  height: 1.25rem;
-  margin: 0;
-  align-self: center;
-}
-.checklist-check input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  margin: 0;
-  cursor: pointer;
-}
-.checklist-check input:disabled { cursor: default; }
-.checklist-check i {
-  position: relative;
-  display: block;
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 1.5px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface2);
-  pointer-events: none;
-}
-.checklist-check input:checked + i {
-  background: #22c55e;
-  border-color: #16a34a;
-}
-.checklist-check input:checked + i::after {
-  content: "";
-  position: absolute;
-  left: 0.38rem;
-  top: 0.18rem;
-  width: 0.28rem;
-  height: 0.55rem;
-  border: solid #fff;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-.checklist-check input:focus-visible + i {
-  outline: 2px solid rgba(59, 130, 246, 0.55);
-  outline-offset: 2px;
-}
-.checklist-item__name {
-  grid-area: name;
-  font-weight: 600;
-  min-width: 0;
-  font-size: 0.88rem;
-}
-.checklist-item__meta {
-  grid-area: meta;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.7rem;
-}
-.checklist-item__who,
-.checklist-item time {
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-.checklist-item__actions {
-  grid-area: rm;
-  align-self: center;
-  display: flex;
-  flex-direction: column;
-  gap: 0.28rem;
-}
-.checklist-item.is-editing .checklist-item__actions { align-self: start; padding-top: 1.35rem; }
-.checklist-item__edit {
-  grid-area: edit;
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 10.5rem 10.5rem;
-  gap: 0.45rem;
-  min-width: 0;
-}
-.checklist-item__edit-btn,
-.checklist-item__save,
-.checklist-item__cancel,
-.checklist-item__remove {
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-  border-radius: 8px;
-  padding: 0.28rem 0.55rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.checklist-item__edit-btn:hover:not(:disabled),
-.checklist-item__cancel:hover:not(:disabled) {
-  background: var(--surface2);
-  color: var(--text);
-}
-.checklist-item__save:hover:not(:disabled) {
-  background: rgba(34, 197, 94, 0.18);
-  color: #bbf7d0;
-  border-color: #166534;
-}
-.checklist-item__remove:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.22);
-  color: #fecaca;
-  border-color: #7f1d1d;
-}
-.checklist-item__edit-btn:disabled,
-.checklist-item__remove:disabled { opacity: 0.55; cursor: default; }
-@media (max-width: 760px) {
-  .checklist-item__edit { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-}
-@media (max-width: 560px) {
-  .checklist-item__edit { grid-template-columns: minmax(0, 1fr); }
-}
-.checklist-add {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 10.5rem 10.5rem;
-  gap: 0.55rem;
-  margin-top: 0.85rem;
-  padding-top: 0.85rem;
-  border-top: 1px dashed var(--border);
-}
-.checklist-add-actions { margin-top: 0.7rem; }
-@media (max-width: 560px) {
-  .checklist-add { grid-template-columns: minmax(0, 1fr); }
-  .checklist-progress { flex-wrap: wrap; }
-}
-.field--clickup {
-  grid-column: 1 / -1;
-}
-.field--clickup .clickup-ref {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem 0.65rem;
-  min-height: 2.35rem;
-}
-.clickup-ref__hint {
-  margin: 0;
-  flex: 1 1 100%;
-}
-.clickup-ref__link {
-  text-decoration: none;
-}
-.badge {
-  display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 999px;
-  border: 1px solid var(--border);
-}
-.badge--b2c { background: rgba(99, 102, 241, 0.2); color: #c7d2fe; }
-.badge--b2b { background: rgba(168, 85, 247, 0.22); color: #e9d5ff; }
-.badge--produto-b2b { background: rgba(124, 58, 237, 0.28); color: #ddd6fe; border: 1px solid rgba(168, 85, 247, 0.35); }
-.badge--segmento-b2c { background: rgba(59, 130, 246, 0.22); color: #bfdbfe; border: 1px solid rgba(59, 130, 246, 0.35); }
-.badge--swap { background: rgba(234, 179, 8, 0.2); color: #fef08a; }
-.badge--bb { background: rgba(14, 165, 233, 0.2); color: #bae6fd; }
-.badge--licenciamento { background: rgba(16, 185, 129, 0.2); color: #a7f3d0; }
-.badge--mapeamento { background: rgba(236, 72, 153, 0.22); color: #fbcfe8; }
-.badge--migracao { background: rgba(20, 184, 166, 0.22); color: #99f6e4; }
-.badge--diaria { background: rgba(168, 85, 247, 0.2); color: #e9d5ff; }
-.fieldset.is-hidden { display: none !important; }
-.badge--atr { background: rgba(239, 68, 68, 0.2); color: #fecaca; }
-.badge--pend { background: rgba(245, 158, 11, 0.18); color: #fde68a; border-color: rgba(245, 158, 11, 0.35); }
-.badge--st-novo { background: rgba(148, 163, 184, 0.25); color: #e2e8f0; }
-.badge--st-analise { background: rgba(99, 102, 241, 0.22); color: #c7d2fe; }
-.badge--st-vistoria { background: rgba(14, 165, 233, 0.22); color: #bae6fd; }
-.badge--st-custo { background: rgba(234, 179, 8, 0.22); color: #fef08a; }
-.badge--st-revisao { background: rgba(168, 85, 247, 0.22); color: #e9d5ff; }
-.badge--st-aprovacao { background: rgba(59, 130, 246, 0.22); color: #93c5fd; }
-.badge--st-materiais { background: rgba(249, 115, 22, 0.22); color: #fed7aa; }
-.badge--st-execucao { background: rgba(34, 197, 94, 0.2); color: #86efac; }
-.badge--st-execucao-terceirizada { background: rgba(236, 72, 153, 0.22); color: #fbcfe8; }
-.badge--st-configuracao { background: rgba(14, 165, 233, 0.22); color: #bae6fd; }
-.badge--st-transmissao-infra { background: rgba(234, 179, 8, 0.22); color: #fde68a; }
-.badge--st-documentacao { background: rgba(99, 102, 241, 0.22); color: #c7d2fe; }
-.badge--st-conclusao { background: rgba(22, 163, 74, 0.28); color: #bbf7d0; }
-.badge--st-pausado { background: rgba(100, 116, 139, 0.3); color: #cbd5e1; }
-.badge--st-reprovado { background: rgba(239, 68, 68, 0.22); color: #fecaca; }
-.card__status-atual {
-  margin: 0.35rem 0 0.5rem; font-size: 0.78rem; line-height: 1.35; color: var(--muted);
-  font-style: italic; overflow-wrap: anywhere; word-break: break-word; max-width: 100%;
-}
-.card__atraso {
-  margin: 0 0 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-.card__motivos-atraso {
-  margin: 0; padding: 0.35rem 0.5rem; font-size: 0.75rem; line-height: 1.35;
-  color: #fecaca; background: rgba(239, 68, 68, 0.12); border-radius: 6px;
-  border-left: 3px solid var(--danger);
-  overflow-wrap: anywhere; word-break: break-word; max-width: 100%; box-sizing: border-box;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-}
-.card__atraso-dias {
-  margin: 0; padding: 0.35rem 0.5rem; font-size: 0.75rem; line-height: 1.35;
-  color: #fecaca; background: rgba(239, 68, 68, 0.12); border-radius: 6px;
-  border-left: 3px solid var(--danger);
-}
-.card__atraso-dias strong { font-weight: 700; }
-.card__dias-aberto {
-  margin: 0.35rem 0 0;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  line-height: 1.35;
-}
-.card__dias-aberto strong { font-weight: 700; color: var(--text); }
-.card--coluna-alerta {
-  outline: 2px solid rgba(249, 115, 22, 0.7);
-  outline-offset: 0;
-}
-.card__coluna-alerta,
-.card__alerta-ciente {
-  margin: 0.35rem 0 0;
-  padding: 0.35rem 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1.35;
-  border-radius: 6px;
-}
-.card__coluna-alerta {
-  color: #fed7aa;
-  background: rgba(249, 115, 22, 0.12);
-  border-left: 3px solid #f97316;
-}
-.card__alerta-ciente {
-  color: #bbf7d0;
-  background: rgba(34, 197, 94, 0.12);
-  border-left: 3px solid #22c55e;
-}
-.card__alerta-ciente-texto {
-  display: block;
-  margin-top: 0.15rem;
-  color: var(--muted);
-  font-style: italic;
-}
-.dias-aberto-resumo {
-  margin: 0.65rem 0 0;
-  padding: 0.55rem 0.75rem;
-  font-size: 0.88rem;
-  line-height: 1.45;
-  border-radius: 8px;
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.22);
-}
-.dias-aberto-resumo .muted.small { display: block; margin-top: 0.2rem; font-size: 0.78rem; }
-.card__motivos-atraso strong { font-weight: 700; }
-.atraso-dias-resumo {
-  margin: 0.35rem 0 0; padding: 0.45rem 0.65rem; font-size: 0.85rem;
-  color: #fecaca; background: rgba(239, 68, 68, 0.12); border-radius: 8px;
-  border-left: 3px solid var(--danger);
-}
-.atraso-dias-resumo strong { font-weight: 700; }
-.motivos-atraso-lista {
-  display: flex; flex-direction: column; gap: 0.65rem; margin-bottom: 0.65rem;
-}
-.motivo-atraso-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 7rem) auto;
-  gap: 0.65rem; align-items: end;
-  padding: 0.65rem 0.75rem; border-radius: 8px;
-  border: 1px dashed rgba(239, 68, 68, 0.35);
-  background: rgba(239, 68, 68, 0.04);
-}
-.motivo-atraso-row .field--dias input {
-  width: 100%; min-width: 0;
-}
-.motivo-atraso-remove {
-  width: 2rem; height: 2rem; margin-bottom: 0.15rem;
-  border: 1px solid var(--border); border-radius: 8px;
-  background: transparent; color: var(--muted); cursor: pointer;
-  font-size: 1.1rem; line-height: 1;
-}
-.motivo-atraso-remove:hover:not(:disabled) {
-  color: var(--danger); border-color: rgba(239, 68, 68, 0.45);
-}
-.motivo-atraso-remove:disabled { opacity: 0.35; cursor: not-allowed; }
-.motivos-atraso-add { margin-top: 0.15rem; }
-@media (max-width: 640px) {
-  .motivo-atraso-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-  }
-  .motivo-atraso-row .field--dias { grid-column: 1; }
-  .motivo-atraso-remove { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
-}
-.fieldset--atraso textarea { width: 100%; }
-.diarias-intro { margin: -0.25rem 0 0.85rem; font-size: 0.9rem; }
-.diarias-toolbar { margin-bottom: 1rem; }
-.diarias-list {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem; width: 100%;
-}
-.diarias-empty { grid-column: 1 / -1; padding: 2rem; text-align: center; font-size: 0.95rem; }
-.diaria {
-  padding: 1.1rem 1.2rem; border-radius: var(--radius); border: 1px solid var(--border);
-  background: var(--surface); cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
-  border-left-width: 4px; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
-}
-.diaria:hover, .diaria:focus-visible {
-  border-color: rgba(99, 102, 241, 0.55); box-shadow: var(--shadow); transform: translateY(-1px); outline: none;
-}
-.diaria--vinicius { border-left-color: #6366f1; }
-.diaria--matheus { border-left-color: #14b8a6; }
-.diaria--joao { border-left-color: #f97316; }
-.diaria--daniel { border-left-color: #ec4899; }
-.diaria--outros { border-left-color: #94a3b8; }
-.diaria__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.65rem; }
-.diaria__tit { margin: 0; font-size: 1.05rem; font-weight: 700; line-height: 1.3; letter-spacing: -0.02em; color: var(--text); }
-.diaria__resp {
-  flex-shrink: 0; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
-  padding: 0.25rem 0.55rem; border-radius: 999px; background: rgba(99, 102, 241, 0.2); color: #c7d2fe;
-}
-.diaria--matheus .diaria__resp { background: rgba(20, 184, 166, 0.2); color: #99f6e4; }
-.diaria--joao .diaria__resp { background: rgba(249, 115, 22, 0.2); color: #fed7aa; }
-.diaria--daniel .diaria__resp { background: rgba(236, 72, 153, 0.2); color: #fbcfe8; }
-.diaria--outros .diaria__resp { background: rgba(148, 163, 184, 0.2); color: #e2e8f0; }
-.diaria__desc {
-  margin: 0; font-size: 0.92rem; line-height: 1.55; color: #cbd5e1;
-  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
-}
-.projetistas-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
-.projetista {
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 1rem;
-}
-.projetista h3 { margin: 0 0 0.5rem; font-size: 1rem; }
-.projetista textarea { width: 100%; min-height: 72px; }
-.projetista__row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; align-items: center; }
-.projetista__since { font-size: 0.8rem; color: var(--muted); }
-.projetista .pj-dem { width: 100%; min-height: 2.5rem; font-size: 0.92rem; }
-.pj-vinculo-legenda { margin: 0.35rem 0 0; min-height: 1.35em; line-height: 1.4; color: #94a3b8; }
-.kpi-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 0.75rem;
-}
-.kpi-grid--split { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
-.kpi {
-  border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; background: var(--surface);
-  min-width: 0; overflow: hidden; container-type: inline-size;
-}
-.kpi__label {
-  font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
-  line-height: 1.3; overflow-wrap: anywhere;
-}
-.kpi__value {
-  font-size: clamp(0.85rem, 11cqi, 1.65rem); font-weight: 800; margin-top: 0.35rem; line-height: 1.15;
-  max-width: 100%; overflow-wrap: anywhere; word-break: break-word;
-}
-.kpi__sub {
-  margin-top: 0.45rem;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  color: var(--muted);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-.kpi--ok .kpi__value { color: var(--accent2); }
-.kpi--warn .kpi__value { color: var(--warn); }
-.kpi--bad .kpi__value { color: #fca5a5; }
-.kpi--click {
-  appearance: none;
-  display: block;
-  width: 100%;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-.kpi--click:hover {
-  border-color: var(--accent);
-}
-.kpi--click:focus-visible {
-  outline: 2px solid rgba(59, 130, 246, 0.7);
-  outline-offset: 2px;
-}
-.dashboard-charts {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1rem; margin-bottom: 0.5rem;
-}
-.dashboard-charts--cols2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.dashboard-charts--cols3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.dash-block[data-dash-block="indicadores-b2b"] .dash-block__toggle span:first-child {
-  color: #c4b5fd;
-}
-@media (max-width: 1100px) {
-  .dashboard-charts--cols2,
-  .dashboard-charts--cols3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 640px) {
-  .dashboard-charts--cols2,
-  .dashboard-charts--cols3 { grid-template-columns: 1fr; }
-}
-.chart-card {
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
-  padding: 1rem 1rem 0.75rem;
-}
-.chart-card h4 { margin: 0 0 0.75rem; font-size: 0.88rem; font-weight: 600; color: var(--muted); }
-.chart-wrap { position: relative; height: 220px; width: 100%; }
-.chart-wrap--tall { height: 260px; }
-.dashboard-charts--cf { grid-template-columns: 1fr; margin-bottom: 0.75rem; }
-.chart-card--wide { grid-column: 1 / -1; }
-.dash-cf-toolbar {
-  display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: flex-end;
-  margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid var(--border);
-  border-radius: var(--radius); background: var(--surface);
-}
-.dash-cf-toolbar .field--inline { min-width: 160px; }
-.dash-cf-subtitle { margin: 1.25rem 0 0.35rem; font-size: 0.95rem; font-weight: 600; }
-.dash-cf-toolbar--detalhe { margin-top: 0.5rem; }
-.dash-cf-total-row td { font-weight: 700; background: rgba(34, 197, 94, 0.08); }
-.dash-cf-badge {
-  display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.45rem;
-  border-radius: 4px; margin-right: 0.25rem;
-}
-.dash-cf-badge--chegada { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
-.dash-cf-badge--fim { background: rgba(34, 197, 94, 0.2); color: #86efac; }
-.dash-table--cidades { font-size: 0.85rem; }
-.dash-table--cidades th,
-.dash-table--cidades td { white-space: nowrap; }
-.dash-table--cidades td:first-child { white-space: normal; min-width: 7rem; }
+        <div class="sidebar__group import-menu" id="esteiraTabMenu">
+          <button type="button" class="sidebar__item tabs__btn is-active tabs__btn--menu" id="btnTabEsteira" data-tab="esteira" role="tab" aria-selected="true" aria-expanded="false" aria-haspopup="menu" aria-controls="esteiraTabPanel" data-tip="Esteira Projetos" aria-label="Esteira Projetos">
+            <span class="sidebar__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="4" height="13" rx="1"/></svg>
+            </span>
+            <span class="sidebar__label">Esteira <span class="tabs__esteira-label" id="esteiraTabLabel">· Projetos</span></span>
+          </button>
+          <div class="import-menu__panel tabs__esteira-panel" id="esteiraTabPanel" role="menu" hidden>
+            <button type="button" class="import-menu__item is-active" data-esteira-linha="operacional" role="menuitem">Esteira Projetos</button>
+            <button type="button" class="import-menu__item" data-esteira-linha="b2b" role="menuitem">Esteira B2B</button>
+          </div>
+        </div>
 
-.dash-block {
-  margin-bottom: 1rem; border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--surface); overflow: hidden;
-}
-.dash-block__toggle {
-  display: flex; align-items: center; justify-content: space-between; width: 100%;
-  padding: 0.7rem 1rem; border: none; background: var(--surface2); color: var(--text);
-  font: inherit; font-size: 0.95rem; font-weight: 600; cursor: pointer; text-align: left;
-}
-.dash-block__toggle:hover { background: rgba(255, 255, 255, 0.06); }
-.dash-block__chevron {
-  width: 0.45rem; height: 0.45rem; border-right: 2px solid var(--muted);
-  border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform 0.2s;
-  margin-top: -0.12rem; flex-shrink: 0;
-}
-.dash-block.is-collapsed .dash-block__chevron { transform: rotate(-135deg); margin-top: 0.15rem; }
-.dash-block.is-collapsed .dash-block__body { display: none; }
-.dash-block__body { padding: 1rem; }
-.dash-block__hint { margin: 0 0 0.75rem; }
-.dash-block__divider {
-  margin: 1.25rem 0;
-  border: none;
-  border-top: 1px solid rgba(148, 163, 184, 0.2);
-}
-.dash-subsection-title {
-  margin: 0 0 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-}
+        <button type="button" class="sidebar__item tabs__btn" data-tab="dashboard" role="tab" aria-selected="false" data-tip="Dashboard" aria-label="Dashboard">
+          <span class="sidebar__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="11" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/></svg>
+          </span>
+          <span class="sidebar__label">Dashboard</span>
+        </button>
 
-/* Subsessões colapsáveis (ex.: Indicadores B2B) */
-.dash-sub-block {
-  margin-top: 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: rgba(15, 23, 42, 0.35);
-  overflow: hidden;
-}
-.dash-sub-block__toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0.55rem 0.85rem;
-  border: none;
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: left;
-}
-.dash-sub-block__toggle:hover { background: rgba(255, 255, 255, 0.06); }
-.dash-sub-block__chevron {
-  width: 0.4rem;
-  height: 0.4rem;
-  border-right: 2px solid var(--muted);
-  border-bottom: 2px solid var(--muted);
-  transform: rotate(45deg);
-  transition: transform 0.2s;
-  margin-top: -0.1rem;
-  flex-shrink: 0;
-}
-.dash-sub-block.is-collapsed .dash-sub-block__chevron {
-  transform: rotate(-135deg);
-  margin-top: 0.12rem;
-}
-.dash-sub-block.is-collapsed .dash-sub-block__body { display: none; }
-.dash-sub-block__body { padding: 0.85rem; }
-.dash-sub-block__body > .dash-block__hint:first-child { margin-top: 0; }
-.dash-sub-block .dashboard-charts { margin-bottom: 0; }
-.dash-block[data-dash-block="indicadores-b2b"] .dash-sub-block:first-of-type { margin-top: 0.65rem; }
+        <div class="sidebar__group import-menu sidebar__admin" id="exportMenu" hidden>
+          <button type="button" class="sidebar__item import-menu__toggle" id="btnExportToggle" aria-expanded="false" aria-haspopup="menu" aria-controls="exportMenuPanel" data-tip="Exportar" aria-label="Exportar">
+            <span class="sidebar__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            </span>
+            <span class="sidebar__label">Exportar</span>
+          </button>
+          <div class="import-menu__panel" id="exportMenuPanel" role="menu" hidden>
+            <button type="button" class="import-menu__item" id="btnExportJson" role="menuitem">JSON — backup do sistema</button>
+            <button type="button" class="import-menu__item" id="btnExportCsv" role="menuitem">CSV — relatório completo</button>
+          </div>
+        </div>
 
-.dash-chart-table {
-  margin-top: 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: calc(var(--radius) - 2px);
-  overflow: hidden;
-  background: rgba(15, 23, 42, 0.25);
-}
-.dash-chart-table__toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0.45rem 0.75rem;
-  border: none;
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: left;
-}
-.dash-chart-table__toggle:hover { background: rgba(255, 255, 255, 0.06); }
-.dash-chart-table__chevron {
-  width: 0.35rem;
-  height: 0.35rem;
-  border-right: 2px solid var(--muted);
-  border-bottom: 2px solid var(--muted);
-  transform: rotate(45deg);
-  transition: transform 0.2s;
-  margin-top: -0.08rem;
-  flex-shrink: 0;
-}
-.dash-chart-table.is-collapsed .dash-chart-table__chevron {
-  transform: rotate(-135deg);
-  margin-top: 0.1rem;
-}
-.dash-chart-table.is-collapsed .dash-chart-table__body { display: none; }
-.dash-chart-table__body { padding: 0.65rem 0.75rem 0.75rem; }
-.dash-chart-table__body .dash-table { margin: 0; }
+        <div class="sidebar__group import-menu sidebar__admin" id="importMenu" hidden>
+          <button type="button" class="sidebar__item import-menu__toggle" id="btnImportToggle" aria-expanded="false" aria-haspopup="menu" aria-controls="importMenuPanel" data-tip="Importar" aria-label="Importar">
+            <span class="sidebar__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+            </span>
+            <span class="sidebar__label">Importar</span>
+          </button>
+          <div class="import-menu__panel" id="importMenuPanel" role="menu" hidden>
+            <button type="button" class="import-menu__item" id="btnImportJson" role="menuitem">JSON — backup do sistema</button>
+            <button type="button" class="import-menu__item" id="btnImportCsvPick" role="menuitem">CSV — relatório completo</button>
+          </div>
+          <input type="file" id="inputImport" accept="application/json" hidden />
+          <input type="file" id="inputImportCsv" accept=".csv,text/csv" hidden />
+        </div>
+      </nav>
+    </aside>
 
-.dash-subhead {
-  margin: 1.15rem 0 0.55rem;
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-}
-.dash-block__body > .dash-subhead:first-of-type { margin-top: 0.15rem; }
-.dash-pj-card { grid-column: 1 / -1; padding: 1rem 1rem 0.85rem; }
-.dash-pj-card__nome {
-  font-size: 1rem; text-transform: none; letter-spacing: -0.02em; color: var(--text);
-  margin-bottom: 0.15rem;
-}
-.dash-pj-card .kpi-grid { margin-top: 0.35rem; }
-.dash-tipo-card {
-  grid-column: 1 / -1;
-  padding: 1rem 1rem 0.85rem;
-  border-left-width: 4px;
-}
-.dash-tipo-card__nome {
-  font-size: 1rem;
-  text-transform: none;
-  letter-spacing: -0.02em;
-  color: var(--text);
-  margin-bottom: 0.15rem;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-.dash-tipo-card__meta {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--muted);
-}
-.dash-tipo-card .kpi-grid { margin-top: 0.35rem; }
-.dash-tempo-toolbar {
-  display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: flex-end;
-  margin-bottom: 0.35rem; padding: 0.75rem; border: 1px solid var(--border);
-  border-radius: var(--radius); background: var(--surface);
-}
-.dash-tempo-toolbar .field--inline { min-width: 160px; flex: 1 1 180px; }
-.dash-geo-filtros { margin: 0 0 0.75rem; }
-.dash-geo-filtros .field--inline { min-width: 140px; flex: 1 1 150px; }
-.dash-indicadores-top {
-  margin-bottom: 1.25rem;
-}
-.dash-indicadores-top .dash-valor-toolbar { margin-bottom: 0; }
-.dash-valor-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1rem;
-  align-items: flex-end;
-  margin-bottom: 1rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-.dash-geo-link {
-  appearance: none;
-  border: none;
-  background: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  color: inherit;
-  text-decoration: none;
-  cursor: pointer;
-  text-align: left;
-}
-.dash-geo-link:hover { color: var(--accent, #60a5fa); }
-.dash-geo-link:focus-visible {
-  outline: 2px solid rgba(96, 165, 250, 0.7);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-.dash-cidades-drill {
-  margin: 0.85rem 0 1rem;
-  padding: 0.85rem 0.95rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-.dash-cidades-drill[hidden] { display: none; }
-.dash-cidades-drill__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.35rem;
-}
-.dash-cidades-drill__head .dash-subhead { margin: 0; }
-.dash-pj-drill__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  align-items: center;
-}
-#kpiProjetistas { margin-bottom: 0.75rem; }
-.dash-valor-toolbar .field--dash-date { min-width: 150px; flex: 0 1 170px; }
-.dash-valor-toolbar #btnDashPeriodoLimpar { flex: 0 0 auto; align-self: flex-end; margin-bottom: 0.1rem; }
-.dash-valor-toolbar .muted.small { margin: 0; flex: 1 1 100%; }
-#dashValoresFinanceirosKpis { margin-bottom: 0.85rem; }
-#dashTempoCount { margin: 0 0 0.5rem; }
-.dash-tempo-hint { padding: 1.25rem; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius); background: var(--surface); }
-.dash-tempo-intro {
-  display: grid;
-  grid-template-columns: minmax(320px, 1.15fr) minmax(0, 1fr);
-  gap: 1.25rem 1.5rem;
-  align-items: start;
-  margin-bottom: 1rem;
-}
-.dash-tempo-intro__title {
-  margin: 0 0 0.5rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text);
-}
-.dash-tempo-intro__map { min-width: 0; }
-.dash-tempo-intro__resumo { min-width: 0; }
-.dash-tempo-resumo-hint { margin: 0 0 0.65rem; }
-.dash-tempo-resumo-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(200px, 340px);
-  gap: 1rem;
-  align-items: stretch;
-}
-.dash-table--b2c-seg { font-size: 0.82rem; }
-.dash-table--b2c-seg th:nth-child(n+2),
-.dash-table--b2c-seg td:nth-child(n+2) { text-align: right; }
-#dashB2cMetricSegmentoTable { margin: 0.75rem 0 1.25rem; }
-#dashB2cSegmentoCharts { margin-top: 0.35rem; margin-bottom: 0.85rem; }
-#kpiB2cSegmentos { margin-bottom: 0.35rem; }
-.dash-table--fase-resumo td:nth-child(3),
-.dash-table--fase-resumo td:nth-child(4),
-.dash-table--fase-resumo td:nth-child(5) {
-  white-space: nowrap;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.chart-card--resumo-setor {
-  margin: 0;
-  padding: 0.75rem;
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-.chart-wrap--resumo-setor {
-  flex: 1;
-  height: 200px;
-  min-height: 160px;
-}
-.dash-table--setor-resumo { min-width: 0; font-size: 0.82rem; }
-.dash-table--setor-resumo td:nth-child(2),
-.dash-table--setor-resumo td:nth-child(4) {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-@media (max-width: 960px) {
-  .dash-tempo-intro { grid-template-columns: 1fr; }
-  .dash-tempo-resumo-body { grid-template-columns: 1fr; }
-}
-.dash-map-setor {
-  width: 100%; border-collapse: collapse; font-size: 0.82rem;
-  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
-}
-.dash-map-setor th, .dash-map-setor td {
-  padding: 0.45rem 0.65rem; border-bottom: 1px solid var(--border); text-align: left;
-}
-.dash-map-setor th { background: var(--surface2); color: var(--muted); font-size: 0.7rem; text-transform: uppercase; }
-.dash-map-setor tr:last-child td { border-bottom: none; }
-.dash-setor {
-  display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 0.12rem 0.45rem;
-  border-radius: 4px; vertical-align: middle;
-}
-.dash-setor--projetos { background: rgba(99, 102, 241, 0.25); color: #c7d2fe; }
-.dash-setor--operacao { background: rgba(20, 184, 166, 0.22); color: #99f6e4; }
-.dash-setor--diretoria { background: rgba(245, 158, 11, 0.22); color: #fde68a; }
-.dash-setor--cd { background: rgba(168, 85, 247, 0.22); color: #e9d5ff; }
-.dash-setor--engenharia { background: rgba(14, 165, 233, 0.22); color: #bae6fd; }
-.dash-setor--ip-servicos { background: rgba(14, 165, 233, 0.22); color: #bae6fd; }
-.dash-setor--transmissao-infra { background: rgba(234, 179, 8, 0.22); color: #fde68a; }
-.dash-setor--comercial { background: rgba(245, 158, 11, 0.22); color: #fde68a; }
-.dash-setor--eng-noc { background: rgba(14, 165, 233, 0.22); color: #bae6fd; }
-.dash-setor--terceirizada { background: rgba(236, 72, 153, 0.22); color: #fbcfe8; }
-.dash-setor--outros { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
-.dash-tempo-charts { margin-bottom: 1rem; }
-.dashboard-charts--tempo { margin-top: 0.75rem; }
-.chart-wrap--tempo-fase { height: 280px; min-height: 200px; }
-.chart-card__sub { margin: -0.35rem 0 0.65rem; }
-.dash-tempo-detalhe { display: grid; gap: 0.5rem; }
-.dash-tempo-detalhe__label {
-  margin: 0.25rem 0 0; font-size: 0.72rem; text-transform: uppercase;
-  letter-spacing: 0.04em; color: var(--muted); font-weight: 600;
-}
-.dash-fases-list--setor { margin-bottom: 0.25rem; }
-.dash-table--setor { min-width: 420px; }
-.dash-tempo-total { color: #a5b4fc; }
-.dash-pe-badge {
-  display: inline-block;
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-}
-.dash-pe-badge--ok { background: rgba(34, 197, 94, 0.22); color: #86efac; }
-.dash-pe-badge--warn { background: rgba(245, 158, 11, 0.22); color: #fde68a; }
-.dash-pe-badge--bad { background: rgba(239, 68, 68, 0.22); color: #fca5a5; }
-.dash-pe-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.dash-pe-num--bad { color: #fca5a5; font-weight: 700; }
-.dash-pe-num--ok { color: #86efac; font-weight: 600; }
-.dashboard-charts--pe {
-  margin-bottom: 0.5rem;
-}
-.chart-card--pe-aderencia {
-  max-width: 360px;
-}
-.chart-wrap--pe-doughnut {
-  height: 240px;
-  min-height: 200px;
-}
-.dash-pe-toolbar {
-  margin-bottom: 0.75rem;
-}
-.dash-table--projetado-exec { min-width: 960px; }
-.dash-table--solicitantes { min-width: 880px; }
-.dash-table--solicitantes td:nth-child(3) { min-width: 10rem; }
-.dash-table--pj-matrix { min-width: 520px; font-size: 0.82rem; }
-.dash-table--pj-matrix th,
-.dash-table--pj-matrix td { text-align: center; white-space: nowrap; }
-.dash-table--pj-matrix th:first-child,
-.dash-table--pj-matrix td:first-child,
-.dash-table--pj-matrix tfoot td:first-child { text-align: left; }
-.dash-table--pj-matrix .dash-pj-matrix__num { font-variant-numeric: tabular-nums; }
-.dash-table--pj-matrix .dash-pj-matrix__total { background: rgba(99, 102, 241, 0.06); }
-.dash-table--pj-matrix tfoot td { background: var(--surface2); font-weight: 600; }
-.chart-card--wide .dashboard-table-wrap { margin-top: 0.75rem; }
-.dash-sol-tipos { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
-.dash-sol-tipo { font-size: 0.72rem; }
-.dash-sol-num { font-weight: 700; font-variant-numeric: tabular-nums; }
-.dash-sol-num--bad { color: #fca5a5; }
-.dashboard-table-wrap { overflow-x: auto; margin-top: 0.25rem; }
-.dash-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 720px; }
-.dash-table th, .dash-table td {
-  border-bottom: 1px solid var(--border); padding: 0.55rem 0.65rem; text-align: left; vertical-align: top;
-}
-.dash-table th { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; background: var(--surface2); }
-.dash-row-fases td { background: rgba(15, 23, 42, 0.35); padding-top: 0; padding-bottom: 0.65rem; }
-.dash-group-row td {
-  background: rgba(99, 102, 241, 0.12); font-weight: 700; font-size: 0.88rem;
-  color: #c7d2fe; padding: 0.65rem 0.75rem; border-bottom: 1px solid rgba(99, 102, 241, 0.25);
-}
-.dash-fases-list { margin: 0.35rem 0 0; padding-left: 1.2rem; color: #94a3b8; font-size: 0.8rem; line-height: 1.5; }
-.dash-fases-list li { margin: 0.15rem 0; }
-/* Modal de demanda: o fundo não recebe rolagem (JS bloqueia wheel/touch).
-   Não usar overflow:hidden em html/body/esteira — isso zera o scroll e manda a tela ao topo. */
-html.demanda-modal-open {
-  overscroll-behavior: none;
-}
-.modal {
-  border: none; border-radius: 16px; padding: 0; max-width: min(920px, 96vw); width: 100%;
-  max-height: min(92vh, 920px);
-  background: var(--surface); color: var(--text); box-shadow: var(--shadow);
-}
-.modal--wide {
-  max-width: min(1520px, 99vw); width: min(1520px, 99vw);
-}
-.modal--sm { max-width: min(480px, 96vw); }
-.modal--narrow { max-width: min(640px, 96vw); }
-.modal__inner { max-height: min(92vh, 920px); min-height: 0; overflow: hidden; }
-.modal__body--split {
-  padding: 0;
-  overflow: hidden;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.modal__split {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-.modal__form-col {
-  overflow-y: auto;
-  padding: 1rem;
-  min-height: 0;
-  border-right: 2px solid var(--border);
-  background: var(--surface);
-}
-.modal__form-col .fieldset { margin-bottom: 1rem; }
-.modal__form-col .fieldset--segment:last-child { margin-bottom: 0; }
-.comments-panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  border-left: none;
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: 0;
-}
-.comments-panel__toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0.65rem 0.85rem;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: left;
-}
-.comments-panel__toggle:hover { background: rgba(255, 255, 255, 0.06); }
-.comments-panel__chevron {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-right: 2px solid var(--muted);
-  border-bottom: 2px solid var(--muted);
-  transform: rotate(45deg);
-  transition: transform 0.2s;
-  margin-top: -0.15rem;
-}
-.comments-panel.is-collapsed .comments-panel__chevron { transform: rotate(-135deg); margin-top: 0.2rem; }
-.comments-panel.is-collapsed .comments-panel__body { display: none; }
-.comments-panel__body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 0.75rem;
-  gap: 0.75rem;
-}
-.comments-compose {
-  position: relative;
-  flex-shrink: 0;
-}
-.comments-compose textarea {
-  width: 100%;
-  min-height: 4.5rem;
-  max-height: 7rem;
-  padding: 0.65rem 2.25rem 0.65rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.88rem;
-  line-height: 1.4;
-  resize: vertical;
-}
-.comments-compose textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
-}
-.comments-compose__send {
-  position: absolute;
-  right: 0.45rem;
-  bottom: 0.45rem;
-  width: 1.75rem;
-  height: 1.75rem;
-  border: none;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.comments-compose__send:hover { filter: brightness(1.08); }
-.comments-feed {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-  padding-right: 0.1rem;
-}
-.comments-day-label {
-  margin: 0.5rem 0 0.65rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.comments-day-label:first-child { margin-top: 0; }
-.comments-empty {
-  margin: 0;
-  padding: 1rem 0;
-  text-align: center;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-.comment-row {
-  display: flex;
-  gap: 0.55rem;
-  align-items: flex-start;
-  margin-bottom: 0.85rem;
-}
-.comment-row:last-child { margin-bottom: 0; }
-.comment-avatar {
-  flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(135deg, #6366f1, #3b82f6);
-}
-.comment-avatar--matheus { background: linear-gradient(135deg, #14b8a6, #0ea5e9); }
-.comment-avatar--vinicius { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
-.comment-avatar--joao { background: linear-gradient(135deg, #f97316, #eab308); }
-.comment-avatar--daniel { background: linear-gradient(135deg, #ec4899, #a855f7); }
-.comment-avatar--alberto { background: linear-gradient(135deg, #7c3aed, #a855f7); }
-.comment-avatar--rafael { background: linear-gradient(135deg, #5b21b6, #818cf8); }
-.comment-avatar--equipe { background: linear-gradient(135deg, #64748b, #475569); }
-.projetistas-section-title {
-  grid-column: 1 / -1;
-  margin: 1.25rem 0 0.35rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #c4b5fd;
-}
-.projetistas-section-title:first-child { margin-top: 0; }
-.comment-body { flex: 1; min-width: 0; }
-.comment-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.35rem 0.5rem;
-  margin-bottom: 0.2rem;
-}
-.comment-head strong { font-size: 0.85rem; font-weight: 600; }
-.comment-time { font-size: 0.75rem; color: var(--muted); }
-.comment-text {
-  margin: 0;
-  font-size: 0.85rem;
-  line-height: 1.45;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.comment-del {
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 0.15rem 0.35rem;
-  font-size: 1.1rem;
-  line-height: 1;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
-}
-.comment-row:hover .comment-del { opacity: 1; }
-.comment-del:hover { color: var(--danger); }
-.alerta-hist {
-  margin: 0 0 0.75rem;
-  padding: 0.6rem 0.65rem;
-  border: 1px solid rgba(34, 197, 94, 0.28);
-  background: rgba(34, 197, 94, 0.08);
-  border-radius: 8px;
-}
-.alerta-hist__title {
-  margin: 0 0 0.45rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #86efac;
-}
-.alerta-hist__item {
-  margin: 0 0 0.55rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-.alerta-hist__item:last-child {
-  margin-bottom: 0;
-  padding-bottom: 0;
-  border-bottom: none;
-}
-.alerta-hist__meta {
-  display: block;
-  font-size: 0.72rem;
-  color: var(--muted);
-  margin-bottom: 0.15rem;
-}
-.alerta-hist__texto {
-  margin: 0;
-  font-size: 0.8rem;
-  line-height: 1.4;
-  white-space: pre-wrap;
-}
-.alerta-snooze__titulo {
-  margin: 0 0 0.35rem;
-  font-weight: 700;
-  font-size: 0.95rem;
-}
-@media (max-width: 900px) {
-  .modal__split {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto;
-  }
-  .modal__form-col {
-    border-right: none;
-    border-bottom: 2px solid var(--border);
-    max-height: 55vh;
-  }
-  .comments-panel { min-height: 280px; max-height: 40vh; }
-}
-.modal::backdrop { background: rgba(0, 0, 0, 0.55); }
+    <div class="app__shell">
+    <header class="topbar">
+      <button type="button" class="icon-btn topbar__menu" id="btnSidebarOpen" aria-label="Abrir menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="20" height="20"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <h2 class="topbar__title" id="topbarTitle">Esteira Projetos</h2>
+      <div class="topbar__actions">
+        <div class="user-menu" id="userMenu">
+          <button type="button" class="user-menu__toggle" id="btnUserMenu" aria-expanded="false" aria-haspopup="menu" aria-controls="userMenuPanel" title="Minha conta">
+            <span class="user-menu__avatar" id="userMenuAvatar" aria-hidden="true">?</span>
+            <span class="user-menu__meta">
+              <span class="user-badge" id="authUserEmail" hidden title="Usuário logado"></span>
+              <span class="role-badge" id="authUserRole" hidden title="Papel no sistema"></span>
+            </span>
+          </button>
+          <span class="sync-badge" id="syncBadge" data-status="connecting" aria-live="polite" title="Status da sincronização">Conectando…</span>
+          <div class="user-menu__panel" id="userMenuPanel" role="menu" hidden>
+            <button type="button" class="user-menu__item" role="menuitem" data-user-modal="modalUserConta">Minha conta</button>
+            <button type="button" class="user-menu__item" role="menuitem" id="btnMenuUsuarios" hidden>Usuários</button>
+            <div class="user-menu__sep" role="separator"></div>
+            <button type="button" class="user-menu__item user-menu__item--danger" role="menuitem" id="btnSignOut" data-sign-out hidden>Sair</button>
+          </div>
+        </div>
+      </div>
+    </header>
 
-.confirm-dialog { max-width: min(440px, 94vw); }
-.confirm-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(3px);
-}
-.confirm-dialog__inner {
-  padding: 1.25rem 1.35rem 1.15rem;
-  max-height: none;
-  gap: 0;
-}
-.confirm-dialog__head {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-  margin-bottom: 0.25rem;
-}
-.confirm-dialog__icon {
-  flex-shrink: 0;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.confirm-dialog--danger .confirm-dialog__icon {
-  background: rgba(239, 68, 68, 0.18);
-  color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.35);
-}
-.confirm-dialog--warn .confirm-dialog__icon {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fcd34d;
-  border: 1px solid rgba(245, 158, 11, 0.35);
-}
-.confirm-dialog--default .confirm-dialog__icon {
-  background: rgba(59, 130, 246, 0.15);
-  color: #93c5fd;
-  border: 1px solid rgba(59, 130, 246, 0.35);
-}
-.confirm-dialog__titles { flex: 1; min-width: 0; }
-.confirm-dialog__titles h2 {
-  margin: 0 0 0.4rem;
-  font-size: 1.15rem;
-  line-height: 1.3;
-}
-.confirm-dialog__message {
-  margin: 0;
-  font-size: 0.92rem;
-  color: var(--muted);
-  line-height: 1.5;
-}
-.confirm-dialog__details {
-  margin: 1rem 0 0;
-  padding: 0.75rem 0.85rem;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  display: grid;
-  gap: 0.5rem;
-}
-.confirm-dialog__details:not([hidden]) { display: grid; }
-.confirm-dialog__details > div {
-  display: grid;
-  grid-template-columns: 5.5rem 1fr;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-}
-.confirm-dialog__details dt {
-  margin: 0;
-  color: var(--muted);
-  font-weight: 500;
-}
-.confirm-dialog__details dd {
-  margin: 0;
-  color: var(--text);
-  word-break: break-word;
-}
-.confirm-dialog__hint {
-  margin: 0.85rem 0 0;
-  line-height: 1.45;
-}
-.confirm-dialog__foot {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
-}
-.confirm-dialog__foot .btn { min-width: 7rem; }
-.clickup-instrucoes-dialog { max-width: min(520px, 94vw); }
-.clickup-instrucoes-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(3px);
-}
-.clickup-instrucoes-dialog__inner {
-  max-height: none;
-}
-.clickup-instrucoes-dialog .modal__body {
-  padding: 0.85rem 1.15rem 0.35rem;
-}
-.clickup-instrucoes-dialog textarea {
-  width: 100%;
-  resize: vertical;
-  min-height: 8.5rem;
-  font: inherit;
-}
-.modal__inner { display: flex; flex-direction: column; max-height: min(92vh, 900px); min-height: 0; overflow: hidden; }
-.modal__head {
-  display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem;
-  border-bottom: 1px solid var(--border);
-}
-.modal__head h2 { margin: 0; font-size: 1.1rem; }
-.demanda-alert {
-  margin: 0;
-  padding: 0.65rem 1rem;
-  font-size: 0.85rem;
-  line-height: 1.45;
-  border-bottom: 1px solid var(--border);
-}
-.demanda-alert p { margin: 0 0 0.5rem; }
-.demanda-alert p:last-child { margin-bottom: 0; }
-.demanda-alert--presence {
-  background: rgba(59, 130, 246, 0.12);
-  color: #bfdbfe;
-  border-bottom-color: rgba(59, 130, 246, 0.35);
-}
-.demanda-alert--self {
-  background: rgba(34, 197, 94, 0.12);
-  color: #bbf7d0;
-  border-bottom-color: rgba(34, 197, 94, 0.35);
-}
-.card__editing-by--self {
-  color: #86efac;
-  background: rgba(34, 197, 94, 0.15);
-}
-.demanda-alert--conflict {
-  background: rgba(245, 158, 11, 0.14);
-  color: #fde68a;
-  border-bottom-color: rgba(245, 158, 11, 0.4);
-}
-.demanda-alert--ok {
-  background: rgba(34, 197, 94, 0.14);
-  color: #bbf7d0;
-  border-bottom-color: rgba(34, 197, 94, 0.4);
-}
-.demanda-alert--ok .btn {
-  margin-top: 0.4rem;
-}
-.card__editing-by {
-  margin: 0.35rem 0 0;
-  padding: 0.25rem 0.45rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #93c5fd;
-  background: rgba(59, 130, 246, 0.15);
-  border-radius: 6px;
-  line-height: 1.3;
-}
-.card--being-edited {
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.45);
-}
-.modal__body { padding: 1rem; overflow-y: auto; flex: 1; min-height: 0; overscroll-behavior: contain; }
-.modal__foot {
-  display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap;
-  padding: 0.75rem 1rem; border-top: 1px solid var(--border);
-}
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 0.75rem; }
-.form-grid > * { min-width: 0; }
-.field-stack { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
-.form-grid--custo { grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); }
-.custo-detalhes.is-hidden,
-.execucao-custos.is-hidden,
-.execucao-custos[hidden],
-.execucao-custos__item.is-hidden,
-.execucao-custos__item[hidden] { display: none !important; }
-.import-csv-summary { margin: 0.75rem 0 1rem; font-size: 0.95rem; }
-.import-csv-preview-wrap {
-  max-height: min(50vh, 420px);
-  overflow: auto;
-  margin-top: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-.import-csv-table { margin: 0; font-size: 0.82rem; }
-.import-csv-table th,
-.import-csv-table td { white-space: normal; max-width: 220px; }
-.input-br-money,
-.input-br-int,
-.input-br-percent,
-#fieldsetCusto input[type="number"],
-#fieldsetValorRealizado .input-br-money {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-#fieldsetCusto .lancamento-metragem {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-#custoValor5[readonly],
-#custoValorFinal[readonly] {
-  background: var(--surface2); color: var(--text); cursor: default;
-}
-.custo-detalhes { margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem; }
-.custo-subsec {
-  margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 0.75rem;
-}
-.execucao-custos {
-  margin-top: 0.75rem;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.75rem;
-  align-items: stretch;
-}
-.execucao-custos--duplo {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.fieldset--custo .execucao-custos .execucao-custos__item {
-  margin: 0;
-  padding: 0.75rem 0.85rem;
-  border: 1px dashed var(--form-segment-border);
-  border-top: 1px dashed var(--form-segment-border);
-  border-radius: 10px;
-  background: rgba(59, 130, 246, 0.035);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  box-sizing: border-box;
-}
-.fieldset--custo .execucao-custos .execucao-custos__item .field {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-}
-.fieldset--custo .execucao-custos .execucao-custos__item .field span {
-  min-height: 1.25rem;
-}
-@media (max-width: 560px) {
-  .execucao-custos--duplo {
-    grid-template-columns: 1fr;
-  }
-}
-#custoPenetracaoAtual[readonly],
-#custoNovaPenetracao[readonly],
-#custoValorPorPortaNova[readonly],
-#custoTotalMetragem[readonly] {
-  background: var(--surface2); color: var(--text); cursor: default;
-}
-.lancamento-list { display: flex; flex-direction: column; gap: 0.65rem; }
-.lancamento-row {
-  display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem; align-items: end;
-  padding: 0.65rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
-}
-.field--compact span { font-size: 0.78rem; }
-.field--inline-total { margin-top: 0.5rem; max-width: 280px; }
-.btn--sm { font-size: 0.82rem; padding: 0.35rem 0.65rem; }
-.lancamento-remove { align-self: center; margin-bottom: 0.15rem; }
-@media (max-width: 640px) {
-  .lancamento-row { grid-template-columns: 1fr; }
-  .lancamento-remove { justify-self: end; }
-}
-.fieldset {
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 0.75rem 1rem;
-  margin: 0 0 1rem;
-  min-width: 0;
-}
-.fieldset legend {
-  padding: 0 0.35rem;
-  font-weight: 700;
-  font-size: 0.85rem;
-}
+    <main>
+      <section id="panelEsteira" class="panel is-visible" data-panel="esteira">
+        <div class="panel__toolbar">
+          <p class="esteira-status-line muted small" id="esteiraStatusLine" aria-live="polite"></p>
+          <div class="filters">
+            <label class="field field--inline">
+              <span>Colunas</span>
+              <select id="filterEsteiraModo" aria-label="Modo das colunas da esteira">
+                <option value="ativos" selected>Em andamento</option>
+                <option value="finalizados">Finalizados</option>
+                <option value="todos">Todas</option>
+              </select>
+            </label>
+            <label class="field field--inline">
+              <span>Projetista</span>
+              <select id="filterProjetista">
+                <option value="">Todos</option>
+              </select>
+            </label>
+            <label class="field field--inline">
+              <span id="filterTipoLabel">Tipo</span>
+              <select id="filterTipo">
+                <option value="">Todos</option>
+              </select>
+            </label>
+            <label class="field field--inline">
+              <span>Regional</span>
+              <select id="filterRegional">
+                <option value="">Todas</option>
+              </select>
+            </label>
+            <label class="field field--inline">
+              <span>Cidade</span>
+              <select id="filterCidade">
+                <option value="">Todas</option>
+              </select>
+            </label>
+            <label class="field field--inline field--busca">
+              <span>Buscar projeto</span>
+              <input type="search" id="filterBusca" placeholder="Nome, cidade, solicitante, chamado…" autocomplete="off" />
+            </label>
+          </div>
+        </div>
+        <div class="esteiras">
+          <div class="esteira-view" id="esteiraViewOperacional">
+            <div class="esteira-block esteira-block--pendente esteira-block--projetos">
+              <h3 class="esteira-title">Novas demandas — sem direcionamento</h3>
+              <p class="muted small esteira-sub">Demandas com projetista <strong>não atribuído</strong>. Abra o card e escolha o responsável; ela passará para a esteira abaixo.</p>
+              <div class="esteira-inbox-layout esteira-inbox-layout--projetos">
+                <div class="board board--pendente board--projetos" id="boardPendente"></div>
+                <aside class="esteira-inbox-alertas esteira-inbox-alertas--projetos" id="esteiraInboxAlertas" aria-live="polite"></aside>
+              </div>
+            </div>
+            <div class="esteira-block esteira-block--projetos">
+              <h3 class="esteira-title">Esteira Projetos</h3>
+              <p class="muted small esteira-sub" id="esteiraSubOperacional">Demandas em andamento. Conclusão e Reprovado ficam em <strong>Colunas → Finalizados</strong>.</p>
+              <div class="board board--projetos" id="boardEsteira"></div>
+            </div>
+          </div>
+          <div class="esteira-view" id="esteiraViewB2b" hidden>
+            <div class="esteira-block esteira-block--pendente esteira-block--b2b">
+              <h3 class="esteira-title">Pré-vendas — sem direcionamento</h3>
+              <p class="muted small esteira-sub">Projetos B2B sem projetista. Atribua um responsável para entrar na esteira B2B.</p>
+              <div class="esteira-inbox-layout esteira-inbox-layout--b2b">
+                <div class="board board--pendente board--b2b" id="boardPendenteB2b"></div>
+                <aside class="esteira-inbox-alertas esteira-inbox-alertas--b2b" id="esteiraInboxAlertasB2b" aria-live="polite"></aside>
+              </div>
+            </div>
+            <div class="esteira-block esteira-block--b2b">
+              <h3 class="esteira-title">Esteira B2B</h3>
+              <p class="muted small esteira-sub" id="esteiraSubB2b">Fluxo comercial em andamento. Projeto Final fica em <strong>Colunas → Finalizados</strong>.</p>
+              <div class="board board--b2b" id="boardEsteiraB2b"></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-/* Segmentos do formulário de demanda — visual unificado */
-.fieldset--segment {
-  border: 1px dashed var(--form-segment-border);
-  padding: 1rem 1.1rem 1.15rem;
-  background: var(--form-segment-bg);
-}
-.fieldset--segment::after {
-  content: "";
-  display: table;
-  clear: both;
-}
-.fieldset--segment > legend {
-  float: left;
-  width: 100%;
-  margin: 0 0 0.5rem;
-  padding: 0;
-  font-size: 0.92rem;
-  letter-spacing: 0.01em;
-  line-height: 1.3;
-  color: var(--form-segment-title);
-}
-.fieldset--segment.fieldset--atraso {
-  border-color: var(--form-segment-atraso-border);
-  background: var(--form-segment-atraso-bg);
-  min-width: 0;
-}
-.fieldset--segment.fieldset--atraso > legend {
-  float: none;
-  width: auto;
-  color: #fecaca;
-}
-.motivos-atraso-panel {
-  clear: both;
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  min-width: 0;
-}
-.motivos-atraso-panel .motivos-atraso-add {
-  align-self: flex-start;
-  pointer-events: auto;
-}
-.fieldset--segment > legend + .muted.small,
-.fieldset--segment > legend + p.muted {
-  clear: both;
-  margin: 0 0 0.85rem;
-  padding-top: 0.1rem;
-  line-height: 1.45;
-}
-.fieldset--segment > .form-grid,
-.fieldset--segment > .field--grow,
-.fieldset--segment > label.field:first-of-type {
-  clear: both;
-}
-.fieldset--custo .custo-subsec:not(.execucao-custos__item) {
-  margin-top: 0.85rem;
-  padding: 0.75rem 0.85rem;
-  border-radius: 10px;
-  border: 1px dashed var(--form-segment-border);
-  border-top: 1px dashed var(--form-segment-border);
-  background: rgba(59, 130, 246, 0.035);
-}
-.fieldset--custo .custo-detalhes {
-  margin-top: 0.65rem;
-}
-.thumbs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
-.thumb {
-  position: relative; width: 96px; height: 72px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border);
-}
-.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.thumb button {
-  position: absolute; top: 2px; right: 2px; border: none; border-radius: 6px; background: rgba(0,0,0,0.55);
-  color: #fff; cursor: pointer; font-size: 0.75rem; padding: 0.1rem 0.35rem;
-}
-.fieldset--pdf-custo .muted { margin: 0 0 0.5rem; }
-.pdf-custo-preview {
-  margin-top: 0.75rem; padding: 0.75rem; border-radius: var(--radius);
-  border: 1px solid var(--border); background: var(--surface-2, rgba(0,0,0,0.03));
-}
-.pdf-custo-preview__file {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-bottom: 0.5rem;
-}
-.pdf-custo-preview__name { font-weight: 600; word-break: break-all; }
-.pdf-custo-preview__warn { color: var(--warn, #b45309); font-size: 0.8rem; margin: 0.35rem 0; }
-.pdf-custo-preview__list {
-  margin: 0.35rem 0 0.75rem; padding-left: 1.1rem; font-size: 0.85rem;
-}
-.pdf-custo-preview__text { margin-top: 0.5rem; font-size: 0.8rem; }
-.pdf-custo-preview__text pre {
-  max-height: 180px; overflow: auto; white-space: pre-wrap; word-break: break-word;
-  margin: 0.35rem 0 0; padding: 0.5rem; border-radius: 6px; background: var(--bg);
-  border: 1px solid var(--border); font-size: 0.72rem;
-}
-.modal--wide .timeline-table-wrap { overflow-x: visible; }
-.timeline-table-wrap { overflow-x: auto; }
-.timeline-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; table-layout: fixed; }
-.timeline-table th, .timeline-table td {
-  border-bottom: 1px solid var(--border); padding: 0.45rem 0.4rem; text-align: left; vertical-align: middle;
-}
-.timeline-table th { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; }
-.timeline-table th:nth-child(1), .timeline-table td.timeline-table__fase { width: 14%; }
-.timeline-table th:nth-child(2), .timeline-table td.timeline-table__setor { width: 10%; }
-.timeline-table th:nth-child(3), .timeline-table td.timeline-table__date:nth-child(3) { width: 15%; }
-.timeline-table th:nth-child(4), .timeline-table td.timeline-table__date:nth-child(4) { width: 15%; }
-.timeline-table th:nth-child(5), .timeline-table td.timeline-dur { width: 8%; }
-.timeline-table th:nth-child(6), .timeline-table td.timeline-table__obs { width: 31%; }
-.timeline-table th:nth-child(7), .timeline-table td.timeline-table__actions { width: 6.5rem; }
-.timeline-table td.timeline-table__fase { line-height: 1.3; vertical-align: middle; }
-.timeline-table td.timeline-table__setor { white-space: nowrap; vertical-align: middle; }
-.timeline-table .dash-setor { font-size: 0.65rem; padding: 0.12rem 0.4rem; }
-.timeline-table td.timeline-table__obs { min-width: 0; vertical-align: top; }
-.timeline-table td.timeline-table__date { min-width: 0; vertical-align: middle; }
-.timeline-inicio,
-.timeline-fim {
-  width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;
-  font: inherit; font-size: 0.78rem; color: var(--text); background: var(--surface2);
-  border: 1px solid var(--border); border-radius: 8px; padding: 0.35rem 0.45rem;
-}
-.timeline-dur { font-weight: 600; color: #a5b4fc; white-space: nowrap; font-size: 0.78rem; }
-.timeline-table__actions {
-  width: 6.5rem;
-  text-align: center;
-  vertical-align: middle;
-  white-space: nowrap;
-}
-.timeline-table__actions { display: table-cell; }
-.timeline-table__actions > * + * { margin-left: 0.2rem; }
-.timeline-remove,
-.timeline-move-up,
-.timeline-move-down {
-  border-radius: 8px; width: 2rem; height: 2rem; padding: 0;
-  font-size: 1.05rem; line-height: 1; cursor: pointer;
-  vertical-align: middle;
-}
-.timeline-remove {
-  border: 1px solid rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.12);
-  color: #fca5a5;
-}
-.timeline-remove:hover:not(:disabled) { background: rgba(239, 68, 68, 0.28); color: #fff; }
-.timeline-remove:disabled { opacity: 0.35; cursor: not-allowed; }
-.timeline-move-up,
-.timeline-move-down {
-  border: 1px solid rgba(99, 102, 241, 0.45); background: rgba(99, 102, 241, 0.12);
-  color: #c7d2fe;
-  font-weight: 700;
-}
-.timeline-move-up:hover:not(:disabled),
-.timeline-move-down:hover:not(:disabled) { background: rgba(99, 102, 241, 0.28); color: #fff; }
-.timeline-move-up:disabled,
-.timeline-move-down:disabled { opacity: 0.35; cursor: not-allowed; }
 
-.auto-save-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.78rem;
-  color: var(--muted);
-  padding: 0 0.5rem;
-  font-style: italic;
-}
-.auto-save-status[hidden] { display: none; }
-.auto-save-status[data-state="saving"] { color: #fde68a; }
-.auto-save-status[data-state="saved"] { color: #bbf7d0; }
-.auto-save-status[data-state="error"] { color: #fecaca; }
+      <dialog class="modal usuarios-modal" id="panelUsuarios" aria-labelledby="usuariosTitulo">
+        <div class="usuarios-modal__head">
+          <div>
+            <h2 id="usuariosTitulo">Usuários</h2>
+            <p class="muted">Papel, regional e acesso de cada conta.</p>
+          </div>
+          <button type="button" class="icon-btn" data-close-user-modal aria-label="Fechar">×</button>
+        </div>
+        <div class="usuarios-modal__body">
+        <div class="usuarios-layout">
+          <form class="usuarios-form" id="formNovoUsuario" autocomplete="off">
+            <div class="usuarios-form__head">
+              <h3 class="usuarios-form__title">Nova conta</h3>
+              <p class="muted small">Quem entra e o que pode fazer.</p>
+            </div>
+            <label class="field">
+              <span>E-mail</span>
+              <input type="email" id="userNovoEmail" required placeholder="nome@soumaster.com.br" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Senha inicial</span>
+              <input type="password" id="userNovoSenha" minlength="6" placeholder="Mínimo de 6 caracteres" autocomplete="new-password" />
+              <small class="usuarios-form__help">Em branco se esse e-mail já tiver login.</small>
+            </label>
+            <label class="field">
+              <span>Papel</span>
+              <select id="userNovoRole">
+                <option value="projetista" selected>Projetista</option>
+                <option value="visibilidade">Visibilidade</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Regional</span>
+              <select id="userNovoRegional">
+                <option value="" selected>Todas</option>
+              </select>
+            </label>
+            <p class="usuarios-form__hint" id="userNovoHint">Pode operar as demandas. Entra vendo todas as regionais.</p>
+            <button type="submit" class="btn btn--primary usuarios-form__submit" id="btnCriarUsuario">Criar conta</button>
+          </form>
+          <div class="usuarios-list-wrap">
+            <div class="usuarios-list-head">
+              <h3 class="usuarios-form__title">Contas</h3>
+              <input type="search" id="usuariosBusca" placeholder="Buscar e-mail" aria-label="Buscar e-mail" autocomplete="off" />
+            </div>
+            <div class="usuarios-list" id="usuariosList" aria-live="polite"></div>
+          </div>
+        </div>
+        </div>
+      </dialog>
 
-.demanda-head-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-left: auto;
-}
-.demanda-foot-menu { position: relative; display: inline-flex; }
-.demanda-foot-menu__trigger {
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1;
-}
-.demanda-foot-menu__list {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  right: 0;
-  min-width: 220px;
-  background: var(--surface, #1e293b);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  padding: 0.35rem;
-  display: flex;
-  flex-direction: column;
-  z-index: 30;
-}
-.demanda-foot-menu__list[hidden] { display: none; }
-.demanda-foot-menu__item {
-  display: flex; align-items: center; gap: 0.55rem;
-  background: transparent; border: 0;
-  color: var(--text);
-  padding: 0.5rem 0.65rem; border-radius: 8px;
-  font: inherit; font-size: 0.9rem;
-  cursor: pointer; text-align: left;
-}
-.demanda-foot-menu__item:hover,
-.demanda-foot-menu__item:focus-visible {
-  background: rgba(99, 102, 241, 0.18);
-  outline: none;
-}
-.demanda-foot-menu__ico { font-size: 1.05rem; opacity: 0.85; }
-.visually-hidden {
-  position: absolute !important;
-  width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
-}
+      <section id="panelDashboard" class="panel" data-panel="dashboard" hidden>
+        <div class="panel__head">
+          <h2>Dashboard</h2>
+        </div>
+        <div class="dash-indicadores-top">
+          <div class="dash-valor-toolbar">
+            <label class="field field--inline">
+              <span>Base de indicadores (valor, portas, metragem)</span>
+              <select id="filterDashValorModo" aria-label="Modo de valor financeiro">
+                <option value="geral" selected>Valor total geral (Conclusão + execução + aprovação)</option>
+                <option value="aprovacao">Valor em aprovação (Aprovação — Valor final R$)</option>
+                <option value="execucao">Valor em execução (Regional + Terceirizada — Valor final R$)</option>
+                <option value="concluido">Valor concluídos (Conclusão — Valor final R$)</option>
+              </select>
+            </label>
+            <label class="field field--inline field--dash-date">
+              <span>Data início</span>
+              <input type="date" id="filterDashDataInicio" aria-label="Data início do filtro (chegada)" />
+            </label>
+            <label class="field field--inline field--dash-date">
+              <span>Data fim</span>
+              <input type="date" id="filterDashDataFim" aria-label="Data fim do filtro (chegada)" />
+            </label>
+            <button type="button" class="btn btn--ghost btn--sm" id="btnDashPeriodoLimpar" title="Remover filtro de datas">
+              Todo o período
+            </button>
+            <p class="muted small" id="dashValoresFinanceirosHint"></p>
+          </div>
+        </div>
+        <section class="dash-block" data-dash-block="kpi-geral">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockKpiGeral">
+            <span>Indicadores gerais</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockKpiGeral">
+            <p class="muted small dash-block__hint">Esteira Projetos (sem B2B). A base é a coluna <strong>Conclusão</strong>: quantidade, valor, portas, metragem e médias usam só os projetos nessa coluna. % de conclusão = concluídos ÷ total cadastrados.</p>
+            <h3 class="dash-subhead">Resumo dos concluídos</h3>
+            <div class="kpi-grid" id="kpiGeralBaseConclusao"></div>
+            <h3 class="dash-subhead">Na esteira</h3>
+            <div class="kpi-grid" id="kpiGeral"></div>
+            <h3 class="dash-subhead">Valores por fase (referência)</h3>
+            <div class="kpi-grid" id="dashValoresFinanceirosKpis"></div>
+            <div class="dash-sub-block" data-dash-sub-block="kpi-geral-por-tipo">
+              <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockKpiGeralPorTipo">
+                <span>Por tipo</span>
+                <span class="dash-sub-block__chevron" aria-hidden="true"></span>
+              </button>
+              <div class="dash-sub-block__body" id="dashSubBlockKpiGeralPorTipo">
+                <div class="kpi-grid kpi-grid--split" id="kpiGeralPorTipo"></div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-#modalHistoricoEdicao .modal__body { padding-bottom: 0.5rem; }
-.hist-edicao-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-  margin-top: 0.5rem;
-  max-height: 60vh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 0.5rem;
-}
-.hist-edicao-item {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgba(99, 102, 241, 0.05);
-  padding: 0.65rem 0.8rem;
-}
-.hist-edicao__head {
-  display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
-  margin-bottom: 0.35rem;
-}
-.hist-edicao__pill {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  background: rgba(99, 102, 241, 0.25);
-  color: #c7d2fe;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-}
-.hist-edicao__pill--criar {
-  background: rgba(34, 197, 94, 0.22);
-  color: #bbf7d0;
-}
-.hist-edicao__quando { font-size: 0.78rem; color: var(--muted); }
-.hist-edicao__autor { font-size: 0.85rem; margin: 0 0 0.35rem; }
-.hist-edicao__email { font-size: 0.75rem; color: var(--muted); margin-left: 0.35rem; }
-.hist-edicao__nota { font-size: 0.85rem; margin: 0; }
-.hist-edicao__alteracoes {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-.hist-edicao__alteracoes li {
-  font-size: 0.83rem;
-  line-height: 1.45;
-}
-.hist-edicao__de { color: var(--muted); }
-.hist-edicao__para { color: #bbf7d0; }
-.timeline-obs {
-  width: 100%; min-height: 2.6rem; resize: vertical; font: inherit; font-size: 0.8rem;
-  padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--bg); color: var(--text); line-height: 1.35;
-}
-.timeline-obs:focus { outline: 2px solid rgba(99, 102, 241, 0.45); border-color: var(--accent); }
-.timeline-obs::placeholder { color: var(--muted); opacity: 0.85; }
-.toast {
-  position: fixed;
-  top: 1rem;
-  left: 50%;
-  right: auto;
-  bottom: auto;
-  transform: translateX(-50%);
-  max-width: min(520px, calc(100vw - 2rem));
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  padding: 0.65rem 1rem;
-  border-radius: 10px;
-  box-shadow: var(--shadow);
-  z-index: 120;
-  font-size: 0.9rem;
-  text-align: center;
-}
-.toast--in-modal {
-  position: sticky;
-  top: 0;
-  left: auto;
-  transform: none;
-  z-index: 10;
-  flex-shrink: 0;
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  border-radius: 0;
-  border-left: none;
-  border-right: none;
-  border-top: none;
-  border-bottom-color: rgba(245, 158, 11, 0.45);
-  background: #1c2a3d;
-  color: #fde68a;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-}
+        <section class="dash-block" data-dash-block="projetistas">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockProjetistas">
+            <span>Resumo por projetista</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockProjetistas">
+        <p class="muted small dash-block__hint">Comparação da Esteira Projetos (sem B2B). Valores seguem a <strong>base de indicadores</strong> no topo. Clique na barra de um projetista para abrir o detalhe — ou escolha no filtro.</p>
+        <div class="dash-tempo-toolbar">
+          <label class="field field--inline">
+            <span>Projetista</span>
+            <select id="filterDashProjetistaResumo" aria-label="Filtrar resumo por projetista">
+              <option value="__all__">Todos os projetistas</option>
+            </select>
+          </label>
+        </div>
+        <div class="kpi-grid" id="kpiProjetistas"></div>
+        <p class="muted small" id="kpiProjetistasHint" hidden></p>
+        <div class="dashboard-charts dashboard-charts--cols3" id="dashPjRankCharts">
+          <div class="chart-card">
+            <h4>Situação por projetista</h4>
+            <p class="muted small chart-card__sub">Carga na esteira: ativas, concluídas, pausadas e reprovadas. Clique na barra para o detalhe.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartPjRankSituacao"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Gastos por projetista</h4>
+            <p class="muted small chart-card__sub">Investimento na base de indicadores. Clique para o detalhe.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartPjRankGastos"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Portas por projetista</h4>
+            <p class="muted small chart-card__sub">Portas novas na mesma base. Clique para o detalhe.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartPjRankPortas"></canvas></div>
+          </div>
+        </div>
+        <div class="dash-cidades-drill" id="dashPjDrill" hidden>
+          <div class="dash-cidades-drill__head">
+            <h3 class="dash-subhead" id="dashPjDrillTitle">Detalhe do projetista</h3>
+            <div class="dash-pj-drill__actions">
+              <button type="button" class="btn btn--ghost btn--sm" id="btnDashPjVerProjetos">Ver projetos</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnDashPjDrillFechar">Fechar detalhe</button>
+            </div>
+          </div>
+          <p class="muted small dash-block__hint" id="dashPjDrillHint"></p>
+          <div class="kpi-grid" id="dashPjDrillKpis"></div>
+          <div class="dashboard-charts dashboard-charts--cols3">
+            <div class="chart-card">
+              <h4>Situação da esteira</h4>
+              <p class="muted small chart-card__sub">Como a carga desse projetista está hoje.</p>
+              <div class="chart-wrap"><canvas id="chartPjSituacao"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>Por tipo</h4>
+              <p class="muted small chart-card__sub">Mix de projetos sob responsabilidade dele.</p>
+              <div class="chart-wrap"><canvas id="chartPjTipo"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>Por fase</h4>
+              <p class="muted small chart-card__sub">Onde os projetos dele estão parados na esteira.</p>
+              <div class="chart-wrap chart-wrap--tall"><canvas id="chartPjFase"></canvas></div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="cidades">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockCidades">
+            <span>Por regional e cidade</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockCidades">
+        <p class="muted small dash-block__hint">Comparação da Esteira Projetos (sem B2B). Valores seguem a <strong>base de indicadores</strong> no topo. Clique na barra de uma regional para abrir o detalhe — ou escolha no filtro.</p>
+        <div class="dash-tempo-toolbar">
+          <label class="field field--inline">
+            <span>Regional</span>
+            <select id="filterDashCidadesRegional" aria-label="Filtrar por regional">
+              <option value="">Todas as regionais</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Cidade</span>
+            <select id="filterDashCidadesCidade" aria-label="Filtrar por cidade">
+              <option value="">Todas as cidades</option>
+            </select>
+          </label>
+        </div>
+        <div class="kpi-grid" id="dashCidadesKpis"></div>
+        <p class="muted small" id="dashCidadesCount"></p>
+        <div class="dashboard-charts dashboard-charts--cols3" id="dashCidadesRankCharts">
+          <div class="chart-card">
+            <h4>Situação por regional</h4>
+            <p class="muted small chart-card__sub">Carga na esteira: ativas, concluídas, pausadas e reprovadas. Clique para o detalhe.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartCidRankSit"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Gastos por regional</h4>
+            <p class="muted small chart-card__sub">Investimento na base de indicadores. Clique para o detalhe.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartCidRankGastos"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h4>Portas por regional</h4>
+            <p class="muted small chart-card__sub">Portas novas na mesma base. Clique para o detalhe.</p>
+            <div class="chart-wrap chart-wrap--tall"><canvas id="chartCidRankPortas"></canvas></div>
+          </div>
+        </div>
+
+        <div class="dash-cidades-drill" id="dashCidadesDrill" hidden>
+          <div class="dash-cidades-drill__head">
+            <h3 class="dash-subhead" id="dashCidadesDrillTitle">Detalhe da regional</h3>
+            <div class="dash-pj-drill__actions">
+              <button type="button" class="btn btn--ghost btn--sm" id="btnDashCidadesVerProjetos">Ver projetos</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnDashCidadesDrillFechar">Fechar detalhe</button>
+            </div>
+          </div>
+          <p class="muted small dash-block__hint" id="dashCidadesDrillHint"></p>
+          <div class="kpi-grid" id="dashCidadesDrillKpis"></div>
+          <div class="dashboard-charts dashboard-charts--cols3">
+            <div class="chart-card">
+              <h4>Situação da esteira</h4>
+              <p class="muted small chart-card__sub">Como a carga desta regional está hoje.</p>
+              <div class="chart-wrap"><canvas id="chartCidSit"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>Por tipo</h4>
+              <p class="muted small chart-card__sub">Mix de projetos nesta regional.</p>
+              <div class="chart-wrap"><canvas id="chartCidTipoMix"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>Por fase</h4>
+              <p class="muted small chart-card__sub">Onde os projetos estão parados na esteira.</p>
+              <div class="chart-wrap chart-wrap--tall"><canvas id="chartCidFase"></canvas></div>
+            </div>
+          </div>
+          <h3 class="dash-subhead" id="dashCidadesCityHead">Cidades desta regional</h3>
+          <p class="muted small dash-block__hint">Clique na cidade para ver os projetos. Use os filtros no topo da lista.</p>
+          <div class="dashboard-charts dashboard-charts--cols3" id="dashCidadesCityCharts">
+            <div class="chart-card">
+              <h4>Situação por cidade</h4>
+              <p class="muted small chart-card__sub">Clique para abrir os projetos da cidade.</p>
+              <div class="chart-wrap chart-wrap--tall"><canvas id="chartCidCitySit"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>Gastos por cidade</h4>
+              <p class="muted small chart-card__sub">Investimento na base de indicadores.</p>
+              <div class="chart-wrap chart-wrap--tall"><canvas id="chartCidCityGastos"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>Portas por cidade</h4>
+              <p class="muted small chart-card__sub">Portas novas na mesma base.</p>
+              <div class="chart-wrap chart-wrap--tall"><canvas id="chartCidCityPortas"></canvas></div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="tempo">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockTempo">
+            <span>Tempo na esteira por setor</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockTempo">
+        <p class="muted small dash-block__hint">Cada <strong>coluna da esteira</strong> pertence a um <strong>setor</strong>. <strong>Execução Regional</strong> → Operação; <strong>Execução Terceirizada</strong> → Terceirizada; <strong>IP e Serviços</strong> e <strong>Transmissão e Infra</strong> com setores homônimos. O tempo considera as etapas operacionais (até <strong>Documentação</strong>) — <strong>sem</strong> Conclusão, Pausado ou Reprovado. Em <strong>Projetista</strong>, escolha <strong>Todos os projetistas</strong> para a visão geral.</p>
+        <div class="dash-tempo-intro">
+          <div class="dash-tempo-intro__map">
+            <h4 class="dash-tempo-intro__title">Resumo por etapa</h4>
+            <p class="muted small dash-tempo-resumo-hint">Tempo acumulado, % do total e média de dias em cada coluna da esteira.</p>
+            <div class="dashboard-table-wrap">
+              <table class="dash-table dash-table--fase-resumo" aria-label="Tempo por etapa da esteira">
+                <thead><tr><th>Etapa</th><th>Setor</th><th>Tempo acumulado</th><th>% do total</th><th>Média de dias</th></tr></thead>
+                <tbody id="dashTempoSetorMapBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="dash-tempo-intro__resumo">
+            <h4 class="dash-tempo-intro__title">Resumo por setor</h4>
+            <p class="muted small dash-tempo-resumo-hint" id="dashTempoResumoHint">Tempo acumulado de todos os projetos na esteira operacional.</p>
+            <div class="dash-tempo-resumo-body">
+              <div class="dashboard-table-wrap" id="dashTempoSetorResumoTable"></div>
+              <div class="chart-card chart-card--resumo-setor">
+                <p class="muted small chart-card__sub">Barras = média de dias por setor.</p>
+                <div class="chart-wrap chart-wrap--resumo-setor"><canvas id="chartTempoSetorResumo" aria-label="Gráfico de tempo por setor"></canvas></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dash-tempo-toolbar">
+          <label class="field field--inline">
+            <span>Buscar projeto</span>
+            <input type="search" id="filterDashTempoBusca" placeholder="Nome, cidade ou solicitante…" />
+          </label>
+          <label class="field field--inline">
+            <span>Projetista</span>
+            <select id="filterDashTempoResp">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Status</span>
+            <select id="filterDashTempoStatus">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Ano</span>
+            <select id="filterDashTempoAno">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Mês</span>
+            <select id="filterDashTempoMes">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+        </div>
+        <p class="muted small" id="dashTempoCount"></p>
+        <div id="dashTempoCharts" class="dash-tempo-charts" hidden>
+          <div class="kpi-grid" id="dashTempoKpis"></div>
+          <div class="dashboard-charts dashboard-charts--tempo">
+            <div class="chart-card chart-card--wide">
+              <h4>Tempo médio por etapa (dias)</h4>
+              <p class="muted small chart-card__sub">Barras coloridas pelo setor responsável.</p>
+              <div class="chart-wrap chart-wrap--tempo-fase"><canvas id="chartTempoFase"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>Distribuição por setor</h4>
+              <p class="muted small chart-card__sub">Soma do tempo de todas as etapas do filtro.</p>
+              <div class="chart-wrap"><canvas id="chartTempoSetor"></canvas></div>
+            </div>
+            <div class="chart-card chart-card--wide">
+              <h4>Tempo por setor — top projetos</h4>
+              <p class="muted small chart-card__sub">Até 10 projetos com maior tempo total no filtro.</p>
+              <div class="chart-wrap chart-wrap--tall"><canvas id="chartTempoSetorStack"></canvas></div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="indicadores-b2c">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockIndicadoresB2c">
+            <span>Indicadores B2C</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockIndicadoresB2c">
+            <p class="muted small dash-block__hint">Projetos tipo <strong>B2C</strong> na Esteira Projetos. Segmento: <strong>MDU</strong>, <strong>TCR</strong> ou <strong>TCT</strong>. Valor, portas e metragem conforme a <strong>base de indicadores</strong> no topo.</p>
+            <p class="muted small" id="dashB2cCount" aria-live="polite"></p>
+
+            <h3 class="dash-subhead">Por segmento (MDU / TCR / TCT)</h3>
+            <p class="muted small dash-block__hint">Passe o mouse na barra para ver o valor e a <strong>%</strong>. Clique para abrir os projetos daquele tipo.</p>
+            <div class="dashboard-charts dashboard-charts--cols2" id="dashB2cSegmentoCharts">
+              <div class="chart-card">
+                <h4>Projetos</h4>
+                <p class="muted small chart-card__sub">Quantidade por tipo de projeto B2C.</p>
+                <div class="chart-wrap"><canvas id="chartB2cSegProjetos"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <h4>Gastos</h4>
+                <p class="muted small chart-card__sub">Conforme a base de indicadores no topo.</p>
+                <div class="chart-wrap"><canvas id="chartB2cSegGastos"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <h4>Portas</h4>
+                <p class="muted small chart-card__sub">Portas novas por tipo de projeto.</p>
+                <div class="chart-wrap"><canvas id="chartB2cSegPortas"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <h4>Metragem</h4>
+                <p class="muted small chart-card__sub">Metragem de lançamento por tipo de projeto.</p>
+                <div class="chart-wrap"><canvas id="chartB2cSegMetragem"></canvas></div>
+              </div>
+            </div>
+            <div class="kpi-grid kpi-grid--split" id="kpiB2cSegmentos"></div>
+            <div class="dashboard-table-wrap" id="dashB2cMetricSegmentoTable"></div>
+
+            <h3 class="dash-subhead">Operação B2C</h3>
+            <div class="kpi-grid" id="kpiB2c"></div>
+
+            <h3 class="dash-subhead">Onde está o B2C</h3>
+            <p class="muted small dash-block__hint">Gastos e portas por <strong>regional</strong> e <strong>cidade</strong>, empilhados por <strong>MDU / TCR / TCT</strong>. Clique em <strong>Tabela</strong> para o detalhe numérico.</p>
+            <div class="dashboard-charts dashboard-charts--cols2">
+              <div class="chart-card">
+                <h4>Gastos por regional</h4>
+                <p class="muted small chart-card__sub">Onde o investimento está concentrado.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cGastoRegional"></canvas></div>
+                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-gasto-regional">
+                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cGastoRegional">
+                    <span>Tabela</span>
+                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
+                  </button>
+                  <div class="dash-chart-table__body" id="tableB2cGastoRegional"></div>
+                </div>
+              </div>
+              <div class="chart-card">
+                <h4>Portas por regional</h4>
+                <p class="muted small chart-card__sub">Onde a rede está crescendo.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cPortasRegional"></canvas></div>
+                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-portas-regional">
+                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cPortasRegional">
+                    <span>Tabela</span>
+                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
+                  </button>
+                  <div class="dash-chart-table__body" id="tableB2cPortasRegional"></div>
+                </div>
+              </div>
+              <div class="chart-card">
+                <h4>Gastos por cidade</h4>
+                <p class="muted small chart-card__sub">Até 12 cidades com maior gasto.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cGastoCidade"></canvas></div>
+                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-gasto-cidade">
+                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cGastoCidade">
+                    <span>Tabela</span>
+                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
+                  </button>
+                  <div class="dash-chart-table__body" id="tableB2cGastoCidade"></div>
+                </div>
+              </div>
+              <div class="chart-card">
+                <h4>Portas por cidade</h4>
+                <p class="muted small chart-card__sub">Até 12 cidades com mais portas novas.</p>
+                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cPortasCidade"></canvas></div>
+                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-portas-cidade">
+                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cPortasCidade">
+                    <span>Tabela</span>
+                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
+                  </button>
+                  <div class="dash-chart-table__body" id="tableB2cPortasCidade"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="indicadores-b2b">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockIndicadoresB2b">
+            <span>Indicadores B2B</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockIndicadoresB2b">
+            <p class="muted small dash-block__hint">Projetos tipo <strong>B2B</strong> (Alberto e Rafael). Filtro por <strong>data de chegada</strong> (ano/mês). Valores conforme a <strong>base de indicadores</strong> no topo.</p>
+            <div class="dash-cf-toolbar">
+              <label class="field field--inline">
+                <span>Ano (chegada)</span>
+                <select id="filterDashB2bAno" aria-label="Ano de chegada B2B">
+                  <option value="">Todos os anos</option>
+                </select>
+              </label>
+              <label class="field field--inline">
+                <span>Mês (chegada)</span>
+                <select id="filterDashB2bMes" aria-label="Mês de chegada B2B">
+                  <option value="">Todos os meses</option>
+                </select>
+              </label>
+            </div>
+            <p class="muted small" id="dashB2bCount" aria-live="polite"></p>
+
+            <div class="dash-sub-block" data-dash-sub-block="b2b-resumo">
+              <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockB2bResumo">
+                <span>Resumo (KPIs)</span>
+                <span class="dash-sub-block__chevron" aria-hidden="true"></span>
+              </button>
+              <div class="dash-sub-block__body" id="dashSubBlockB2bResumo">
+                <div class="kpi-grid" id="kpiB2b"></div>
+              </div>
+            </div>
+
+            <div class="dash-sub-block" data-dash-sub-block="b2b-graficos">
+              <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockB2bGraficos">
+                <span>Produto e status</span>
+                <span class="dash-sub-block__chevron" aria-hidden="true"></span>
+              </button>
+              <div class="dash-sub-block__body" id="dashSubBlockB2bGraficos">
+                <div class="dashboard-charts dashboard-charts--cols2">
+                  <div class="chart-card">
+                    <h4>Produto B2B</h4>
+                    <div class="chart-wrap"><canvas id="chartB2bProduto"></canvas></div>
+                  </div>
+                  <div class="chart-card">
+                    <h4>Status B2B</h4>
+                    <div class="chart-wrap"><canvas id="chartB2bStatus"></canvas></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dash-sub-block" data-dash-sub-block="b2b-comercial">
+              <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockB2bComercial">
+                <span>Solicitantes (Comercial)</span>
+                <span class="dash-sub-block__chevron" aria-hidden="true"></span>
+              </button>
+              <div class="dash-sub-block__body" id="dashSubBlockB2bComercial">
+                <p class="muted small dash-block__hint">Projetos solicitados pelo setor <strong>Comercial</strong>. Quantidade, valor e cidades conforme a <strong>base de indicadores</strong> no topo.</p>
+                <div class="dashboard-charts dashboard-charts--cols2">
+                  <div class="chart-card">
+                    <h4>Projetos por solicitante</h4>
+                    <p class="muted small chart-card__sub">Quantidade de demandas por vendedor(a) comercial.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bSolicitanteQtd"></canvas></div>
+                  </div>
+                  <div class="chart-card">
+                    <h4>Valor por solicitante</h4>
+                    <p class="muted small chart-card__sub">Valor final (+5%) do levantamento de custo, conforme a base de indicadores no topo. Projetos sem levantamento aparecem com R$ 0.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bSolicitanteValor"></canvas></div>
+                  </div>
+                  <div class="chart-card chart-card--wide">
+                    <h4>Principais cidades por solicitante</h4>
+                    <p class="muted small chart-card__sub">Até 10 cidades com mais projetos — empilhado por solicitante comercial.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bSolicitanteCidade"></canvas></div>
+                    <div class="dashboard-table-wrap" id="dashB2bSolicitanteCidadeTable"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dash-sub-block" data-dash-sub-block="b2b-regional">
+              <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockB2bRegional">
+                <span>Por regional e cidade</span>
+                <span class="dash-sub-block__chevron" aria-hidden="true"></span>
+              </button>
+              <div class="dash-sub-block__body" id="dashSubBlockB2bRegional">
+                <div class="dashboard-charts dashboard-charts--cols2">
+                  <div class="chart-card">
+                    <h4>Projetos por cidade</h4>
+                    <p class="muted small chart-card__sub">Quantidade de projetos B2B — até 12 cidades com mais demandas.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bProjetosCidade"></canvas></div>
+                  </div>
+                  <div class="chart-card">
+                    <h4>Projetos por regional</h4>
+                    <p class="muted small chart-card__sub">Quantidade de projetos B2B em cada regional.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bProjetosRegional"></canvas></div>
+                  </div>
+                  <div class="chart-card chart-card--wide">
+                    <h4>Produtos B2B por cidade</h4>
+                    <p class="muted small chart-card__sub">Segmentos comerciais (Evento IP, IP Dedicado, etc.) — até 12 cidades com mais projetos.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bProdutoCidade"></canvas></div>
+                    <div class="dashboard-table-wrap" id="dashB2bProdutoCidadeTable"></div>
+                  </div>
+                  <div class="chart-card chart-card--wide">
+                    <h4>Produtos B2B por regional</h4>
+                    <p class="muted small chart-card__sub">Segmentos comerciais por regional.</p>
+                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bProdutoRegional"></canvas></div>
+                    <div class="dashboard-table-wrap" id="dashB2bProdutoRegionalTable"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dash-sub-block" data-dash-sub-block="b2b-tempo">
+              <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockB2bTempo">
+                <span>Tempo na esteira por setor</span>
+                <span class="dash-sub-block__chevron" aria-hidden="true"></span>
+              </button>
+              <div class="dash-sub-block__body" id="dashSubBlockB2bTempo">
+                <p class="muted small dash-block__hint">Cada <strong>coluna da esteira B2B</strong> pertence a um <strong>setor</strong> (Comercial, Projetos, Operação, CD, Terceirizada). <strong>Execução Regional</strong> → Operação; <strong>Execução Terceirizada</strong> → Terceirizada. <strong>Aprovação BP</strong> fica de fora do tempo por setor (stand-by — não entra no SLA do Comercial). O tempo considera as demais etapas — <strong>sem</strong> Pausados. Em <strong>Projetista</strong>, escolha <strong>Todos os projetistas</strong> para a visão geral.</p>
+                <div class="dash-tempo-intro">
+              <div class="dash-tempo-intro__map">
+                <h4 class="dash-tempo-intro__title">Resumo por etapa</h4>
+                <p class="muted small dash-tempo-resumo-hint">Tempo acumulado, % do total e média de dias em cada coluna da esteira B2B.</p>
+                <div class="dashboard-table-wrap">
+                  <table class="dash-table dash-table--fase-resumo" aria-label="Tempo por etapa da esteira B2B">
+                    <thead><tr><th>Etapa</th><th>Setor</th><th>Tempo acumulado</th><th>% do total</th><th>Média de dias</th></tr></thead>
+                    <tbody id="dashTempoB2bSetorMapBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="dash-tempo-intro__resumo">
+                <h4 class="dash-tempo-intro__title">Resumo por setor</h4>
+                <p class="muted small dash-tempo-resumo-hint" id="dashTempoB2bResumoHint">Tempo acumulado de todos os projetos na esteira B2B.</p>
+                <div class="dash-tempo-resumo-body">
+                  <div class="dashboard-table-wrap" id="dashTempoB2bSetorResumoTable"></div>
+                  <div class="chart-card chart-card--resumo-setor">
+                    <p class="muted small chart-card__sub">Barras = média de dias por setor.</p>
+                    <div class="chart-wrap chart-wrap--resumo-setor"><canvas id="chartTempoB2bSetorResumo" aria-label="Gráfico de tempo por setor B2B"></canvas></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="dash-tempo-toolbar">
+              <label class="field field--inline">
+                <span>Buscar projeto</span>
+                <input type="search" id="filterDashTempoB2bBusca" placeholder="Nome, cidade ou solicitante…" />
+              </label>
+              <label class="field field--inline">
+                <span>Projetista</span>
+                <select id="filterDashTempoB2bResp">
+                  <option value="">Selecione…</option>
+                </select>
+              </label>
+              <label class="field field--inline">
+                <span>Status</span>
+                <select id="filterDashTempoB2bStatus">
+                  <option value="">Selecione…</option>
+                </select>
+              </label>
+              <label class="field field--inline">
+                <span>Ano</span>
+                <select id="filterDashTempoB2bAno">
+                  <option value="">Selecione…</option>
+                </select>
+              </label>
+              <label class="field field--inline">
+                <span>Mês</span>
+                <select id="filterDashTempoB2bMes">
+                  <option value="">Selecione…</option>
+                </select>
+              </label>
+            </div>
+            <p class="muted small" id="dashTempoB2bCount"></p>
+            <div id="dashTempoB2bCharts" class="dash-tempo-charts" hidden>
+              <div class="kpi-grid" id="dashTempoB2bKpis"></div>
+              <div class="dashboard-charts dashboard-charts--tempo">
+                <div class="chart-card chart-card--wide">
+                  <h4>Tempo médio por etapa (dias)</h4>
+                  <p class="muted small chart-card__sub">Barras coloridas pelo setor responsável.</p>
+                  <div class="chart-wrap chart-wrap--tempo-fase"><canvas id="chartTempoB2bFase"></canvas></div>
+                </div>
+                <div class="chart-card">
+                  <h4>Distribuição por setor</h4>
+                  <p class="muted small chart-card__sub">Soma do tempo de todas as etapas do filtro.</p>
+                  <div class="chart-wrap"><canvas id="chartTempoB2bSetor"></canvas></div>
+                </div>
+                <div class="chart-card chart-card--wide">
+                  <h4>Tempo por setor — top projetos</h4>
+                  <p class="muted small chart-card__sub">Até 10 projetos com maior tempo total no filtro.</p>
+                  <div class="chart-wrap chart-wrap--tall"><canvas id="chartTempoB2bSetorStack"></canvas></div>
+                </div>
+              </div>
+            </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+    </div>
+  </div>
+
+  <dialog class="modal modal--wide" id="modalDemanda">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2 id="modalDemandaTitle">Demanda</h2>
+        <div class="demanda-head-actions">
+          <div class="demanda-foot-menu" id="demandaFootMenu">
+            <button type="button" class="icon-btn demanda-foot-menu__trigger" id="btnDemandaMaisOpcoes" aria-haspopup="menu" aria-expanded="false" aria-controls="demandaFootMenuList" title="Mais opções">
+              <span aria-hidden="true">…</span>
+              <span class="visually-hidden">Mais opções</span>
+            </button>
+            <div class="demanda-foot-menu__list" id="demandaFootMenuList" role="menu" hidden>
+              <button type="button" class="demanda-foot-menu__item" id="btnAbrirHistoricoEdicao" role="menuitem">
+                <span class="demanda-foot-menu__ico" aria-hidden="true">⏱</span>
+                <span>Histórico de edição</span>
+              </button>
+            </div>
+          </div>
+          <button type="button" class="icon-btn" id="modalDemandaClose" aria-label="Fechar">×</button>
+        </div>
+      </div>
+      <div id="demSelfEditingBanner" class="demanda-alert demanda-alert--self" hidden role="status">
+        <p>Você está editando este projeto — outros usuários veem <strong>seu nome no card</strong> na esteira.</p>
+      </div>
+      <div id="demPresenceBanner" class="demanda-alert demanda-alert--presence" hidden role="status">
+        <p id="demPresenceBannerText"></p>
+      </div>
+      <div id="demConflictBanner" class="demanda-alert demanda-alert--conflict" hidden role="alert">
+        <p>Esta demanda foi alterada por outra pessoa enquanto você editava. Recarregue para ver a versão atual antes de salvar.</p>
+        <button type="button" class="btn btn--ghost btn--sm" id="btnDemConflictReload">Recarregar do servidor</button>
+      </div>
+      <div id="demClickupRetornoBanner" class="demanda-alert demanda-alert--ok" hidden role="status">
+        <p>A Operação concluiu esta demanda no ClickUp — ela retornou.</p>
+        <button type="button" class="btn btn--ghost btn--sm" id="btnDemClickupCiente">Ciente</button>
+      </div>
+      <form class="modal__body modal__body--split" id="formDemanda">
+        <input type="hidden" id="demId" />
+
+        <div class="modal__split">
+          <div class="modal__form-col">
+            <fieldset class="fieldset fieldset--segment fieldset--chegada">
+              <legend>Chegada da demanda</legend>
+              <p class="muted small">Nome, tipo, data de chegada e descrição do projeto.</p>
+              <div class="form-grid">
+                <label class="field">
+                  <span class="field-label--required">Nome do projeto</span>
+                  <input id="demTitulo" required maxlength="200" placeholder="Identificação da demanda" />
+                </label>
+                <label class="field">
+                  <span id="labelDemTipo" class="field-label--required">Tipo</span>
+                  <select id="demTipo" required>
+                    <option value="B2C">B2C</option>
+                    <option value="B2B">B2B</option>
+                    <option value="SWAP">SWAP</option>
+                    <option value="Backbone">Backbone</option>
+                    <option value="Licenciamento">Licenciamento</option>
+                    <option value="Mapeamento">Mapeamento</option>
+                    <option value="Migração">Migração</option>
+                  </select>
+                </label>
+                <label class="field is-hidden" id="fieldDemSegmentoB2c" hidden>
+                  <span>Segmento</span>
+                  <select id="demSegmentoB2c">
+                    <option value="">Selecione o segmento…</option>
+                  </select>
+                </label>
+                <label class="field is-hidden" id="fieldDemProdutoB2b" hidden>
+                  <span id="labelDemProduto">Produto</span>
+                  <select id="demProdutoB2b">
+                    <option value="">Selecione o produto…</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span class="field-label--required">Data de chegada</span>
+                  <input type="date" id="demDataChegada" required />
+                </label>
+              </div>
+              <label class="field field--grow">
+                <span class="field-label--required">Descrição do projeto</span>
+                <textarea id="demDescricao" rows="5" maxlength="8000" required placeholder="Resumo do escopo, contexto e observações iniciais"></textarea>
+              </label>
+            </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--atribuicao">
+          <legend>Atribuição e origem</legend>
+          <div class="form-grid">
+            <div class="atribuicao-pair">
+              <label class="field">
+                <span>Projetista</span>
+                <select id="demResponsavel">
+                  <option value="">Não atribuído</option>
+                </select>
+              </label>
+              <div class="field" id="fieldProjetistasExtra" title="O projeto também entra nos totais desses projetistas.">
+                <span>Projetistas extras</span>
+                <div class="cidades-extra-add cidades-extra-add--single">
+                  <select id="demExtraProjetista" aria-label="Projetista extra">
+                    <option value="">Projetista extra…</option>
+                  </select>
+                  <button type="button" class="btn btn--ghost btn--sm" id="btnAddProjetistaExtra">Adicionar</button>
+                </div>
+                <div id="demProjetistasExtraList" class="cidades-extra-list"></div>
+              </div>
+            </div>
+            <div class="atribuicao-pair atribuicao-pair--geo">
+              <div class="atribuicao-pair__principal">
+                <label class="field">
+                  <span class="field-label--required">Regional</span>
+                  <select id="demRegional" required>
+                    <option value="">Selecione a regional…</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span class="field-label--required">Cidade</span>
+                  <select id="demCidade" required disabled>
+                    <option value="">Selecione a regional primeiro…</option>
+                  </select>
+                </label>
+              </div>
+              <div class="field" id="fieldCidadesExtra" title="O projeto também entra nos totais dessas cidades e regionais.">
+                <span>Cidades extras</span>
+                <div class="cidades-extra-add">
+                  <select id="demExtraRegional" aria-label="Regional da cidade extra">
+                    <option value="">Regional…</option>
+                  </select>
+                  <select id="demExtraCidade" disabled aria-label="Cidade extra">
+                    <option value="">Selecione a regional…</option>
+                  </select>
+                  <button type="button" class="btn btn--ghost btn--sm" id="btnAddCidadeExtra">Adicionar</button>
+                </div>
+                <div id="demCidadesExtraList" class="cidades-extra-list"></div>
+              </div>
+            </div>
+            <label class="field is-hidden" id="fieldDemSetorSolicitanteB2b" hidden>
+              <span class="field-label--required">Setor do solicitante</span>
+              <select id="demSetorSolicitanteB2b">
+                <option value="Comercial">Comercial</option>
+              </select>
+            </label>
+            <label class="field is-hidden" id="fieldDemSolicitanteB2b" hidden>
+              <span class="field-label--required">Solicitante</span>
+              <select id="demSolicitanteB2b">
+                <option value="">Selecione o solicitante…</option>
+              </select>
+            </label>
+            <label class="field" id="fieldDemSolicitanteText">
+              <span>Solicitante</span>
+              <input id="demSolicitante" maxlength="120" placeholder="Quem solicitou o projeto" />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--esteira-form">
+          <legend>Esteira</legend>
+          <p class="muted small">Prazo previsto, dias aberto e atraso na esteira. <strong>Status atual</strong> é um texto livre sobre a situação do projeto; <strong>Status (esteira)</strong> é a fase no fluxo.</p>
+          <div class="form-grid">
+            <div class="field-stack">
+              <label class="field">
+                <span>Data finalização prevista</span>
+                <input type="date" id="demDataFimPrevista" />
+              </label>
+              <label class="field" id="fieldDataFimAtualizada">
+                <span>Data finalização atualizada</span>
+                <input type="date" id="demDataFimAtualizada" />
+                <span class="muted small">Informe quando o prazo previsto não for cumprido (nova previsão, opcional).</span>
+              </label>
+            </div>
+            <label class="field">
+              <span>Data de término</span>
+              <input type="date" id="demDataTermino" title="Preencha ao concluir o projeto" />
+            </label>
+            <label class="field">
+              <span>Status (esteira)</span>
+              <select id="demStatus"></select>
+            </label>
+          </div>
+          <p class="dias-aberto-resumo" id="demDiasAbertoResumo" hidden aria-live="polite"></p>
+          <label class="field field--grow">
+            <span class="field-label--required">Status atual</span>
+            <input type="text" id="demStatusAtual" required maxlength="200" placeholder="Breve descrição de como está o projeto agora (ex.: aguardando vistoria do cliente)" />
+          </label>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--atraso" id="fieldsetMotivosAtraso" hidden>
+          <legend>Motivos do atraso</legend>
+          <p class="muted small" id="motivosAtrasoHint">O prazo previsto já passou. Descreva o que está causando o atraso deste projeto.</p>
+          <div class="motivos-atraso-panel">
+            <div id="motivosAtrasoLista" class="motivos-atraso-lista" aria-live="polite"></div>
+            <button type="button" class="btn btn--ghost btn--sm motivos-atraso-add" id="btnAddMotivoAtraso">+ Adicionar motivo</button>
+            <p class="atraso-dias-resumo" id="demAtrasoDiasResumo" hidden></p>
+          </div>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--custo" id="fieldsetCusto">
+          <legend>Levantamento de custo</legend>
+          <label class="field">
+            <span>Este projeto tem levantamento de custo?</span>
+            <select id="demTemLevantamento" required>
+              <option value="nao">Não se aplica</option>
+              <option value="sim">Sim</option>
+            </select>
+          </label>
+          <div id="custoDetalhes" class="custo-detalhes is-hidden">
+          <div class="form-grid form-grid--custo">
+            <label class="field">
+              <span>Valor do projeto (R$)</span>
+              <input type="text" inputmode="decimal" class="input-br-money" id="custoValorProjeto" placeholder="0,00" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Valor 5% (R$)</span>
+              <input type="text" class="input-br-money" id="custoValor5" readonly title="5% do valor do projeto (calculado automaticamente)" />
+              <span class="muted small">Calculado automaticamente (5% do valor do projeto).</span>
+            </label>
+            <label class="field">
+              <span>Valor final (R$)</span>
+              <input type="text" class="input-br-money" id="custoValorFinal" readonly title="Valor do projeto + 5%" />
+              <span class="muted small">Soma automática: valor do projeto + 5%.</span>
+            </label>
+          </div>
+
+          <div class="custo-subsec">
+            <label class="field">
+              <span>Este projeto tem portas?</span>
+              <select id="demTemPortas">
+                <option value="nao">Não se aplica</option>
+                <option value="sim">Sim</option>
+              </select>
+            </label>
+            <div id="portasDetalhes" class="custo-detalhes is-hidden">
+              <div class="form-grid form-grid--custo">
+                <label class="field">
+                  <span>Quantidade de casas</span>
+                  <input type="text" inputmode="numeric" class="input-br-int" id="custoQtdCasas" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Qtd. portas existentes</span>
+                  <input type="text" inputmode="numeric" class="input-br-int" id="custoQtdPortasAtual" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Qtd. novas portas</span>
+                  <input type="text" inputmode="numeric" class="input-br-int" id="custoQtdNovasPortas" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Taxa penetração atual</span>
+                  <input type="text" class="input-br-percent" id="custoPenetracaoAtual" readonly title="Portas existentes ÷ quantidade de casas" />
+                  <span class="muted small">Calculada: portas existentes ÷ qtd. casas.</span>
+                </label>
+                <label class="field">
+                  <span>Nova taxa penetração</span>
+                  <input type="text" class="input-br-percent" id="custoNovaPenetracao" readonly title="(Portas existentes + novas portas) ÷ qtd. casas" />
+                  <span class="muted small">Calculada: (portas existentes + novas portas) ÷ qtd. casas.</span>
+                </label>
+                <label class="field">
+                  <span>Valor por porta nova (R$)</span>
+                  <input type="text" class="input-br-money" id="custoValorPorPortaNova" readonly title="Valor final ÷ qtd. novas portas" />
+                  <span class="muted small">Valor final do projeto dividido pela quantidade de novas portas.</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="custo-subsec">
+            <label class="field">
+              <span>Este projeto tem lançamento?</span>
+              <select id="demTemLancamento">
+                <option value="nao">Não se aplica</option>
+                <option value="sim">Sim</option>
+              </select>
+            </label>
+            <div id="lancamentoDetalhes" class="custo-detalhes is-hidden">
+              <p class="muted small">Adicione cada tipo de cabo e a metragem. O total é a soma de todas as metragens.</p>
+              <div id="lancamentoCabosList" class="lancamento-list"></div>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnAddCabo">+ Adicionar cabo</button>
+              <label class="field field--inline-total">
+                <span>Total de metragem (m)</span>
+                <input type="text" class="input-br-int" id="custoTotalMetragem" readonly />
+              </label>
+            </div>
+          </div>
+
+          <div class="custo-subsec custo-subsec--execucao">
+            <label class="field">
+              <span>Execução</span>
+              <select id="custoExecucao" aria-label="Tipo de execução">
+                <option value="Não se aplica">Não se aplica</option>
+                <option value="Regional">Regional</option>
+                <option value="Terceirizada">Terceirizada</option>
+                <option value="Regional + Terceirizada">Regional + Terceirizada</option>
+              </select>
+              <span class="muted small"><strong>Não se aplica</strong>, <strong>Regional</strong>, <strong>Terceirizada</strong> ou <strong>Regional + Terceirizada</strong>.</span>
+            </label>
+          </div>
+          <div id="execucaoCustosDetalhes" class="execucao-custos">
+            <div id="execucaoCustoRegionalWrap" class="custo-subsec execucao-custos__item">
+              <label class="field">
+                <span>Custo da Regional (R$)</span>
+                <input type="text" inputmode="decimal" class="input-br-money" id="custoExecucaoRegional" placeholder="0,00" autocomplete="off" />
+              </label>
+            </div>
+            <div id="execucaoCustoTerceirizadaWrap" class="custo-subsec execucao-custos__item is-hidden">
+              <label class="field">
+                <span>Custo da Terceirizada (R$)</span>
+                <input type="text" inputmode="decimal" class="input-br-money" id="custoExecucaoTerceirizada" placeholder="0,00" autocomplete="off" />
+              </label>
+            </div>
+          </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--pdf-custo">
+          <legend>PDF do levantamento de custo</legend>
+          <p class="muted small">Envie o PDF do Levantamento de Custo</p>
+          <input type="file" id="demPdfInput" accept="application/pdf,.pdf" />
+          <div id="demPdfPreview" class="pdf-custo-preview" hidden></div>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--referencias">
+          <legend>Referências externas</legend>
+          <p class="muted small">Identificadores do projeto em outros sistemas.</p>
+          <div class="form-grid">
+            <label class="field">
+              <span>Chamado Ocomon</span>
+              <input id="demChamadoOcomon" maxlength="80" placeholder="Número do chamado Ocomon" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Nº O.S. Aniel</span>
+              <input id="demOsAniel" maxlength="80" placeholder="Número da O.S. do Aniel" autocomplete="off" />
+            </label>
+            <div class="field field--clickup" id="fieldDemClickup">
+              <span>ClickUp (Operação)</span>
+              <div class="clickup-ref">
+                <p class="muted small clickup-ref__hint" id="demClickupHint" hidden></p>
+                <button type="button" class="btn btn--primary btn--sm" id="btnEnviarClickup">Enviar à Operação</button>
+                <a class="btn btn--ghost btn--sm clickup-ref__link" id="demClickupLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Abrir no ClickUp</a>
+                <button type="button" class="btn btn--danger btn--sm" id="btnCancelarClickup" hidden>Cancelar envio</button>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--checklist">
+          <legend>Checklist</legend>
+          <p class="muted small">Etapas do projeto. O card da esteira mostra só o avanço.</p>
+          <div class="checklist-progress" id="demChecklistProgress" aria-label="Avanço do checklist">
+            <span class="card__checklist-frac" id="demChecklistFrac">0/0</span>
+            <span class="card__checklist-dots" id="demChecklistDots" aria-hidden="true"></span>
+            <button type="button" class="checklist-toggle" id="btnChecklistExpand" aria-expanded="false" aria-controls="demChecklistDetails">Expandir detalhes</button>
+            <button type="button" class="checklist-toggle" id="btnChecklistGantt" aria-expanded="false" aria-controls="demChecklistGantt">Abrir cronograma</button>
+          </div>
+          <p class="muted small checklist-next" id="demChecklistNext"></p>
+          <div id="demChecklistGantt" class="checklist-gantt" hidden></div>
+          <div id="demChecklistDetails" hidden>
+            <ul class="checklist-list" id="demChecklistList"></ul>
+            <div class="checklist-add">
+              <label class="field">
+                <span>Etapa</span>
+                <input id="demChecklistEtapa" maxlength="80" placeholder="PDF do levantamento" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Responsável</span>
+                <input id="demChecklistWho" maxlength="80" placeholder="Nome do responsável" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Previsão de início</span>
+                <input id="demChecklistDateInicio" type="date" />
+              </label>
+              <label class="field">
+                <span>Previsão de término</span>
+                <input id="demChecklistDate" type="date" />
+              </label>
+            </div>
+            <div class="checklist-add-actions">
+              <button type="button" class="btn btn--ghost btn--sm" id="btnChecklistAdd">+ Adicionar etapa</button>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--timeline">
+          <legend>Tempo na esteira</legend>
+          <p class="muted small">Ajuste <strong>início</strong> e <strong>fim</strong> de cada fase (data e hora). Na fase atual em andamento, deixe o fim em branco. Use <strong>↑</strong> e <strong>↓</strong> para alterar a ordem das fases. <strong>Excluir</strong> pede confirmação antes de remover (mínimo uma fase). Salve a demanda para gravar.</p>
+          <div class="timeline-table-wrap">
+            <table class="timeline-table" id="demTimelineTable">
+              <thead>
+                <tr><th>Fase</th><th>Setor</th><th>Início</th><th>Fim</th><th>Duração</th><th>Atualização</th><th></th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </fieldset>
+          </div>
+
+          <aside class="comments-panel" aria-label="Comentários do projeto">
+            <button type="button" class="comments-panel__toggle" id="commentsPanelToggle" aria-expanded="true" aria-controls="commentsPanelBody">
+              <span>Comentários</span>
+              <span class="comments-panel__chevron" aria-hidden="true"></span>
+            </button>
+            <div class="comments-panel__body" id="commentsPanelBody">
+              <div class="comments-compose">
+                <textarea id="demComentarioNovo" rows="3" maxlength="4000" placeholder="Escreva um comentário… (Ctrl+Enter para enviar)" aria-label="Novo comentário"></textarea>
+                <button type="button" class="comments-compose__send" id="btnAddComentario" title="Enviar comentário" aria-label="Enviar comentário">&#8593;</button>
+              </div>
+              <div class="comments-feed" id="demComentariosList" role="feed"></div>
+            </div>
+          </aside>
+        </div>
+      </form>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="btnFecharDemanda">Fechar</button>
+        <button type="button" class="btn btn--danger" id="btnExcluirDemanda">Excluir</button>
+        <button type="button" class="btn btn--primary" id="btnSalvarDemanda">Salvar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--narrow" id="modalHistoricoEdicao" aria-labelledby="modalHistoricoEdicaoTitulo">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2 id="modalHistoricoEdicaoTitulo">Histórico de edição</h2>
+        <button type="button" class="icon-btn" id="modalHistoricoEdicaoClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <p class="muted small">Registro completo desde a criação da demanda — cada salvamento vincula as alterações ao usuário responsável.</p>
+        <div class="hist-edicao-list" id="histEdicaoList" aria-live="polite"></div>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="btnFecharHistoricoEdicao">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--wide" id="modalImportCsv">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2>Importar CSV — relatório completo</h2>
+        <button type="button" class="icon-btn" id="modalImportCsvClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <p class="muted small" id="importCsvHint">Compatível com o <strong>relatório completo exportado</strong> e planilhas <strong>Follow-up</strong> (Norte_MOC, CO Sul SP). Correspondência por <strong>ID</strong> (se presente) ou título (Ação). Colunas estendidas: esteira, status do sistema, B2B/B2C, valores, comentários, histórico, Ocomon/Aniel.</p>
+        <p id="importCsvSummary" class="import-csv-summary"></p>
+        <label class="field">
+          <span>Modo de importação</span>
+          <select id="importCsvMode">
+            <option value="skip">Adicionar só projetos novos (mesmo ID ou título = ignorar)</option>
+            <option value="update">Atualizar projetos existentes (mesmo ID ou título)</option>
+            <option value="all">Adicionar todos como novos (permite títulos repetidos)</option>
+          </select>
+        </label>
+        <div class="import-csv-preview-wrap">
+          <table class="dash-table import-csv-table" id="importCsvPreviewTable">
+            <thead>
+              <tr>
+                <th>Ação</th>
+                <th>Regional</th>
+                <th>Status planilha</th>
+                <th>Situação / comentário</th>
+                <th>Linha</th>
+                <th>Esteira (sistema)</th>
+                <th>Projetista</th>
+                <th>Importação</th>
+              </tr>
+            </thead>
+            <tbody id="importCsvPreviewBody"></tbody>
+          </table>
+        </div>
+        <p class="muted small" id="importCsvPreviewMore" hidden></p>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="btnImportCsvCancel">Cancelar</button>
+        <button type="button" class="btn btn--primary" id="btnImportCsvConfirm">Importar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--sm" id="modalAlertaSnooze" aria-labelledby="alertaSnoozeTitle">
+    <div class="modal__inner alerta-snooze">
+      <div class="modal__head">
+        <h2 id="alertaSnoozeTitle">Registrar ciência</h2>
+        <button type="button" class="icon-btn" id="alertaSnoozeClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <p class="alerta-snooze__titulo" id="alertaSnoozeDemandaTitulo"></p>
+        <p class="muted small" id="alertaSnoozeResumo"></p>
+        <label class="field">
+          <span>Registro (visível para gestores e colegas)</span>
+          <textarea id="alertaSnoozeTexto" rows="3" maxlength="500" placeholder="Ciente. Em execução ativa, demandará mais 4 dias."></textarea>
+        </label>
+        <label class="field">
+          <span>Adiar alerta por (dias)</span>
+          <input type="number" id="alertaSnoozeDias" min="1" max="30" value="4" />
+        </label>
+        <p class="muted small" id="alertaSnoozeUntilHint"></p>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="alertaSnoozeAbrir">Abrir demanda</button>
+        <button type="button" class="btn btn--ghost" id="alertaSnoozeCancel">Cancelar</button>
+        <button type="button" class="btn btn--primary" id="alertaSnoozeOk">Adiar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--wide" id="modalDashGeoProjetos" aria-labelledby="modalDashGeoProjetosTitle">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <div>
+          <h2 id="modalDashGeoProjetosTitle">Projetos</h2>
+          <p class="muted small" id="modalDashGeoProjetosSub"></p>
+        </div>
+        <button type="button" class="icon-btn" id="modalDashGeoProjetosClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <div class="dash-tempo-toolbar dash-geo-filtros" id="modalDashGeoProjetosFiltros">
+          <label class="field field--inline">
+            <span>Situação</span>
+            <select id="filterDashGeoSit" aria-label="Filtrar por situação">
+              <option value="">Todas</option>
+              <option value="ativas">Ativas</option>
+              <option value="concluidas">Concluídas</option>
+              <option value="pausadas">Pausadas</option>
+              <option value="reprovadas">Reprovadas</option>
+              <option value="atraso">Em atraso</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Tipo</span>
+            <select id="filterDashGeoTipo" aria-label="Filtrar por tipo">
+              <option value="">Todos</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Fase</span>
+            <select id="filterDashGeoFase" aria-label="Filtrar por fase">
+              <option value="">Todas</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Indicador</span>
+            <select id="filterDashGeoMetrica" aria-label="Filtrar por indicador">
+              <option value="">Todos</option>
+              <option value="valor">Com valor</option>
+              <option value="portas">Com portas novas</option>
+              <option value="metragem">Com metragem</option>
+            </select>
+          </label>
+        </div>
+        <div class="dashboard-table-wrap" id="modalDashGeoProjetosTable"></div>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="modalDashGeoProjetosOk">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--narrow" id="modalDashPjTipos" aria-labelledby="modalDashPjTiposTitle">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <div>
+          <h2 id="modalDashPjTiposTitle">Projetos por tipo</h2>
+          <p class="muted small" id="modalDashPjTiposSub"></p>
+        </div>
+        <button type="button" class="icon-btn" id="modalDashPjTiposClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body" id="modalDashPjTiposBody"></div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="modalDashPjTiposOk">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--sm clickup-instrucoes-dialog" id="modalClickupInstrucoes" aria-labelledby="clickupInstrucoesTitulo">
+    <div class="modal__inner clickup-instrucoes-dialog__inner">
+      <div class="modal__head">
+        <h2 id="clickupInstrucoesTitulo">Enviar à Operação</h2>
+        <button type="button" class="icon-btn" id="clickupInstrucoesClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <p class="muted small" id="clickupInstrucoesProjeto"></p>
+        <label class="field">
+          <span>Instruções do que deverá ser feito</span>
+          <textarea id="clickupInstrucoesTexto" rows="7" maxlength="4000" placeholder="Descreva o que a Operação precisa executar nesta demanda."></textarea>
+        </label>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="clickupInstrucoesCancel">Cancelar</button>
+        <button type="button" class="btn btn--primary" id="clickupInstrucoesOk">Criar no ClickUp</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal conta-shell" id="modalUserConta" aria-labelledby="contaPaneTitulo">
+    <div class="conta-shell__layout">
+      <aside class="conta-shell__nav">
+        <div class="conta-shell__who">
+          <span class="conta-shell__avatar" id="contaNavAvatar" aria-hidden="true">?</span>
+          <div class="conta-shell__who-text">
+            <strong id="contaNavNome">—</strong>
+            <span id="contaNavSub">Configurações da conta</span>
+          </div>
+        </div>
+        <nav class="conta-shell__menu" aria-label="Seções da conta">
+          <button type="button" class="conta-shell__link is-active" data-conta-pane="perfil">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 19.2a7 7 0 0 1 14 0"/></svg>
+            Perfil
+          </button>
+          <button type="button" class="conta-shell__link" data-conta-pane="seguranca">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-2.8 7.6-7 9-4.2-1.4-7-4.5-7-9V6l7-3z"/></svg>
+            Segurança
+          </button>
+          <button type="button" class="conta-shell__link" data-conta-pane="aparencia">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            Aparência
+          </button>
+        </nav>
+        <button type="button" class="conta-shell__sair" data-sign-out>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 7V5a2 2 0 0 1 2-2h7v18h-7a2 2 0 0 1-2-2v-2"/><path d="M15 12H3m0 0l3-3m-3 3l3 3"/></svg>
+          Sair
+        </button>
+      </aside>
+      <section class="conta-shell__main">
+        <header class="conta-shell__head">
+          <h2 id="contaPaneTitulo">Perfil</h2>
+          <button type="button" class="icon-btn" data-close-user-modal aria-label="Fechar">×</button>
+        </header>
+        <div class="conta-shell__body" data-conta-panel="perfil">
+          <div class="conta-perfil-id">
+            <span class="conta-shell__avatar conta-shell__avatar--lg" id="contaPerfilAvatar" aria-hidden="true">?</span>
+            <div>
+              <strong id="contaPerfilNome">—</strong>
+              <span class="muted" id="userDadosEmail">—</span>
+            </div>
+          </div>
+          <div class="conta-row">
+            <div>
+              <span class="conta-label">Nome</span>
+              <p id="contaPerfilNomeCampo">—</p>
+              <p class="muted small">Como você aparece nos comentários e no histórico.</p>
+            </div>
+          </div>
+          <div class="conta-row">
+            <div>
+              <span class="conta-label">E-mail</span>
+              <p id="contaPerfilEmail">—</p>
+              <p class="muted small">É com ele que você entra.</p>
+            </div>
+          </div>
+          <p class="conta-section">Detalhes da conta</p>
+          <div class="conta-row conta-row--split">
+            <span>Papel</span>
+            <span class="conta-pill" id="userDadosPapel">—</span>
+          </div>
+          <div class="conta-row conta-row--split">
+            <span>Regional</span>
+            <span id="userDadosRegional">—</span>
+          </div>
+          <div class="conta-row conta-row--split">
+            <span>Situação</span>
+            <span class="conta-status" id="contaSituacao">—</span>
+          </div>
+        </div>
+        <div class="conta-shell__body" data-conta-panel="seguranca" hidden>
+          <p class="muted small conta-lead">A senha atual não aparece aqui. Troque com a senha de agora ou peça um link no e-mail.</p>
+          <form class="seg-card" id="formTrocarSenha" autocomplete="off">
+            <h3>Trocar senha</h3>
+            <label class="field">
+              <span>Senha atual</span>
+              <span class="seg-input">
+                <input type="password" id="userSenhaAtual" required autocomplete="current-password" />
+                <button type="button" class="seg-eye" data-seg-eye="userSenhaAtual" aria-label="Mostrar senha atual">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                </button>
+              </span>
+            </label>
+            <label class="field">
+              <span>Nova senha</span>
+              <span class="seg-input">
+                <input type="password" id="userSenhaNova" required minlength="6" autocomplete="new-password" />
+                <button type="button" class="seg-eye" data-seg-eye="userSenhaNova" aria-label="Mostrar nova senha">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                </button>
+              </span>
+            </label>
+            <label class="field">
+              <span>Confirmar nova senha</span>
+              <span class="seg-input">
+                <input type="password" id="userSenhaNova2" required minlength="6" autocomplete="new-password" />
+                <button type="button" class="seg-eye" data-seg-eye="userSenhaNova2" aria-label="Mostrar confirmação">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                </button>
+              </span>
+            </label>
+            <p class="seg-hint" id="userSenhaHint">Use ao menos 6 caracteres.</p>
+            <p class="login-form__error" id="userSenhaError" role="alert" hidden></p>
+            <p class="login-form__ok" id="userSenhaOk" role="status" hidden></p>
+            <button type="submit" class="btn btn--primary seg-submit" id="btnTrocarSenha" disabled>Salvar nova senha</button>
+          </form>
+          <div class="seg-card">
+            <h3>Esqueci a senha</h3>
+            <p class="muted small">Envia um link para <strong id="userSegurancaEmail">—</strong>. A senha atual continua valendo até você criar outra.</p>
+            <p class="login-form__error" id="userResetError" role="alert" hidden></p>
+            <p class="login-form__ok" id="userResetOk" role="status" hidden></p>
+            <button type="button" class="btn btn--ghost" id="btnUserResetEmail">Enviar link</button>
+          </div>
+        </div>
+        <div class="conta-shell__body" data-conta-panel="aparencia" hidden>
+          <div class="conta-row conta-row--split">
+            <div>
+              <span class="conta-label">Tema claro</span>
+              <p class="muted small">Vale para esta sessão neste navegador.</p>
+            </div>
+            <label class="conta-switch">
+              <input type="checkbox" id="themeToggle" />
+              <span class="conta-switch__track" aria-hidden="true"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--sm confirm-dialog" id="modalConfirm" aria-labelledby="confirmDialogTitle">
+    <div class="modal__inner confirm-dialog__inner">
+      <div class="confirm-dialog__head">
+        <div class="confirm-dialog__icon" id="confirmDialogIcon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <div class="confirm-dialog__titles">
+          <h2 id="confirmDialogTitle">Confirmar</h2>
+          <p class="confirm-dialog__message" id="confirmDialogMessage"></p>
+        </div>
+      </div>
+      <dl class="confirm-dialog__details" id="confirmDialogDetails" hidden></dl>
+      <p class="confirm-dialog__hint muted small" id="confirmDialogHint" hidden></p>
+      <div class="confirm-dialog__foot">
+        <button type="button" class="btn btn--ghost" id="confirmDialogCancel">Cancelar</button>
+        <button type="button" class="btn btn--danger" id="confirmDialogOk">Confirmar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="app-loader" id="appLoader" role="status" aria-live="polite">
+    <div class="app-loader__box">
+      <span class="app-loader__spin" aria-hidden="true"></span>
+      <p>Carregando dados…</p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
+  <script src="firebase-auth.js"></script>
+  <script src="firebase-persist.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="csv-import.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+  </script>
+  <script src="pdf-custo-import.js"></script>
+  <script src="login-init.js"></script>
+  <script src="number-format-br.js"></script>
+  <script src="user-home.js"></script>
+  <script src="user-roles.js"></script>
+  <script src="app-boot.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+</html>
