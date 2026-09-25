@@ -5825,6 +5825,23 @@ function checklistGanttItemEnd(it) {
   return isoDatePart(it?.date) || "";
 }
 
+function checklistGanttTone(it, start, end) {
+  if (it?.done) return "done";
+  const today = todayISODate();
+  if (end && today > end) return "late";
+  const begun = !start || today >= start;
+  const open = !end || today <= end;
+  if (begun && open && (start || end)) return "active";
+  return "wait";
+}
+
+function checklistGanttToneLabel(tone) {
+  if (tone === "done") return "Concluída";
+  if (tone === "late") return "Passou da data final";
+  if (tone === "active") return "Dentro do prazo";
+  return "Ainda não começou";
+}
+
 function checklistGanttRange(items) {
   let min = "";
   let max = "";
@@ -6048,15 +6065,16 @@ function renderChecklistGantt() {
       start = end;
       end = swap;
     }
+    const tone = checklistGanttTone(it, start, end);
     if (start && end) {
       const i0 = days.indexOf(start);
       const i1 = days.indexOf(end);
       if (i0 >= 0 && i1 >= 0) {
         const bar = document.createElement("div");
-        bar.className = "checklist-gantt__bar" + (it.done ? " is-done" : "");
+        bar.className = "checklist-gantt__bar is-" + tone;
         bar.style.left = `${(i0 / days.length) * 100}%`;
         bar.style.width = `${((i1 - i0 + 1) / days.length) * 100}%`;
-        bar.title = `${it.name} · Início ${formatDataCurta(start)} · Término ${formatDataCurta(end)}`;
+        bar.title = `${it.name} · ${checklistGanttToneLabel(tone)} · Início ${formatDataCurta(start)} · Término ${formatDataCurta(end)}`;
         track.appendChild(bar);
       }
     } else if (end || start) {
@@ -6064,9 +6082,9 @@ function renderChecklistGantt() {
       const idx = days.indexOf(pin);
       if (idx >= 0) {
         const mark = document.createElement("div");
-        mark.className = "checklist-gantt__mark" + (it.done ? " is-done" : "");
+        mark.className = "checklist-gantt__mark is-" + tone;
         mark.style.left = `${((idx + 0.5) / days.length) * 100}%`;
-        mark.title = `${it.name} · ${end ? "Término" : "Início"} ${formatDataCurta(pin)}`;
+        mark.title = `${it.name} · ${checklistGanttToneLabel(tone)} · ${end ? "Término" : "Início"} ${formatDataCurta(pin)}`;
         track.appendChild(mark);
       }
     }
