@@ -37,8 +37,9 @@ html[data-theme="light"] {
   --surface: #ffffff;
   --surface2: #eef3f8;
   --border: #d5dee9;
-  --text: #152033;
-  --muted: #5c6b80;
+  --text: #0f172a;
+  --muted: #334155;
+  --text-muted: #334155;
   --form-segment-title: #1d4ed8;
   --shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
   --topbar-bg: rgba(255, 255, 255, 0.9);
@@ -181,6 +182,111 @@ html[data-theme="light"] .diaria--outros .diaria__resp,
 html[data-theme="light"] .diaria__texto { color: #334155; }
 html[data-theme="light"] .inbox-alertas__item:hover,
 html[data-theme="light"] .inbox-alertas__adiar:hover { filter: none; background: #e8eef6; }
+html[data-theme="light"] .column__head,
+html[data-theme="light"] .column__title {
+  color: #0f172a;
+}
+html[data-theme="light"] .column__count {
+  opacity: 1;
+  color: #1e293b;
+}
+html[data-theme="light"] .card {
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.07);
+}
+html[data-theme="light"] .card__title {
+  color: #0f172a;
+}
+html[data-theme="light"] .card__meta,
+html[data-theme="light"] .card__status-atual,
+html[data-theme="light"] .card__dias-aberto,
+html[data-theme="light"] .card__alerta-ciente-texto {
+  color: #334155;
+}
+html[data-theme="light"] .card__atraso-dias,
+html[data-theme="light"] .atraso-dias-resumo {
+  color: #991b1b;
+  background: #fef2f2;
+}
+html[data-theme="light"] .card__coluna-alerta {
+  color: #9a3412;
+  background: #fff7ed;
+}
+html[data-theme="light"] .card__alerta-ciente {
+  color: #166534;
+  background: #f0fdf4;
+}
+html[data-theme="light"] .card__editing-by {
+  color: #1e40af;
+  background: #eff6ff;
+}
+html[data-theme="light"] .card__editing-by--self {
+  color: #166534;
+  background: #f0fdf4;
+}
+html[data-theme="light"] .card--pausado,
+html[data-theme="light"] .card--reprovado {
+  opacity: 1;
+  filter: none;
+}
+html[data-theme="light"] .badge--b2c,
+html[data-theme="light"] .badge--st-analise,
+html[data-theme="light"] .badge--st-documentacao,
+html[data-theme="light"] .dash-setor--projetos { background: #e0e7ff; }
+html[data-theme="light"] .badge--b2b,
+html[data-theme="light"] .badge--diaria,
+html[data-theme="light"] .badge--st-revisao,
+html[data-theme="light"] .badge--produto-b2b,
+html[data-theme="light"] .dash-setor--cd { background: #f3e8ff; }
+html[data-theme="light"] .badge--swap,
+html[data-theme="light"] .badge--st-custo,
+html[data-theme="light"] .badge--pend,
+html[data-theme="light"] .badge--st-transmissao-infra,
+html[data-theme="light"] .dash-setor--diretoria,
+html[data-theme="light"] .dash-setor--transmissao-infra,
+html[data-theme="light"] .dash-setor--comercial { background: #fef3c7; }
+html[data-theme="light"] .badge--bb,
+html[data-theme="light"] .badge--st-vistoria,
+html[data-theme="light"] .badge--st-configuracao,
+html[data-theme="light"] .badge--st-aprovacao,
+html[data-theme="light"] .badge--segmento-b2c,
+html[data-theme="light"] .dash-setor--engenharia,
+html[data-theme="light"] .dash-setor--ip-servicos,
+html[data-theme="light"] .dash-setor--eng-noc { background: #e0f2fe; }
+html[data-theme="light"] .badge--licenciamento { background: #d1fae5; }
+html[data-theme="light"] .badge--mapeamento,
+html[data-theme="light"] .badge--st-execucao-terceirizada,
+html[data-theme="light"] .dash-setor--terceirizada { background: #fce7f3; }
+html[data-theme="light"] .badge--migracao,
+html[data-theme="light"] .dash-setor--operacao { background: #ccfbf1; }
+html[data-theme="light"] .badge--atr,
+html[data-theme="light"] .badge--st-reprovado { background: #fee2e2; }
+html[data-theme="light"] .badge--st-materiais { background: #ffedd5; }
+html[data-theme="light"] .badge--st-execucao,
+html[data-theme="light"] .badge--st-conclusao { background: #dcfce7; }
+html[data-theme="light"] .badge--st-novo,
+html[data-theme="light"] .badge--st-pausado,
+html[data-theme="light"] .dash-setor--outros { background: #e2e8f0; }
+html[data-theme="light"] .comments-panel {
+  background: #fff;
+  border-left: 1px solid var(--border);
+}
+html[data-theme="light"] .comments-panel__toggle {
+  background: #fff;
+}
+html[data-theme="light"] .comments-panel__toggle:hover {
+  background: #f8fafc;
+}
+html[data-theme="light"] .comments-compose textarea {
+  background: #fff;
+  color: #0f172a;
+  border-color: #c5d0de;
+}
+html[data-theme="light"] .comment-text,
+html[data-theme="light"] .comment-head strong {
+  color: #0f172a;
+}
 .login-screen {
   position: fixed; inset: 0; z-index: 110;
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
