@@ -287,6 +287,93 @@ html[data-theme="light"] .comment-text,
 html[data-theme="light"] .comment-head strong {
   color: #0f172a;
 }
+html[data-theme="light"] .demanda-alert--presence {
+  color: #1e3a8a;
+  background: #dbeafe;
+  border-bottom-color: #93c5fd;
+}
+html[data-theme="light"] .demanda-alert--self,
+html[data-theme="light"] .demanda-alert--ok {
+  color: #14532d;
+  background: #dcfce7;
+  border-bottom-color: #86efac;
+}
+html[data-theme="light"] .demanda-alert--conflict {
+  color: #854d0e;
+  background: #fef3c7;
+  border-bottom-color: #facc15;
+}
+html[data-theme="light"] .auto-save-status[data-state="saving"] { color: #854d0e; }
+html[data-theme="light"] .auto-save-status[data-state="saved"] { color: #166534; }
+html[data-theme="light"] .auto-save-status[data-state="error"] { color: #b91c1c; }
+html[data-theme="light"] .hist-edicao__para { color: #166534; }
+html[data-theme="light"] .fieldset--segment.fieldset--atraso > legend { color: #991b1b; }
+html[data-theme="light"] .checklist-toggle--details {
+  color: #1e3a8a;
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+html[data-theme="light"] .checklist-toggle--details:hover {
+  color: #1e3a8a;
+  background: #bfdbfe;
+}
+html[data-theme="light"] .checklist-toggle--gantt {
+  color: #5b21b6;
+  background: #ede9fe;
+  border-color: #c4b5fd;
+}
+html[data-theme="light"] .checklist-toggle--gantt:hover {
+  color: #5b21b6;
+  background: #ddd6fe;
+}
+html[data-theme="light"] .checklist-item__save:hover:not(:disabled) {
+  color: #166534;
+  background: #dcfce7;
+}
+html[data-theme="light"] .checklist-item__remove:hover:not(:disabled) {
+  color: #991b1b;
+  background: #fee2e2;
+}
+html[data-theme="light"] .toast--in-modal {
+  background: #fffbeb;
+  color: #854d0e;
+  border-bottom-color: #facc15;
+  box-shadow: none;
+}
+html[data-theme="light"] .alerta-hist {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+html[data-theme="light"] .alerta-hist__title { color: #166534; }
+html[data-theme="light"] .confirm-dialog--danger .confirm-dialog__icon {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+html[data-theme="light"] .confirm-dialog--warn .confirm-dialog__icon {
+  color: #854d0e;
+  background: #fef3c7;
+}
+html[data-theme="light"] .confirm-dialog--default .confirm-dialog__icon {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+html[data-theme="light"] .dash-pe-badge--ok,
+html[data-theme="light"] .dash-cf-badge--fim { background: #dcfce7; }
+html[data-theme="light"] .dash-pe-badge--warn { background: #fef3c7; }
+html[data-theme="light"] .dash-pe-badge--bad { background: #fee2e2; }
+html[data-theme="light"] .dash-cf-badge--chegada { background: #dbeafe; }
+html[data-theme="light"] .usuarios-row__badge--on {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+html[data-theme="light"] .usuarios-row__badge--off {
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+html[data-theme="light"] .role-badge { background: #dbeafe; }
+html[data-theme="light"] .role-badge[data-role="admin"] { background: #fef3c7; }
+html[data-theme="light"] .role-badge[data-role="projetista"] { background: #dcfce7; }
+html[data-theme="light"] .role-badge[data-role="visibilidade"] { background: #e2e8f0; }
 .login-screen {
   position: fixed; inset: 0; z-index: 110;
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
