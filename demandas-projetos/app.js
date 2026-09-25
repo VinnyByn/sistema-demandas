@@ -3934,6 +3934,7 @@ function openUsuariosModal() {
 
 function switchMainTab(tab) {
   if (tab === "diarias" || tab === "projetistas" || tab === "usuarios") tab = "esteira";
+  updateTopbarTitle(tab);
   document.querySelectorAll(".tabs__btn[data-tab]").forEach((b) => {
     const on = b.dataset.tab === tab;
     b.classList.toggle("is-active", on);
@@ -3947,7 +3948,6 @@ function switchMainTab(tab) {
   });
   if (tab === "dashboard") renderDashboard();
   if (tab === "esteira") renderBoard();
-  updateTopbarTitle(tab);
   if (isMobileShell()) setMobileSidebarOpen(false);
 }
 
