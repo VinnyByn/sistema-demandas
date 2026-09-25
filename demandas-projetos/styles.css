@@ -1664,21 +1664,123 @@ textarea {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  margin: 0.35rem 0 0.25rem;
+  margin: 0.35rem 0 0.15rem;
 }
 .fieldset--checklist .checklist-next { margin: 0.15rem 0 0.65rem; }
-.checklist-toggle {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0.15rem 0;
-  white-space: nowrap;
+.checklist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin: 0.15rem 0 0.45rem;
 }
-.checklist-toggle:hover { color: var(--text); }
+.checklist-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.42rem 0.72rem 0.42rem 0.62rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.checklist-toggle__icon,
+.checklist-toggle__chevron {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+.checklist-toggle__chevron {
+  opacity: 0.75;
+  transition: transform 0.18s ease;
+}
+.checklist-toggle[aria-expanded="true"] .checklist-toggle__chevron {
+  transform: rotate(180deg);
+  opacity: 1;
+}
+.checklist-toggle:hover {
+  transform: translateY(-1px);
+}
+.checklist-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.checklist-toggle--details {
+  color: #bfdbfe;
+  border-color: rgba(59, 130, 246, 0.42);
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.22), rgba(59, 130, 246, 0.1));
+}
+.checklist-toggle--details:hover {
+  color: #eff6ff;
+  border-color: rgba(96, 165, 250, 0.7);
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.34), rgba(59, 130, 246, 0.16));
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
+}
+.checklist-toggle--details[aria-expanded="true"] {
+  color: #fff;
+  border-color: #3b82f6;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+}
+.checklist-toggle--gantt {
+  color: #ddd6fe;
+  border-color: rgba(168, 85, 247, 0.42);
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.22), rgba(168, 85, 247, 0.1));
+}
+.checklist-toggle--gantt:hover {
+  color: #f5f3ff;
+  border-color: rgba(192, 132, 252, 0.72);
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.34), rgba(168, 85, 247, 0.16));
+  box-shadow: 0 6px 16px rgba(126, 34, 206, 0.22);
+}
+.checklist-toggle--gantt[aria-expanded="true"] {
+  color: #fff;
+  border-color: #a855f7;
+  background: linear-gradient(180deg, #a855f7, #7e22ce);
+  box-shadow: 0 6px 16px rgba(126, 34, 206, 0.28);
+}
+html[data-theme="light"] .checklist-toggle {
+  box-shadow: none;
+}
+html[data-theme="light"] .checklist-toggle--details {
+  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.28);
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.16), rgba(59, 130, 246, 0.08));
+}
+html[data-theme="light"] .checklist-toggle--details:hover {
+  color: #1e3a8a;
+  border-color: rgba(37, 99, 235, 0.45);
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.24), rgba(59, 130, 246, 0.12));
+}
+html[data-theme="light"] .checklist-toggle--details[aria-expanded="true"] {
+  color: #fff;
+  border-color: #2563eb;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+}
+html[data-theme="light"] .checklist-toggle--gantt {
+  color: #7e22ce;
+  border-color: rgba(126, 34, 206, 0.28);
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.16), rgba(168, 85, 247, 0.08));
+}
+html[data-theme="light"] .checklist-toggle--gantt:hover {
+  color: #581c87;
+  border-color: rgba(126, 34, 206, 0.45);
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.24), rgba(168, 85, 247, 0.12));
+}
+html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
+  color: #fff;
+  border-color: #7e22ce;
+  background: linear-gradient(180deg, #a855f7, #7e22ce);
+}
 .checklist-gantt {
   margin: 0.45rem 0 0.7rem;
   border: 1px solid var(--border);

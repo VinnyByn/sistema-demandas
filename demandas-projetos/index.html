@@ -1212,8 +1212,25 @@
           <div class="checklist-progress" id="demChecklistProgress" aria-label="Avanço do checklist">
             <span class="card__checklist-frac" id="demChecklistFrac">0/0</span>
             <span class="card__checklist-dots" id="demChecklistDots" aria-hidden="true"></span>
-            <button type="button" class="checklist-toggle" id="btnChecklistExpand" aria-expanded="false" aria-controls="demChecklistDetails">Expandir detalhes</button>
-            <button type="button" class="checklist-toggle" id="btnChecklistGantt" aria-expanded="false" aria-controls="demChecklistGantt">Abrir cronograma</button>
+          </div>
+          <div class="checklist-actions">
+            <button type="button" class="checklist-toggle checklist-toggle--details" id="btnChecklistExpand" aria-expanded="false" aria-controls="demChecklistDetails">
+              <svg class="checklist-toggle__icon" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M2.5 4.25h11M2.5 8h11M2.5 11.75h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+              <span class="checklist-toggle__label">Expandir detalhes</span>
+              <svg class="checklist-toggle__chevron" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M4 6.25 8 10.25 12 6.25" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button type="button" class="checklist-toggle checklist-toggle--gantt" id="btnChecklistGantt" aria-expanded="false" aria-controls="demChecklistGantt">
+              <svg class="checklist-toggle__icon" viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="1.5" y="2.75" width="7.5" height="2.4" rx="1.1" fill="currentColor"/>
+                <rect x="4.75" y="6.8" width="9.25" height="2.4" rx="1.1" fill="currentColor" opacity=".72"/>
+                <rect x="3.25" y="10.85" width="6.5" height="2.4" rx="1.1" fill="currentColor" opacity=".48"/>
+              </svg>
+              <span class="checklist-toggle__label">Abrir cronograma</span>
+            </button>
           </div>
           <p class="muted small checklist-next" id="demChecklistNext"></p>
           <div id="demChecklistGantt" class="checklist-gantt" hidden></div>

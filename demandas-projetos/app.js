@@ -5914,12 +5914,19 @@ function checklistGanttDayNum(iso) {
   return m ? String(Number(m[1])) : "";
 }
 
+function setChecklistToggleLabel(btn, label) {
+  if (!btn) return;
+  const span = btn.querySelector(".checklist-toggle__label");
+  if (span) span.textContent = label;
+  else btn.textContent = label;
+}
+
 function setChecklistGanttOpen(open) {
   const btn = document.getElementById("btnChecklistGantt");
   const panel = document.getElementById("demChecklistGantt");
   if (btn) {
     btn.setAttribute("aria-expanded", String(open));
-    btn.textContent = open ? "Fechar cronograma" : "Abrir cronograma";
+    setChecklistToggleLabel(btn, open ? "Fechar cronograma" : "Abrir cronograma");
   }
   if (panel) panel.hidden = !open;
   if (open) renderChecklistGantt();
@@ -6100,7 +6107,7 @@ function bindChecklistEditor() {
     const open = expand.getAttribute("aria-expanded") === "true";
     const next = !open;
     expand.setAttribute("aria-expanded", String(next));
-    expand.textContent = next ? "Recolher detalhes" : "Expandir detalhes";
+    setChecklistToggleLabel(expand, next ? "Recolher detalhes" : "Expandir detalhes");
     if (details) details.hidden = !next;
   });
   document.getElementById("btnChecklistGantt")?.addEventListener("click", () => {
@@ -6292,7 +6299,7 @@ function openDemandaModal(id) {
   const details = document.getElementById("demChecklistDetails");
   if (expandBtn) {
     expandBtn.setAttribute("aria-expanded", "false");
-    expandBtn.textContent = "Expandir detalhes";
+    setChecklistToggleLabel(expandBtn, "Expandir detalhes");
   }
   if (details) details.hidden = true;
   setChecklistGanttOpen(false);
