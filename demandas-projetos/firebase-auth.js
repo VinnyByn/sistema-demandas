@@ -112,6 +112,35 @@ const DemandasAuth = (function () {
     }
   }
 
+  async function updatePassword(currentPassword, newPassword) {
+    const a = getAuth();
+    const user = a?.currentUser;
+    if (!a || !user) throw new Error("Faça login novamente para trocar a senha.");
+    const next = String(newPassword || "");
+    if (next.length < 6) throw new Error("A senha deve ter ao menos 6 caracteres.");
+    const cred = firebase.auth.EmailAuthProvider.credential(user.email, String(currentPassword || ""));
+    try {
+      await user.reauthenticateWithCredential(cred);
+      await user.updatePassword(next);
+    } catch (err) {
+      const code = err?.code || "";
+      if (
+        code === "auth/wrong-password" ||
+        code === "auth/invalid-credential" ||
+        code === "auth/invalid-login-credentials"
+      ) {
+        throw new Error("Senha atual incorreta.");
+      }
+      if (code === "auth/weak-password") {
+        throw new Error("Senha fraca. Use ao menos 6 caracteres.");
+      }
+      if (code === "auth/requires-recent-login") {
+        throw new Error("Entre de novo e tente trocar a senha.");
+      }
+      throw new Error(mapAuthError(err));
+    }
+  }
+
   /**
    * Cria usuário com e-mail/senha sem trocar a sessão do admin
    * (segunda instância Firebase App).
@@ -159,6 +188,7 @@ const DemandasAuth = (function () {
     signOut,
     createUser,
     sendPasswordReset,
+    updatePassword,
     mapAuthError,
   };
 })();
