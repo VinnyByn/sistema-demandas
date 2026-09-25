@@ -6811,6 +6811,11 @@ function pdfPreviewValor(k, val) {
   return String(val);
 }
 
+function setPdfPickLabel(text) {
+  const label = document.getElementById("demPdfPickLabel");
+  if (label) label.textContent = text;
+}
+
 function renderPdfLevantamentoPreview() {
   const wrap = document.getElementById("demPdfPreview");
   if (!wrap) return;
@@ -6818,8 +6823,10 @@ function renderPdfLevantamentoPreview() {
   if (!editingPdfLevantamento) {
     wrap.hidden = true;
     wrap.innerHTML = "";
+    setPdfPickLabel("Escolher PDF");
     return;
   }
+  setPdfPickLabel("Trocar PDF");
 
   wrap.hidden = false;
   const parsed = lastPdfParseResult;
