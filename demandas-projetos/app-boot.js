@@ -48,6 +48,8 @@
     if (viewB2b) viewB2b.hidden = !isB2b;
     const label = document.getElementById("esteiraTabLabel");
     if (label) label.textContent = isB2b ? "· B2B" : "· Projetos";
+    const topbarTitle = document.getElementById("topbarTitle");
+    if (topbarTitle) topbarTitle.textContent = isB2b ? "Esteira B2B" : "Esteira Projetos";
     document.querySelectorAll("[data-esteira-linha]").forEach((item) => {
       item.classList.toggle("is-active", item.dataset.esteiraLinha === linha);
     });
