@@ -2775,7 +2775,7 @@ function syncTrocarSenhaForm() {
 }
 
 function showContaPane(pane) {
-  const titles = { perfil: "Perfil", seguranca: "Segurança", aparencia: "Aparência" };
+  const titles = { perfil: "Perfil", seguranca: "Segurança" };
   const next = titles[pane] ? pane : "perfil";
   document.querySelectorAll("[data-conta-pane]").forEach((btn) => {
     const on = btn.dataset.contaPane === next;
