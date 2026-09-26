@@ -3281,7 +3281,14 @@ html.demanda-modal-open {
   }
   .comments-panel { min-height: 280px; max-height: 40vh; }
 }
-.modal::backdrop { background: rgba(0, 0, 0, 0.55); }
+.modal::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+html[data-theme="light"] .modal::backdrop {
+  background: rgba(15, 23, 42, 0.28);
+}
 
 .confirm-dialog { max-width: min(440px, 94vw); }
 .confirm-dialog::backdrop {
