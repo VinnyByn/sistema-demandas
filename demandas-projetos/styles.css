@@ -520,7 +520,7 @@ html[data-theme="light"] .role-badge[data-role="visibilidade"] { background: #e2
 html[data-theme="light"] .usuarios-row__status--on { color: #15803d; }
 html[data-theme="light"] .usuarios-row__status--off { color: #b91c1c; }
 .usuarios-row__more { position: relative; flex: 0 0 auto; }
-.usuarios-row__more .icon-btn { font-size: 1.15rem; line-height: 1; padding: 0.15rem 0.4rem; }
+.usuarios-row__more .icon-btn { font-size: 1.15rem; }
 .usuarios-row__menu {
   position: absolute;
   top: calc(100% + 0.2rem);
@@ -1419,10 +1419,27 @@ html[data-theme="light"] .app--sidebar-collapsed .sidebar__item.import-menu__tog
   outline: none;
 }
 .icon-btn {
-  border: none; background: transparent; color: var(--muted); font-size: 1.5rem; line-height: 1;
-  cursor: pointer; padding: 0.2rem 0.45rem; border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
 }
 .icon-btn:hover { color: var(--text); background: var(--surface2); }
+.icon-btn[aria-label="Fechar"] {
+  font-size: 1.45rem;
+  padding-top: 0.06em;
+}
 .panel { display: none; }
 .panel.is-visible { display: block; }
 .panel__toolbar {
