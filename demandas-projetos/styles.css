@@ -451,8 +451,6 @@ html[data-theme="light"] .role-badge[data-role="visibilidade"] { background: #e2
 .app--readonly .card { cursor: pointer; }
 .app--readonly .card[draggable="true"] { cursor: pointer; }
 .usuarios-modal {
-  width: min(1120px, 96vw);
-  max-width: min(1120px, 96vw);
   max-height: min(88vh, 820px);
   padding: 0;
   overflow: hidden;
@@ -3030,6 +3028,10 @@ html.demanda-modal-open {
 }
 .modal--wide {
   max-width: min(1520px, 99vw); width: min(1520px, 99vw);
+}
+.modal.usuarios-modal {
+  width: min(1320px, 96vw);
+  max-width: min(1320px, 96vw);
 }
 .modal--sm { max-width: min(480px, 96vw); }
 .modal--narrow { max-width: min(640px, 96vw); }
