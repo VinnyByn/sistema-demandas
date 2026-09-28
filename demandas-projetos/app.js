@@ -697,6 +697,11 @@ const REGIONAIS_CIDADES = {
 
 const REGIONAIS_ORDER = Object.keys(REGIONAIS_CIDADES).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
+function regionalSelectLabel(reg) {
+  const s = String(reg || "").trim();
+  return s.replace(/^Regional\s+/i, "").trim() || s;
+}
+
 const REGIONAL_CHART_COLORS = {
   "Regional Centro Oeste": "#f59e0b",
   "Regional Norte de Minas": "#22c55e",
@@ -858,7 +863,7 @@ function fillDemRegionalSelect() {
   for (const reg of REGIONAIS_ORDER) {
     const o = document.createElement("option");
     o.value = reg;
-    o.textContent = reg;
+    o.textContent = regionalSelectLabel(reg);
     sel.appendChild(o);
   }
   if (cur && [...sel.options].some((o) => o.value === cur)) sel.value = cur;
@@ -943,7 +948,7 @@ function fillDemExtraRegionalSelect() {
   for (const reg of REGIONAIS_ORDER) {
     const o = document.createElement("option");
     o.value = reg;
-    o.textContent = reg;
+    o.textContent = regionalSelectLabel(reg);
     sel.appendChild(o);
   }
   if (cur && [...sel.options].some((o) => o.value === cur)) sel.value = cur;

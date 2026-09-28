@@ -1547,6 +1547,17 @@ textarea {
   min-width: 0;
   align-items: start;
 }
+.atribuicao-pair--geo .atribuicao-pair__principal {
+  grid-template-columns: minmax(9.5rem, 1.25fr) minmax(0, 1fr);
+}
+.atribuicao-pair--geo select {
+  width: 100%;
+  min-width: 0;
+  padding-right: 2rem;
+}
+.atribuicao-pair--geo .cidades-extra-add {
+  grid-template-columns: minmax(9.5rem, 1.2fr) minmax(0, 1fr) auto;
+}
 .atribuicao-pair .cidades-extra-add {
   align-items: stretch;
 }
