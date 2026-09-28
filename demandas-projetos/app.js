@@ -2703,8 +2703,6 @@ function fillContaScreen() {
   const regionalEl = document.getElementById("userDadosRegional");
   const emailTxt = info.email || "—";
   if (emailEl) emailEl.textContent = emailTxt;
-  const emailCampo = document.getElementById("contaPerfilEmail");
-  if (emailCampo) emailCampo.textContent = emailTxt;
   if (papelEl) papelEl.textContent = info.label || "—";
   const regional =
     typeof DemandasRoles !== "undefined" && DemandasRoles.regionalForEmail
