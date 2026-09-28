@@ -716,7 +716,7 @@ main { flex: 1; padding: 0 1.25rem 2rem; width: 100%; min-width: 0; }
   max-height: 100vh;
   padding: 0.75rem 0.7rem 0.75rem;
   border-right: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--bg);
   flex-shrink: 0;
   overflow: visible;
   transition: width 0.18s ease;
