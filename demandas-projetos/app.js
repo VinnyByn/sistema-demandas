@@ -2646,8 +2646,8 @@ function currentTheme() {
 function chartInk() {
   const light = document.documentElement.getAttribute("data-theme") === "light";
   return light
-    ? { tick: "#475569", label: "#1e293b", grid: "rgba(15,23,42,0.08)" }
-    : { tick: "#94a3b8", label: "#cbd5e1", grid: chartInk().grid };
+    ? { tick: "#475569", label: "#1e293b", grid: "rgba(15, 23, 42, 0.08)" }
+    : { tick: "#94a3b8", label: "#cbd5e1", grid: "rgba(148, 163, 184, 0.12)" };
 }
 
 function applyTheme(theme) {
