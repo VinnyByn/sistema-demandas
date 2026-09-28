@@ -2623,7 +2623,10 @@ function applyRoleUi(opts = {}) {
   const appRoot = document.getElementById("appRoot");
   const roleEl = document.getElementById("authUserRole");
   const tabUsers = document.getElementById("btnMenuUsuarios");
-  if (appRoot) appRoot.classList.toggle("app--readonly", info.isReadOnly || info.isBlocked);
+  if (appRoot) {
+    appRoot.classList.toggle("app--readonly", info.isReadOnly || info.isBlocked);
+    appRoot.classList.toggle("app--admin", !!info.isAdmin);
+  }
   if (roleEl) {
     if (info.email) {
       roleEl.hidden = false;
@@ -5611,6 +5614,13 @@ function checklistCardHtml(dm) {
   const items = normalizeChecklist(dm?.checklist);
   const n = items.length;
   const d = items.filter((it) => it.done).length;
+  if (!n) {
+    return (
+      `<div class="card__checklist card__checklist--empty" title="Sem etapas registradas">` +
+      `<span class="card__checklist-frac">Sem Etapas Registradas</span>` +
+      `</div>`
+    );
+  }
   const dots = items
     .map((it) => `<span class="card__checklist-dot${it.done ? " is-on" : ""}"></span>`)
     .join("");
@@ -6107,12 +6117,6 @@ function renderChecklistGantt() {
     const who = document.createElement("span");
     who.textContent = it.who || "—";
     label.append(name, who);
-    if (it.descricao) {
-      const desc = document.createElement("em");
-      desc.className = "checklist-gantt__desc";
-      desc.textContent = it.descricao;
-      label.append(desc);
-    }
     const track = document.createElement("div");
     track.className = "checklist-gantt__track";
     if (todayPct != null) {
@@ -6138,7 +6142,7 @@ function renderChecklistGantt() {
         bar.className = "checklist-gantt__bar is-" + tone;
         bar.style.left = `${(i0 / days.length) * 100}%`;
         bar.style.width = `${((i1 - i0 + 1) / days.length) * 100}%`;
-        bar.title = `${it.name}${it.descricao ? ` — ${it.descricao}` : ""} · ${checklistGanttToneLabel(tone)} · Início ${formatDataCurta(start)} · Término ${formatDataCurta(end)}`;
+        bar.title = `${it.name} · ${it.who || "—"} · ${checklistGanttToneLabel(tone)} · Início ${formatDataCurta(start)} · Término ${formatDataCurta(end)}`;
         track.appendChild(bar);
       }
     } else if (end || start) {
@@ -13707,7 +13711,7 @@ function setAuthUi(user) {
     if (emailEl) emailEl.hidden = true;
     if (roleEl) roleEl.hidden = true;
     if (btnOut) btnOut.hidden = true;
-    appRoot?.classList.remove("app--readonly");
+    appRoot?.classList.remove("app--readonly", "app--admin");
     appBootstrapped = false;
     persistenceApi = null;
     persistenceReady = false;
