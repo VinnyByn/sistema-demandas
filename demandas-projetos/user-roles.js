@@ -45,6 +45,8 @@ window.DemandasRoles = (function () {
   let purgedMap = {};
   /** E-mail → regional preferida ("" = todas). */
   let regionalsMap = {};
+  /** E-mail → nome de exibição da conta. */
+  let namesMap = {};
 
   function normalizeEmail(email) {
     return String(email || "")
@@ -157,6 +159,37 @@ window.DemandasRoles = (function () {
     const e = normalizeEmail(email);
     if (!e) return "";
     return normalizeRegionalValue(regionalsMap[e]);
+  }
+
+  function normalizeDisplayName(v) {
+    return String(v || "").replace(/\s+/g, " ").trim();
+  }
+
+  function normalizeNamesMap(map) {
+    const out = {};
+    if (!map || typeof map !== "object") return out;
+    for (const [email, name] of Object.entries(map)) {
+      const e = normalizeEmail(email);
+      const n = normalizeDisplayName(name);
+      if (!e || !n) continue;
+      out[e] = n;
+    }
+    return out;
+  }
+
+  function setNamesMap(map) {
+    namesMap = normalizeNamesMap(map);
+    return { ...namesMap };
+  }
+
+  function getNamesMap() {
+    return { ...namesMap };
+  }
+
+  function displayNameForEmail(email) {
+    const e = normalizeEmail(email);
+    if (!e) return "";
+    return namesMap[e] || "";
   }
 
   function isDisabled(email) {
@@ -335,6 +368,10 @@ window.DemandasRoles = (function () {
     getRegionalsMap,
     regionalForEmail,
     normalizeRegionalValue,
+    setNamesMap,
+    getNamesMap,
+    displayNameForEmail,
+    normalizeDisplayName,
     isDisabled,
     isPurged,
     roleForEmail,

@@ -2501,18 +2501,47 @@ function validateHistoricoStatus(hist, statusAtual, linha = editingLinhaEsteira)
   return null;
 }
 
+/** Nome de conta salvo pelo administrador; senão o do login ou o do e-mail. */
+function normalizeAccountDisplayName(name) {
+  if (typeof DemandasRoles !== "undefined" && DemandasRoles.normalizeDisplayName) {
+    return DemandasRoles.normalizeDisplayName(name);
+  }
+  return String(name || "").replace(/\s+/g, " ").trim();
+}
+
+function accountNameFromEmail(email) {
+  const e = String(email || "").trim();
+  if (!e) return "";
+  const local = e.split("@")[0] || e;
+  const label = local.replace(/[._-]+/g, " ").trim();
+  if (!label) return e;
+  return label.replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
+function accountDisplayNameForEmail(email) {
+  const e = String(email || "")
+    .trim()
+    .toLowerCase();
+  if (!e) return "";
+  const stored =
+    typeof DemandasRoles !== "undefined" && DemandasRoles.displayNameForEmail
+      ? DemandasRoles.displayNameForEmail(e)
+      : "";
+  if (stored) return stored;
+  const user = typeof DemandasAuth !== "undefined" ? DemandasAuth.currentUser?.() : null;
+  if (user && String(user.email || "").trim().toLowerCase() === e) {
+    const authName = String(user.displayName || "").trim();
+    if (authName) return authName;
+  }
+  return accountNameFromEmail(email);
+}
+
 /** Nome exibido nos comentários — usuário logado, não o projetista da demanda. */
 function getLoggedInComentarioAutor() {
   const user = typeof DemandasAuth !== "undefined" ? DemandasAuth.currentUser() : null;
   if (!user) return "Equipe";
-  const name = String(user.displayName || "").trim();
-  if (name) return name;
-  const email = String(user.email || "").trim();
-  if (!email) return "Equipe";
-  const local = email.split("@")[0] || email;
-  const label = local.replace(/[._-]+/g, " ").trim();
-  if (!label) return email;
-  return label.replace(/\b\w/g, (ch) => ch.toUpperCase());
+  const name = accountDisplayNameForEmail(user.email);
+  return name || "Equipe";
 }
 
 const PRESENCE_TTL_MS = 3 * 60 * 1000;
@@ -2617,6 +2646,7 @@ function applyRoleUi(opts = {}) {
     setImportMenuOpen(false);
   }
   updateUserMenuAvatar(info.email);
+  if (!opts.light) fillContaScreen();
   // Evita recriar selects e painel de usuários a cada sync da esteira.
   if (!opts.light) {
     refreshProjetistaAssignmentLists();
@@ -2625,6 +2655,12 @@ function applyRoleUi(opts = {}) {
 }
 
 function userInitialsFromEmail(email) {
+  const nome = accountDisplayNameForEmail(email);
+  if (nome && !nome.includes("@")) {
+    const parts = nome.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    if (parts[0]) return parts[0].slice(0, 2).toUpperCase();
+  }
   const local = String(email || "").split("@")[0].trim();
   const parts = local.split(/[.\-_]+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -13050,11 +13086,19 @@ function renderUsuariosPanel() {
         ? `${assigned} demanda${assigned > 1 ? "s" : ""}`
         : "Sem demandas";
       const regVal = regional || "";
+      const nomeAtual = accountDisplayNameForEmail(email);
+      const nomeSalvo =
+        typeof DemandasRoles !== "undefined" && DemandasRoles.displayNameForEmail
+          ? DemandasRoles.displayNameForEmail(email)
+          : "";
+      const tituloConta = nomeSalvo || nomeAtual || email;
+      const mostraEmailAbaixo = tituloConta.toLowerCase() !== String(email).toLowerCase();
       return (
-        `<div class="usuarios-row${disabled ? " is-disabled" : ""}" data-email="${escapeHtml(email)}" data-role="${escapeHtml(role)}" data-regional="${escapeHtml(regVal)}">` +
+        `<div class="usuarios-row${disabled ? " is-disabled" : ""}" data-email="${escapeHtml(email)}" data-role="${escapeHtml(role)}" data-regional="${escapeHtml(regVal)}" data-nome="${escapeHtml(nomeAtual)}">` +
         `<div class="usuarios-row__head">` +
         `<div class="usuarios-row__id">` +
-        `<span class="usuarios-row__email">${escapeHtml(email)}</span>` +
+        `<span class="usuarios-row__email">${escapeHtml(tituloConta)}</span>` +
+        (mostraEmailAbaixo ? `<span class="usuarios-row__mail muted">${escapeHtml(email)}</span>` : "") +
         `<span class="usuarios-row__sub">${status}<span class="usuarios-row__meta muted">${demandasTxt}</span></span>` +
         `</div>` +
         `<div class="usuarios-row__more">` +
@@ -13065,6 +13109,7 @@ function renderUsuariosPanel() {
         `<button type="button" class="user-role-del" role="menuitem">Remover</button>` +
         `</div></div></div>` +
         `<div class="usuarios-row__edit">` +
+        `<label><span>Nome</span><input type="text" class="user-nome-input" maxlength="80" value="${escapeHtml(nomeAtual)}" placeholder="Nome da conta" aria-label="Nome de ${escapeHtml(email)}"${disabled ? " disabled" : ""} /></label>` +
         `<label><span>Papel</span><select class="user-role-select" aria-label="Papel de ${escapeHtml(email)}"${disabled ? " disabled" : ""}>${roleOptionsHtml(role)}</select></label>` +
         `<label><span>Regional</span><select class="user-regional-select" aria-label="Regional de ${escapeHtml(email)}"${disabled ? " disabled" : ""}>${regionalOptionsHtml(regional)}</select></label>` +
         `<button type="button" class="btn btn--primary btn--sm user-role-save" disabled>Salvar</button>` +
@@ -13077,16 +13122,24 @@ function renderUsuariosPanel() {
   const q = String(busca?.value || "").trim().toLowerCase();
   list.querySelectorAll(".usuarios-row").forEach((row) => {
     const email = row.dataset.email;
-    if (q) row.hidden = !String(email || "").includes(q);
+    if (q) {
+      const nomeTxt = String(row.querySelector(".user-nome-input")?.value || row.dataset.nome || "").toLowerCase();
+      row.hidden = !String(email || "").includes(q) && !nomeTxt.includes(q);
+    }
     const syncDirty = () => {
       const role = row.querySelector(".user-role-select")?.value || "";
       const regional = row.querySelector(".user-regional-select")?.value || "";
-      const dirty = role !== (row.dataset.role || "") || regional !== (row.dataset.regional || "");
+      const nome = normalizeAccountDisplayName(row.querySelector(".user-nome-input")?.value || "");
+      const dirty =
+        role !== (row.dataset.role || "") ||
+        regional !== (row.dataset.regional || "") ||
+        nome !== normalizeAccountDisplayName(row.dataset.nome || "");
       const btn = row.querySelector(".user-role-save");
       if (btn) btn.disabled = !dirty;
     };
     row.querySelector(".user-role-select")?.addEventListener("change", syncDirty);
     row.querySelector(".user-regional-select")?.addEventListener("change", syncDirty);
+    row.querySelector(".user-nome-input")?.addEventListener("input", syncDirty);
     row.querySelector(".user-row-more")?.addEventListener("click", (ev) => {
       ev.stopPropagation();
       const menu = row.querySelector(".usuarios-row__menu");
@@ -13101,6 +13154,7 @@ function renderUsuariosPanel() {
       void saveUserAccess(email, {
         role: row.querySelector(".user-role-select")?.value,
         regional: row.querySelector(".user-regional-select")?.value,
+        nome: row.querySelector(".user-nome-input")?.value,
       });
     });
     row.querySelector(".user-role-reset")?.addEventListener("click", () => {
@@ -13180,7 +13234,7 @@ async function persistRolesMap(nextMap) {
   applyRoleUi();
 }
 
-async function saveUserAccess(email, { role, regional } = {}) {
+async function saveUserAccess(email, { role, regional, nome } = {}) {
   if (!isAdminUser()) {
     toast("Apenas administrador");
     return;
@@ -13207,6 +13261,7 @@ async function saveUserAccess(email, { role, regional } = {}) {
     toast("Regional inválida");
     return;
   }
+  const nomeNorm = normalizeAccountDisplayName(nome);
   const map = { ...(typeof DemandasRoles !== "undefined" ? DemandasRoles.getRolesMap() : {}) };
   map[e] = newRole;
   const regionals = {
@@ -13214,10 +13269,18 @@ async function saveUserAccess(email, { role, regional } = {}) {
   };
   if (reg) regionals[e] = reg;
   else delete regionals[e];
-  if (typeof DemandasRoles !== "undefined") DemandasRoles.setRegionalsMap(regionals);
+  const names = {
+    ...(typeof DemandasRoles !== "undefined" ? DemandasRoles.getNamesMap?.() || {} : {}),
+  };
+  if (nomeNorm) names[e] = nomeNorm;
+  else delete names[e];
+  if (typeof DemandasRoles !== "undefined") {
+    DemandasRoles.setRegionalsMap(regionals);
+    DemandasRoles.setNamesMap(names);
+  }
   try {
     await persistRolesMap(map);
-    toast("Papel e regional salvos");
+    toast("Dados da conta salvos");
   } catch (err) {
     toast(err?.message || "Falha ao salvar");
   }
@@ -13332,6 +13395,9 @@ async function removeUserFromSystem(email) {
     const regionals = { ...(DemandasRoles.getRegionalsMap?.() || {}) };
     delete regionals[e];
     DemandasRoles.setRegionalsMap(regionals);
+    const names = { ...(DemandasRoles.getNamesMap?.() || {}) };
+    delete names[e];
+    DemandasRoles.setNamesMap(names);
   }
   try {
     await persistRolesMap(map);
@@ -13355,6 +13421,7 @@ document.getElementById("formNovoUsuario")?.addEventListener("submit", async (e)
     .trim()
     .toLowerCase();
   const senha = String(document.getElementById("userNovoSenha")?.value || "");
+  const nomeNovo = normalizeAccountDisplayName(document.getElementById("userNovoNome")?.value || "");
   const role = String(document.getElementById("userNovoRole")?.value || "projetista")
     .trim()
     .toLowerCase();
@@ -13404,17 +13471,22 @@ document.getElementById("formNovoUsuario")?.addEventListener("submit", async (e)
       const disabled = { ...(DemandasRoles.getDisabledMap?.() || {}) };
       const purged = { ...(DemandasRoles.getPurgedMap?.() || {}) };
       const regionals = { ...(DemandasRoles.getRegionalsMap?.() || {}) };
+      const names = { ...(DemandasRoles.getNamesMap?.() || {}) };
       delete disabled[email];
       delete purged[email];
       if (regional) regionals[email] = regional;
       else delete regionals[email];
+      if (nomeNovo) names[email] = nomeNovo;
+      else delete names[email];
       DemandasRoles.setDisabledMap(disabled);
       DemandasRoles.setPurgedMap(purged);
       DemandasRoles.setRegionalsMap(regionals);
+      DemandasRoles.setNamesMap(names);
     }
     await persistRolesMap(map);
     document.getElementById("userNovoEmail").value = "";
     document.getElementById("userNovoSenha").value = "";
+    if (document.getElementById("userNovoNome")) document.getElementById("userNovoNome").value = "";
     document.getElementById("userNovoRole").value = "projetista";
     if (document.getElementById("userNovoRegional")) document.getElementById("userNovoRegional").value = "";
     toast(

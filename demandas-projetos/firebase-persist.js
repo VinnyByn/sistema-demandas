@@ -445,11 +445,12 @@ const DemandasFirebase = (function () {
     return out;
   }
 
-  function applyAccessMaps({ roles, disabled, purged, regionals, source = "merge" } = {}) {
+  function applyAccessMaps({ roles, disabled, purged, regionals, names, source = "merge" } = {}) {
     const hasRoles = roles && typeof roles === "object";
     const hasDisabled = disabled !== undefined && disabled !== null && typeof disabled === "object";
     const hasPurged = purged !== undefined && purged !== null && typeof purged === "object";
     const hasRegionals = regionals !== undefined && regionals !== null && typeof regionals === "object";
+    const hasNames = names !== undefined && names !== null && typeof names === "object";
 
     if (hasPurged && typeof DemandasRoles !== "undefined" && DemandasRoles.setPurgedMap) {
       if (source === "remote" || source === "replace") {
@@ -517,6 +518,29 @@ const DemandasFirebase = (function () {
       }
     }
 
+    if (hasNames && typeof DemandasRoles !== "undefined" && DemandasRoles.setNamesMap) {
+      const incoming = DemandasRoles.normalizeDisplayName
+        ? Object.fromEntries(
+            Object.entries(names)
+              .map(([e, n]) => [
+                String(e || "")
+                  .trim()
+                  .toLowerCase(),
+                DemandasRoles.normalizeDisplayName(n),
+              ])
+              .filter(([e, n]) => e && n),
+          )
+        : names;
+      if (source === "remote" || source === "replace") {
+        DemandasRoles.setNamesMap(incoming);
+      } else {
+        DemandasRoles.setNamesMap({
+          ...(DemandasRoles.getNamesMap?.() || {}),
+          ...incoming,
+        });
+      }
+    }
+
     if (typeof onRolesFn === "function") {
       onRolesFn(DemandasRoles?.getRolesMap?.() || {});
     }
@@ -534,7 +558,8 @@ const DemandasFirebase = (function () {
       Object.prototype.hasOwnProperty.call(d, "roles") ||
       Object.prototype.hasOwnProperty.call(d, "disabledUsers") ||
       Object.prototype.hasOwnProperty.call(d, "purgedUsers") ||
-      Object.prototype.hasOwnProperty.call(d, "userRegionals");
+      Object.prototype.hasOwnProperty.call(d, "userRegionals") ||
+      Object.prototype.hasOwnProperty.call(d, "userDisplayNames");
     if (!hasAccessFields) return;
     applyAccessMaps({
       roles: d.roles && typeof d.roles === "object" ? d.roles : undefined,
@@ -555,6 +580,11 @@ const DemandasFirebase = (function () {
       regionals: Object.prototype.hasOwnProperty.call(d, "userRegionals")
         ? d.userRegionals && typeof d.userRegionals === "object"
           ? d.userRegionals
+          : {}
+        : undefined,
+      names: Object.prototype.hasOwnProperty.call(d, "userDisplayNames")
+        ? d.userDisplayNames && typeof d.userDisplayNames === "object"
+          ? d.userDisplayNames
           : {}
         : undefined,
       source,
@@ -838,17 +868,23 @@ const DemandasFirebase = (function () {
           typeof DemandasRoles !== "undefined" && DemandasRoles.getRegionalsMap
             ? DemandasRoles.getRegionalsMap()
             : {};
+        const names =
+          typeof DemandasRoles !== "undefined" && DemandasRoles.getNamesMap
+            ? DemandasRoles.getNamesMap()
+            : {};
         await writeAccessMaps(metaRef, {
           roles: merged,
           disabled,
           purged,
           regionals,
+          names,
         });
         applyAccessMaps({
           roles: merged,
           disabled,
           purged,
           regionals,
+          names,
           source: "replace",
         });
       } catch (e) {
@@ -869,17 +905,19 @@ const DemandasFirebase = (function () {
     return patch;
   }
 
-  async function writeAccessMaps(targetRef, { roles, disabled, purged, regionals }) {
+  async function writeAccessMaps(targetRef, { roles, disabled, purged, regionals, names }) {
     if (!targetRef) return;
     const nextRoles = roles || {};
     const nextDisabled = disabled || {};
     const nextPurged = purged || {};
     const nextRegionals = regionals || {};
+    const nextNames = names || {};
     const payload = {
       roles: nextRoles,
       disabledUsers: nextDisabled,
       purgedUsers: nextPurged,
       userRegionals: nextRegionals,
+      userDisplayNames: nextNames,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
     // update() com mapa novo deveria substituir o campo; set({merge:true}) NÃO remove chaves.
@@ -894,6 +932,7 @@ const DemandasFirebase = (function () {
         ...mapKeyDeletes(prev.purgedUsers, nextPurged, "purgedUsers"),
         ...mapKeyDeletes(prev.roles, nextRoles, "roles"),
         ...mapKeyDeletes(prev.userRegionals, nextRegionals, "userRegionals"),
+        ...mapKeyDeletes(prev.userDisplayNames, nextNames, "userDisplayNames"),
       };
       if (Object.keys(delPatch).length) {
         await withTimeout(targetRef.update(delPatch), REQ_TIMEOUT_MS);
@@ -923,6 +962,10 @@ const DemandasFirebase = (function () {
       typeof DemandasRoles !== "undefined" && DemandasRoles.getRegionalsMap
         ? DemandasRoles.getRegionalsMap()
         : {};
+    const names =
+      typeof DemandasRoles !== "undefined" && DemandasRoles.getNamesMap
+        ? DemandasRoles.getNamesMap()
+        : {};
     if (adminEmail) {
       delete disabled[adminEmail];
       delete purged[adminEmail];
@@ -930,10 +973,10 @@ const DemandasFirebase = (function () {
     onStatusFn("saving");
     inflightAccessUntil = Date.now() + INFLIGHT_ACCESS_MS;
     try {
-      await writeAccessMaps(metaRef, { roles: map, disabled, purged, regionals });
+      await writeAccessMaps(metaRef, { roles: map, disabled, purged, regionals, names });
       try {
         if (rolesRef) {
-          await writeAccessMaps(rolesRef, { roles: map, disabled, purged, regionals });
+          await writeAccessMaps(rolesRef, { roles: map, disabled, purged, regionals, names });
         }
       } catch (e) {
         console.warn("Espelho roles doc (opcional):", e);
@@ -943,6 +986,7 @@ const DemandasFirebase = (function () {
         disabled,
         purged,
         regionals,
+        names,
         source: "replace",
       });
       onStatusFn("synced");
@@ -1091,6 +1135,10 @@ const DemandasFirebase = (function () {
           regionals:
             typeof DemandasRoles !== "undefined" && DemandasRoles.getRegionalsMap
               ? DemandasRoles.getRegionalsMap()
+              : {},
+          names:
+            typeof DemandasRoles !== "undefined" && DemandasRoles.getNamesMap
+              ? DemandasRoles.getNamesMap()
               : {},
           source: "replace",
         });

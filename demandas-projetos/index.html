@@ -228,7 +228,7 @@
         <div class="usuarios-modal__head">
           <div>
             <h2 id="usuariosTitulo">Usuários</h2>
-            <p class="muted">Papel, regional e acesso de cada conta.</p>
+            <p class="muted">Nome, papel, regional e acesso de cada conta.</p>
           </div>
           <button type="button" class="icon-btn" data-close-user-modal aria-label="Fechar">×</button>
         </div>
@@ -242,6 +242,10 @@
             <label class="field">
               <span>E-mail</span>
               <input type="email" id="userNovoEmail" required placeholder="nome@soumaster.com.br" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Nome</span>
+              <input type="text" id="userNovoNome" maxlength="80" placeholder="Como aparece no perfil e nos comentários" autocomplete="off" />
             </label>
             <label class="field">
               <span>Senha inicial</span>
@@ -268,7 +272,7 @@
           <div class="usuarios-list-wrap">
             <div class="usuarios-list-head">
               <h3 class="usuarios-form__title">Contas</h3>
-              <input type="search" id="usuariosBusca" placeholder="Buscar e-mail" aria-label="Buscar e-mail" autocomplete="off" />
+              <input type="search" id="usuariosBusca" placeholder="Buscar e-mail ou nome" aria-label="Buscar e-mail ou nome" autocomplete="off" />
             </div>
             <div class="usuarios-list" id="usuariosList" aria-live="polite"></div>
           </div>
