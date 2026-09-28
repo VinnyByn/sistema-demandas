@@ -3505,6 +3505,7 @@ function sameChecklist(a, b) {
   for (let i = 0; i < x.length; i++) {
     if (x[i].id !== y[i].id) return false;
     if (x[i].name !== y[i].name) return false;
+    if (x[i].descricao !== y[i].descricao) return false;
     if (x[i].who !== y[i].who) return false;
     if (x[i].dateInicio !== y[i].dateInicio) return false;
     if (x[i].date !== y[i].date) return false;
@@ -3640,6 +3641,7 @@ function normalizeChecklistItem(it) {
   return {
     id: it.id || uid(),
     name,
+    descricao: String(it.descricao || it.desc || "").trim(),
     who: String(it.who || it.responsavel || "").trim(),
     dateInicio: String(it.dateInicio || it.inicio || "").trim(),
     date: String(it.date || it.dateFim || "").trim(),
@@ -5633,14 +5635,15 @@ function renderChecklistDots(el, items) {
     .join("");
 }
 
-function createChecklistField({ id, label, type = "text", value = "", maxLength, placeholder }) {
+function createChecklistField({ id, label, type = "text", value = "", maxLength, placeholder, multiline = false }) {
   const wrap = document.createElement("label");
-  wrap.className = "field";
+  wrap.className = "field" + (multiline ? " field--span" : "");
   const span = document.createElement("span");
   span.textContent = label;
-  const input = document.createElement("input");
+  const input = document.createElement(multiline ? "textarea" : "input");
   input.id = id;
-  input.type = type;
+  if (!multiline) input.type = type;
+  else input.rows = 2;
   input.value = value || "";
   input.autocomplete = "off";
   if (maxLength) input.maxLength = maxLength;
@@ -5652,6 +5655,7 @@ function createChecklistField({ id, label, type = "text", value = "", maxLength,
 function readChecklistEtapaDraft(ids) {
   return {
     name: (document.getElementById(ids.name)?.value || "").trim(),
+    descricao: (document.getElementById(ids.descricao)?.value || "").trim(),
     who: (document.getElementById(ids.who)?.value || "").trim(),
     dateInicio: (document.getElementById(ids.dateInicio)?.value || "").trim(),
     date: (document.getElementById(ids.date)?.value || "").trim(),
@@ -5681,6 +5685,7 @@ function saveChecklistItemEdit(id) {
   if (!requireWriteAccess()) return;
   const draft = readChecklistEtapaDraft({
     name: "demChecklistEditName",
+    descricao: "demChecklistEditDesc",
     who: "demChecklistEditWho",
     dateInicio: "demChecklistEditInicio",
     date: "demChecklistEditFim",
@@ -5720,6 +5725,7 @@ function renderChecklistEditor() {
       const draft = editing
         ? readChecklistEtapaDraft({
             name: "demChecklistEditName",
+            descricao: "demChecklistEditDesc",
             who: "demChecklistEditWho",
             dateInicio: "demChecklistEditInicio",
             date: "demChecklistEditFim",
@@ -5765,6 +5771,14 @@ function renderChecklistEditor() {
         maxLength: 80,
         placeholder: "PDF do levantamento",
       });
+      const descField = createChecklistField({
+        id: "demChecklistEditDesc",
+        label: "Descrição",
+        value: it.descricao,
+        maxLength: 160,
+        placeholder: "O que esta etapa entrega",
+        multiline: true,
+      });
       const whoField = createChecklistField({
         id: "demChecklistEditWho",
         label: "Responsável",
@@ -5792,7 +5806,7 @@ function renderChecklistEditor() {
           }
         });
       });
-      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap);
+      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, descField.wrap);
 
       const save = document.createElement("button");
       save.type = "button";
@@ -5810,9 +5824,18 @@ function renderChecklistEditor() {
       actions.append(save, cancel, rm);
       li.append(box, edit, actions);
     } else {
+      const body = document.createElement("div");
+      body.className = "checklist-item__body";
       const name = document.createElement("span");
       name.className = "checklist-item__name";
       name.textContent = it.name;
+      body.append(name);
+      if (it.descricao) {
+        const desc = document.createElement("p");
+        desc.className = "checklist-item__desc";
+        desc.textContent = it.descricao;
+        body.append(desc);
+      }
       const meta = document.createElement("span");
       meta.className = "checklist-item__meta";
       const who = document.createElement("span");
@@ -5825,6 +5848,7 @@ function renderChecklistEditor() {
       when.dateTime = it.date || "";
       when.textContent = it.date ? `Término ${formatDataCurta(it.date)}` : "Término —";
       meta.append(who, start, when);
+      body.append(meta);
       const editBtn = document.createElement("button");
       editBtn.type = "button";
       editBtn.className = "checklist-item__edit-btn";
@@ -5837,7 +5861,7 @@ function renderChecklistEditor() {
         document.getElementById("demChecklistEditName")?.focus();
       });
       actions.append(editBtn, rm);
-      li.append(box, name, meta, actions);
+      li.append(box, body, actions);
     }
     list.appendChild(li);
   });
@@ -6083,6 +6107,12 @@ function renderChecklistGantt() {
     const who = document.createElement("span");
     who.textContent = it.who || "—";
     label.append(name, who);
+    if (it.descricao) {
+      const desc = document.createElement("em");
+      desc.className = "checklist-gantt__desc";
+      desc.textContent = it.descricao;
+      label.append(desc);
+    }
     const track = document.createElement("div");
     track.className = "checklist-gantt__track";
     if (todayPct != null) {
@@ -6108,7 +6138,7 @@ function renderChecklistGantt() {
         bar.className = "checklist-gantt__bar is-" + tone;
         bar.style.left = `${(i0 / days.length) * 100}%`;
         bar.style.width = `${((i1 - i0 + 1) / days.length) * 100}%`;
-        bar.title = `${it.name} · ${checklistGanttToneLabel(tone)} · Início ${formatDataCurta(start)} · Término ${formatDataCurta(end)}`;
+        bar.title = `${it.name}${it.descricao ? ` — ${it.descricao}` : ""} · ${checklistGanttToneLabel(tone)} · Início ${formatDataCurta(start)} · Término ${formatDataCurta(end)}`;
         track.appendChild(bar);
       }
     } else if (end || start) {
@@ -6135,6 +6165,7 @@ function addChecklistEtapaFromForm() {
   if (!requireWriteAccess()) return;
   const draft = readChecklistEtapaDraft({
     name: "demChecklistEtapa",
+    descricao: "demChecklistDesc",
     who: "demChecklistWho",
     dateInicio: "demChecklistDateInicio",
     date: "demChecklistDate",
@@ -6143,11 +6174,21 @@ function addChecklistEtapaFromForm() {
   editingChecklistItemId = "";
   editingChecklist = [
     ...normalizeChecklist(editingChecklist),
-    { id: uid(), name: draft.name, who: draft.who, dateInicio: draft.dateInicio, date: draft.date, done: true },
+    {
+      id: uid(),
+      name: draft.name,
+      descricao: draft.descricao,
+      who: draft.who,
+      dateInicio: draft.dateInicio,
+      date: draft.date,
+      done: true,
+    },
   ];
   const etapa = document.getElementById("demChecklistEtapa");
+  const desc = document.getElementById("demChecklistDesc");
   const resp = document.getElementById("demChecklistWho");
   if (etapa) etapa.value = "";
+  if (desc) desc.value = "";
   if (resp) resp.value = "";
   renderChecklistEditor();
 }
@@ -6360,8 +6401,10 @@ function openDemandaModal(id) {
   const dateEl = document.getElementById("demChecklistDate");
   if (dateEl) dateEl.value = todayISODate();
   const etapaEl = document.getElementById("demChecklistEtapa");
+  const descEl = document.getElementById("demChecklistDesc");
   const whoEl = document.getElementById("demChecklistWho");
   if (etapaEl) etapaEl.value = "";
+  if (descEl) descEl.value = "";
   if (whoEl) whoEl.value = "";
   renderChecklistEditor();
   const comentarioNovo = document.getElementById("demComentarioNovo");

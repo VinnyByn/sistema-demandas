@@ -2114,6 +2114,10 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
   border-right: 1px solid var(--border);
   background: var(--surface);
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.08rem;
 }
 .checklist-gantt__head .checklist-gantt__label {
   z-index: 5;
@@ -2135,10 +2139,13 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.checklist-gantt__label span {
+.checklist-gantt__label span,
+.checklist-gantt__label em {
   display: block;
   color: var(--muted);
   font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2186,7 +2193,8 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
 }
 .checklist-gantt__row:first-child { border-top: none; }
 .checklist-gantt__track {
-  height: 2.45rem;
+  min-height: 2.85rem;
+  height: 100%;
   background-image:
     repeating-linear-gradient(
       to right,
@@ -2242,10 +2250,9 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
   display: grid;
   grid-template-columns: 1.4rem minmax(0, 1fr) auto;
   grid-template-areas:
-    "cb name rm"
-    "cb meta rm";
+    "cb body rm";
   gap: 0.1rem 0.7rem;
-  align-items: center;
+  align-items: start;
   padding: 0.62rem 0.7rem;
   margin: 0 0 0.4rem;
   border: 1px solid var(--border);
@@ -2256,7 +2263,6 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
 .checklist-item.is-editing {
   grid-template-areas:
     "cb edit rm";
-  align-items: start;
 }
 .checklist-item.is-off { color: var(--muted); }
 .checklist-item.is-off .checklist-item__name { font-weight: 500; }
@@ -2265,8 +2271,8 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
   position: relative;
   width: 1.25rem;
   height: 1.25rem;
-  margin: 0;
-  align-self: center;
+  margin: 0.12rem 0 0;
+  align-self: start;
 }
 .checklist-check input {
   position: absolute;
@@ -2305,17 +2311,30 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
   outline: 2px solid rgba(59, 130, 246, 0.55);
   outline-offset: 2px;
 }
+.checklist-item__body {
+  grid-area: body;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
 .checklist-item__name {
-  grid-area: name;
   font-weight: 600;
   min-width: 0;
   font-size: 0.88rem;
 }
+.checklist-item__desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.35;
+}
 .checklist-item__meta {
-  grid-area: meta;
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem 0.7rem;
+  margin-top: 0.12rem;
 }
 .checklist-item__who,
 .checklist-item time {
@@ -2381,6 +2400,13 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
   margin-top: 0.85rem;
   padding-top: 0.85rem;
   border-top: 1px dashed var(--border);
+}
+.checklist-add .field--span,
+.checklist-item__edit .field--span { grid-column: 1 / -1; }
+.checklist-add .field--span textarea,
+.checklist-item__edit .field--span textarea {
+  min-height: 3.2rem;
+  resize: vertical;
 }
 .checklist-add-actions { margin-top: 0.7rem; }
 @media (max-width: 560px) {
