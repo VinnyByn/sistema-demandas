@@ -5734,6 +5734,8 @@ function appendChecklistMoveButtons(actions, it, idx, n, readOnly) {
   up.setAttribute("aria-label", `Mover “${it.name}” para cima`);
   up.title = idx === 0 ? "Primeira atividade" : "Mover atividade para cima";
   up.disabled = readOnly || idx === 0;
+  if (up.disabled) up.dataset.keepDisabled = "1";
+  else delete up.dataset.keepDisabled;
   up.addEventListener("click", () => moveChecklistItem(it.id, -1));
   const down = document.createElement("button");
   down.type = "button";
@@ -5742,9 +5744,33 @@ function appendChecklistMoveButtons(actions, it, idx, n, readOnly) {
   down.setAttribute("aria-label", `Mover “${it.name}” para baixo`);
   down.title = idx === n - 1 ? "Última atividade" : "Mover atividade para baixo";
   down.disabled = readOnly || idx === n - 1;
+  if (down.disabled) down.dataset.keepDisabled = "1";
+  else delete down.dataset.keepDisabled;
   down.addEventListener("click", () => moveChecklistItem(it.id, 1));
   wrap.append(up, down);
   actions.appendChild(wrap);
+}
+
+function refreshChecklistMoveButtons() {
+  const readOnly = isReadOnlyUser();
+  const items = document.querySelectorAll("#demChecklistList .checklist-item");
+  const n = items.length;
+  items.forEach((li, idx) => {
+    const up = li.querySelector(".checklist-item__move-up");
+    const down = li.querySelector(".checklist-item__move-down");
+    if (up) {
+      up.disabled = readOnly || idx === 0;
+      if (up.disabled) up.dataset.keepDisabled = "1";
+      else delete up.dataset.keepDisabled;
+      up.title = idx === 0 ? "Primeira atividade" : "Mover atividade para cima";
+    }
+    if (down) {
+      down.disabled = readOnly || idx === n - 1;
+      if (down.disabled) down.dataset.keepDisabled = "1";
+      else delete down.dataset.keepDisabled;
+      down.title = idx === n - 1 ? "Última atividade" : "Mover atividade para baixo";
+    }
+  });
 }
 
 function saveChecklistItemEdit(id) {
@@ -6347,7 +6373,7 @@ function setDemandaFormReadOnly(readOnly) {
   if (modal) modal.classList.toggle("demanda-modal--readonly", !!readOnly);
   if (form) {
     form.querySelectorAll("input, select, textarea, button").forEach((el) => {
-        if (el.id === "modalDemandaClose" || el.id === "btnFecharDemanda" || el.id === "btnEnviarClickup" || el.id === "btnCancelarClickup" || el.id === "btnDemClickupCiente" || el.id === "btnChecklistExpand") return;
+        if (el.id === "modalDemandaClose" || el.id === "btnFecharDemanda" || el.id === "btnEnviarClickup" || el.id === "btnCancelarClickup" || el.id === "btnDemClickupCiente" || el.id === "btnChecklistExpand" || el.id === "btnChecklistGantt") return;
       if (el.closest(".comments-panel__toggle")) return;
       if (el.type === "hidden") return;
       if (readOnly) {
@@ -6495,6 +6521,8 @@ function openDemandaModal(id) {
   }
 
   setDemandaFormReadOnly(isReadOnlyUser());
+  refreshChecklistMoveButtons();
+  refreshTimelineMoveButtons();
   renderCidadesExtraList();
   renderProjetistasExtraList();
   syncDemClickupUi();
@@ -6553,10 +6581,14 @@ function refreshTimelineMoveButtons() {
     const btnDown = tr.querySelector(".timeline-move-down");
     if (btnUp) {
       btnUp.disabled = idx === 0;
+      if (btnUp.disabled) btnUp.dataset.keepDisabled = "1";
+      else delete btnUp.dataset.keepDisabled;
       btnUp.title = idx === 0 ? "Primeira fase" : "Mover fase para cima";
     }
     if (btnDown) {
       btnDown.disabled = idx === rows.length - 1;
+      if (btnDown.disabled) btnDown.dataset.keepDisabled = "1";
+      else delete btnDown.dataset.keepDisabled;
       btnDown.title = idx === rows.length - 1 ? "Última fase" : "Mover fase para baixo";
     }
   });
