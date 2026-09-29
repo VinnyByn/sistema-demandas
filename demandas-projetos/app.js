@@ -3252,7 +3252,8 @@ const HISTORICO_EDICAO_CAMPOS = [
       const items = normalizeChecklist(v);
       if (!items.length) return "—";
       const d = items.filter((it) => it.done).length;
-      return `${d}/${items.length} etapa(s)`;
+      const names = items.map((it) => it.name).join(" → ");
+      return `${d}/${items.length} · ${names}`;
     },
   },
 ];
@@ -5696,6 +5697,56 @@ function applyChecklistItemPatch(id, patch) {
   );
 }
 
+function persistOpenChecklistEdit() {
+  if (!editingChecklistItemId) return;
+  const draft = readChecklistEtapaDraft({
+    name: "demChecklistEditName",
+    descricao: "demChecklistEditDesc",
+    who: "demChecklistEditWho",
+    dateInicio: "demChecklistEditInicio",
+    date: "demChecklistEditFim",
+  });
+  if (!draft.name) return;
+  applyChecklistItemPatch(editingChecklistItemId, draft);
+}
+
+function moveChecklistItem(id, delta) {
+  if (!requireWriteAccess()) return;
+  persistOpenChecklistEdit();
+  const items = normalizeChecklist(editingChecklist);
+  const i = items.findIndex((row) => row.id === id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= items.length) return;
+  const next = items.slice();
+  const [row] = next.splice(i, 1);
+  next.splice(j, 0, row);
+  editingChecklist = next;
+  renderChecklistEditor();
+}
+
+function appendChecklistMoveButtons(actions, it, idx, n, readOnly) {
+  const wrap = document.createElement("div");
+  wrap.className = "checklist-item__move";
+  const up = document.createElement("button");
+  up.type = "button";
+  up.className = "checklist-item__move-up";
+  up.textContent = "↑";
+  up.setAttribute("aria-label", `Mover “${it.name}” para cima`);
+  up.title = idx === 0 ? "Primeira etapa" : "Mover etapa para cima";
+  up.disabled = readOnly || idx === 0;
+  up.addEventListener("click", () => moveChecklistItem(it.id, -1));
+  const down = document.createElement("button");
+  down.type = "button";
+  down.className = "checklist-item__move-down";
+  down.textContent = "↓";
+  down.setAttribute("aria-label", `Mover “${it.name}” para baixo`);
+  down.title = idx === n - 1 ? "Última etapa" : "Mover etapa para baixo";
+  down.disabled = readOnly || idx === n - 1;
+  down.addEventListener("click", () => moveChecklistItem(it.id, 1));
+  wrap.append(up, down);
+  actions.appendChild(wrap);
+}
+
 function saveChecklistItemEdit(id) {
   if (!requireWriteAccess()) return;
   const draft = readChecklistEtapaDraft({
@@ -5724,7 +5775,7 @@ function renderChecklistEditor() {
   if (!list) return;
   const readOnly = isReadOnlyUser();
   list.innerHTML = "";
-  items.forEach((it) => {
+  items.forEach((it, idx) => {
     const editing = !readOnly && editingChecklistItemId === it.id;
     const li = document.createElement("li");
     li.className = "checklist-item" + (it.done ? "" : " is-off") + (editing ? " is-editing" : "");
@@ -5836,6 +5887,7 @@ function renderChecklistEditor() {
         editingChecklistItemId = "";
         renderChecklistEditor();
       });
+      appendChecklistMoveButtons(actions, it, idx, n, readOnly);
       actions.append(save, cancel, rm);
       li.append(box, edit, actions);
     } else {
@@ -5875,6 +5927,7 @@ function renderChecklistEditor() {
         renderChecklistEditor();
         document.getElementById("demChecklistEditName")?.focus();
       });
+      appendChecklistMoveButtons(actions, it, idx, n, readOnly);
       actions.append(editBtn, rm);
       li.append(box, body, actions);
     }

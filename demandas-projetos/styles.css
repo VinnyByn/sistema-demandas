@@ -336,6 +336,12 @@ html[data-theme="light"] .checklist-item__remove:hover:not(:disabled) {
   color: #991b1b;
   background: #fee2e2;
 }
+html[data-theme="light"] .checklist-item__move-up:hover:not(:disabled),
+html[data-theme="light"] .checklist-item__move-down:hover:not(:disabled) {
+  color: #312e81;
+  background: rgba(99, 102, 241, 0.14);
+  border-color: #c7d2fe;
+}
 html[data-theme="light"] .toast--in-modal {
   background: #fffbeb;
   color: #854d0e;
@@ -2374,6 +2380,36 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
   display: flex;
   flex-direction: column;
   gap: 0.28rem;
+}
+.checklist-item__move {
+  display: flex;
+  gap: 0.22rem;
+  justify-content: flex-end;
+}
+.checklist-item__move-up,
+.checklist-item__move-down {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  width: 1.85rem;
+  height: 1.7rem;
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.checklist-item__move-up:hover:not(:disabled),
+.checklist-item__move-down:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.28);
+  color: #fff;
+  border-color: rgba(99, 102, 241, 0.45);
+}
+.checklist-item__move-up:disabled,
+.checklist-item__move-down:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 .checklist-item.is-editing .checklist-item__actions { align-self: start; padding-top: 1.35rem; }
 .checklist-item__edit {
