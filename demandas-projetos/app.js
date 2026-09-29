@@ -3247,7 +3247,7 @@ const HISTORICO_EDICAO_CAMPOS = [
   { campo: "clickup", label: "ClickUp", format: (v) => (v && v.url) || "—" },
   {
     campo: "checklist",
-    label: "Checklist",
+    label: "Checklist das tarefas do projeto",
     format: (v) => {
       const items = normalizeChecklist(v);
       if (!items.length) return "—";
@@ -5622,8 +5622,8 @@ function checklistCardHtml(dm) {
   const d = items.filter((it) => it.done).length;
   if (!n) {
     return (
-      `<div class="card__checklist card__checklist--empty" title="Sem etapas registradas">` +
-      `<span class="card__checklist-frac">Sem Etapas Registradas</span>` +
+      `<div class="card__checklist card__checklist--empty" title="Sem atividades registradas">` +
+      `<span class="card__checklist-frac">Sem Atividades Registradas</span>` +
       `</div>`
     );
   }
@@ -5631,7 +5631,7 @@ function checklistCardHtml(dm) {
     .map((it) => `<span class="card__checklist-dot${it.done ? " is-on" : ""}"></span>`)
     .join("");
   return (
-    `<div class="card__checklist" title="Checklist ${d} de ${n}">` +
+    `<div class="card__checklist" title="Checklist das tarefas do projeto ${d} de ${n}">` +
     `<span class="card__checklist-frac">${d}/${n}</span>` +
     `<span class="card__checklist-dots">${dots}</span>` +
     `</div>`
@@ -5640,8 +5640,8 @@ function checklistCardHtml(dm) {
 
 function checklistNextLabel(items) {
   const pending = items.find((it) => !it.done);
-  if (!items.length) return "Nenhuma etapa ainda";
-  return pending ? `Próximo: ${pending.name}` : "Checklist completo";
+  if (!items.length) return "Nenhuma atividade ainda";
+  return pending ? `Próximo: ${pending.name}` : "Checklist das tarefas do projeto completo";
 }
 
 function renderChecklistDots(el, items) {
@@ -5680,7 +5680,7 @@ function readChecklistEtapaDraft(ids) {
 
 function validateChecklistEtapa(draft, focusId) {
   if (!draft.name || !draft.who || !draft.dateInicio || !draft.date) {
-    toast("Preencha etapa, responsável, previsão de início e término.");
+    toast("Preencha atividade, responsável, previsão de início e término.");
     return false;
   }
   if (draft.dateInicio > draft.date) {
@@ -5732,7 +5732,7 @@ function appendChecklistMoveButtons(actions, it, idx, n, readOnly) {
   up.className = "checklist-item__move-up";
   up.textContent = "↑";
   up.setAttribute("aria-label", `Mover “${it.name}” para cima`);
-  up.title = idx === 0 ? "Primeira etapa" : "Mover etapa para cima";
+  up.title = idx === 0 ? "Primeira atividade" : "Mover atividade para cima";
   up.disabled = readOnly || idx === 0;
   up.addEventListener("click", () => moveChecklistItem(it.id, -1));
   const down = document.createElement("button");
@@ -5740,7 +5740,7 @@ function appendChecklistMoveButtons(actions, it, idx, n, readOnly) {
   down.className = "checklist-item__move-down";
   down.textContent = "↓";
   down.setAttribute("aria-label", `Mover “${it.name}” para baixo`);
-  down.title = idx === n - 1 ? "Última etapa" : "Mover etapa para baixo";
+  down.title = idx === n - 1 ? "Última atividade" : "Mover atividade para baixo";
   down.disabled = readOnly || idx === n - 1;
   down.addEventListener("click", () => moveChecklistItem(it.id, 1));
   wrap.append(up, down);
@@ -5815,8 +5815,8 @@ function renderChecklistEditor() {
     rm.addEventListener("click", async () => {
       if (readOnly) return;
       const ok = await confirmDialog({
-        title: "Remover etapa?",
-        message: `A etapa “${it.name}” será removida do checklist.`,
+        title: "Remover atividade?",
+        message: `A atividade “${it.name}” será removida do checklist das tarefas do projeto.`,
         confirmText: "Remover",
         cancelText: "Voltar",
         variant: "danger",
@@ -5832,7 +5832,7 @@ function renderChecklistEditor() {
       edit.className = "checklist-item__edit";
       const nameField = createChecklistField({
         id: "demChecklistEditName",
-        label: "Etapa",
+        label: "Atividade",
         value: it.name,
         maxLength: 80,
         placeholder: "PDF do levantamento",
@@ -5842,7 +5842,7 @@ function renderChecklistEditor() {
         label: "Descrição",
         value: it.descricao,
         maxLength: 160,
-        placeholder: "O que esta etapa entrega",
+        placeholder: "O que esta atividade entrega",
         multiline: true,
       });
       const whoField = createChecklistField({
@@ -6084,7 +6084,7 @@ function renderChecklistGantt() {
   if (!range) {
     const empty = document.createElement("p");
     empty.className = "muted small checklist-gantt__empty";
-    empty.textContent = "Adicione etapas com início e término para ver o cronograma.";
+    empty.textContent = "Adicione atividades com início e término para ver o cronograma.";
     host.appendChild(empty);
     return;
   }
@@ -6092,7 +6092,7 @@ function renderChecklistGantt() {
   if (!days.length) {
     const empty = document.createElement("p");
     empty.className = "muted small checklist-gantt__empty";
-    empty.textContent = "Adicione etapas com início e término para ver o cronograma.";
+    empty.textContent = "Adicione atividades com início e término para ver o cronograma.";
     host.appendChild(empty);
     return;
   }
@@ -6110,13 +6110,13 @@ function renderChecklistGantt() {
   inner.style.setProperty("--gantt-w", `${chartW}px`);
   inner.style.setProperty("--gantt-col", `${colPx}px`);
   inner.setAttribute("role", "img");
-  inner.setAttribute("aria-label", "Cronograma das etapas do checklist");
+  inner.setAttribute("aria-label", "Cronograma das atividades do checklist das tarefas do projeto");
 
   const head = document.createElement("div");
   head.className = "checklist-gantt__head";
   const headLabel = document.createElement("div");
   headLabel.className = "checklist-gantt__label";
-  headLabel.textContent = "Etapa";
+  headLabel.textContent = "Atividade";
   const axis = document.createElement("div");
   axis.className = "checklist-gantt__axis";
 
@@ -6171,7 +6171,7 @@ function renderChecklistGantt() {
     const label = document.createElement("div");
     label.className = "checklist-gantt__label";
     const name = document.createElement("strong");
-    name.textContent = it.name || "Etapa";
+    name.textContent = it.name || "Atividade";
     const who = document.createElement("span");
     who.textContent = it.who || "—";
     label.append(name, who);

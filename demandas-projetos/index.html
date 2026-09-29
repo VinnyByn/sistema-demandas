@@ -1219,9 +1219,9 @@
         </fieldset>
 
         <fieldset class="fieldset fieldset--segment fieldset--checklist">
-          <legend>Checklist</legend>
-          <p class="muted small">Etapas do projeto. O card da esteira mostra só o avanço. Use <strong>↑</strong> e <strong>↓</strong> para mudar a ordem — vale na lista e no cronograma.</p>
-          <div class="checklist-progress" id="demChecklistProgress" aria-label="Avanço do checklist">
+          <legend>Checklist das tarefas do projeto</legend>
+          <p class="muted small">Atividades do projeto. O card da esteira mostra só o avanço. Use <strong>↑</strong> e <strong>↓</strong> para mudar a ordem — vale na lista e no cronograma.</p>
+          <div class="checklist-progress" id="demChecklistProgress" aria-label="Avanço do checklist das tarefas do projeto">
             <span class="card__checklist-frac" id="demChecklistFrac">0/0</span>
             <span class="card__checklist-dots" id="demChecklistDots" aria-hidden="true"></span>
           </div>
@@ -1250,7 +1250,7 @@
             <ul class="checklist-list" id="demChecklistList"></ul>
             <div class="checklist-add">
               <label class="field">
-                <span>Etapa</span>
+                <span>Atividade</span>
                 <input id="demChecklistEtapa" maxlength="80" placeholder="PDF do levantamento" autocomplete="off" />
               </label>
               <label class="field">
@@ -1267,11 +1267,11 @@
               </label>
               <label class="field field--span">
                 <span>Descrição</span>
-                <textarea id="demChecklistDesc" maxlength="160" rows="2" placeholder="O que esta etapa entrega"></textarea>
+                <textarea id="demChecklistDesc" maxlength="160" rows="2" placeholder="O que esta atividade entrega"></textarea>
               </label>
             </div>
             <div class="checklist-add-actions">
-              <button type="button" class="btn btn--ghost btn--sm btn--add" id="btnChecklistAdd">+ Adicionar etapa</button>
+              <button type="button" class="btn btn--ghost btn--sm btn--add" id="btnChecklistAdd">+ Adicionar atividade</button>
             </div>
           </div>
         </fieldset>
