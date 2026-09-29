@@ -100,6 +100,12 @@ html[data-theme="light"] .dash-group-row td,
 html[data-theme="light"] .timeline-move-up,
 html[data-theme="light"] .timeline-move-down,
 html[data-theme="light"] .hist-edicao__pill { color: #3730a3; }
+html[data-theme="light"] .timeline-move-up:disabled,
+html[data-theme="light"] .timeline-move-down:disabled {
+  color: var(--muted);
+  background: transparent;
+  border-color: var(--border);
+}
 html[data-theme="light"] .dash-fases-list { color: #475569; }
 html[data-theme="light"] .kpi--bad .kpi__value,
 html[data-theme="light"] .dash-pe-num--bad,
@@ -3952,7 +3958,14 @@ html[data-theme="light"] .pdf-file-btn:hover {
 .timeline-move-up:hover:not(:disabled),
 .timeline-move-down:hover:not(:disabled) { background: rgba(99, 102, 241, 0.28); color: #fff; }
 .timeline-move-up:disabled,
-.timeline-move-down:disabled { opacity: 0.35; cursor: not-allowed; }
+.timeline-move-down:disabled {
+  opacity: 0.35;
+  color: var(--muted);
+  background: transparent;
+  border-color: var(--border);
+  cursor: not-allowed;
+  pointer-events: none;
+}
 
 .auto-save-status {
   display: inline-flex;

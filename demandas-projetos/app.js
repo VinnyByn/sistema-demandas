@@ -6375,6 +6375,10 @@ function setDemandaFormReadOnly(readOnly) {
     form.querySelectorAll("input, select, textarea, button").forEach((el) => {
         if (el.id === "modalDemandaClose" || el.id === "btnFecharDemanda" || el.id === "btnEnviarClickup" || el.id === "btnCancelarClickup" || el.id === "btnDemClickupCiente" || el.id === "btnChecklistExpand" || el.id === "btnChecklistGantt") return;
       if (el.closest(".comments-panel__toggle")) return;
+      if (el.classList.contains("timeline-move-up") || el.classList.contains("timeline-move-down") || el.classList.contains("checklist-item__move-up") || el.classList.contains("checklist-item__move-down")) {
+        if (readOnly) el.disabled = true;
+        return;
+      }
       if (el.type === "hidden") return;
       if (readOnly) {
         if (el.tagName === "SELECT" || el.type === "checkbox" || el.type === "radio" || el.type === "file") {
@@ -6523,6 +6527,7 @@ function openDemandaModal(id) {
   setDemandaFormReadOnly(isReadOnlyUser());
   refreshChecklistMoveButtons();
   refreshTimelineMoveButtons();
+  refreshTimelineDeleteButtons();
   renderCidadesExtraList();
   renderProjetistasExtraList();
   syncDemClickupUi();
@@ -6569,24 +6574,27 @@ function refreshTimelineDeleteButtons() {
     const btn = tr.querySelector(".timeline-remove");
     if (btn) {
       btn.disabled = onlyOne;
+      if (btn.disabled) btn.dataset.keepDisabled = "1";
+      else delete btn.dataset.keepDisabled;
       btn.title = onlyOne ? "Deve restar pelo menos uma fase" : "Excluir esta fase do histórico";
     }
   });
 }
 
 function refreshTimelineMoveButtons() {
+  const readOnly = isReadOnlyUser();
   const rows = Array.from(document.querySelectorAll("#demTimelineTable tbody tr"));
   rows.forEach((tr, idx) => {
     const btnUp = tr.querySelector(".timeline-move-up");
     const btnDown = tr.querySelector(".timeline-move-down");
     if (btnUp) {
-      btnUp.disabled = idx === 0;
+      btnUp.disabled = readOnly || idx === 0;
       if (btnUp.disabled) btnUp.dataset.keepDisabled = "1";
       else delete btnUp.dataset.keepDisabled;
       btnUp.title = idx === 0 ? "Primeira fase" : "Mover fase para cima";
     }
     if (btnDown) {
-      btnDown.disabled = idx === rows.length - 1;
+      btnDown.disabled = readOnly || idx === rows.length - 1;
       if (btnDown.disabled) btnDown.dataset.keepDisabled = "1";
       else delete btnDown.dataset.keepDisabled;
       btnDown.title = idx === rows.length - 1 ? "Última fase" : "Mover fase para baixo";
@@ -6595,6 +6603,7 @@ function refreshTimelineMoveButtons() {
 }
 
 function swapTimelineRowUp(tr) {
+  if (isReadOnlyUser() || !requireWriteAccess()) return;
   const tb = tr?.parentElement;
   if (!tb) return;
   const prev = tr.previousElementSibling;
@@ -6606,6 +6615,7 @@ function swapTimelineRowUp(tr) {
 }
 
 function swapTimelineRowDown(tr) {
+  if (isReadOnlyUser() || !requireWriteAccess()) return;
   const tb = tr?.parentElement;
   if (!tb) return;
   const next = tr.nextElementSibling;
