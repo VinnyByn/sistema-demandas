@@ -5037,13 +5037,6 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   if (demandaInicioContagemAberto(dmCard)) {
     stats.push(`<span class="card__stat" title="${diasAbertoTitle}">${CARD_ICONS.relogio}${diasAberto}d</span>`);
   }
-  if (checklist.length) {
-    stats.push(
-      `<span class="card__stat${feitas === checklist.length ? " card__stat--ok" : ""}" title="${escapeHtml(
-        `Tarefas do projeto: ${feitas} de ${checklist.length} — ${checklistNextLabel(checklist)}`,
-      )}">${CARD_ICONS.tarefas}${feitas}/${checklist.length}</span>`,
-    );
-  }
   if (nComent) stats.push(`<span class="card__stat" title="${nComent} comentário(s)">${CARD_ICONS.comentario}${nComent}</span>`);
   if (nImg) stats.push(`<span class="card__stat" title="${nImg} imagem(ns)">${CARD_ICONS.imagem}${nImg}</span>`);
 
@@ -5057,13 +5050,44 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   let solicitante = (d.solicitante || "").trim();
   if (solicitante && dmCard.setorSolicitanteB2b) solicitante += ` (${dmCard.setorSolicitanteB2b})`;
   const pendente = checklist.find((it) => !it.done);
+
+  // Progresso do checklist: um segmento por atividade, colorido pelo status, e a próxima atividade abaixo.
+  let checklistHtml = "";
+  if (checklist.length) {
+    const segs = checklist
+      .map((it) => {
+        const sit = checklistItemSituacao(it);
+        return `<span class="card__ck-seg is-${sit.tom}" title="${escapeHtml(`${it.name} · ${sit.texto}`)}"></span>`;
+      })
+      .join("");
+    const completo = feitas === checklist.length;
+    let proxHtml;
+    if (completo) {
+      proxHtml = `<p class="card__ck-prox is-completo">✓ Todas as atividades concluídas</p>`;
+    } else {
+      const sitProx = checklistItemSituacao(pendente);
+      proxHtml =
+        `<p class="card__ck-prox is-${sitProx.tom}" title="${escapeHtml(`${pendente.name} · ${sitProx.texto}`)}">` +
+        `<span class="card__ck-prox-label">Próx. atividade:</span> ${escapeHtml(pendente.name)}</p>`;
+    }
+    checklistHtml =
+      `<div class="card__ck" aria-label="${escapeHtml(`Tarefas do projeto: ${feitas} de ${checklist.length} concluídas`)}">` +
+      `<div class="card__ck-head"><span class="card__ck-titulo">${CARD_ICONS.tarefas}Tarefas</span>` +
+      `<span class="card__ck-frac${completo ? " is-completo" : ""}">${feitas}/${checklist.length}</span></div>` +
+      `<div class="card__ck-bar">${segs}</div>${proxHtml}</div>`;
+  } else {
+    checklistHtml = `<p class="card__ck-vazio">${CARD_ICONS.tarefas}Sem atividades registradas</p>`;
+  }
+
   const detalhes = [
     solicitante ? cardDetalheRow("Solicitante", solicitante) : "",
     dmCard.dataChegada ? cardDetalheRow("Chegada", formatDataCurta(dmCard.dataChegada)) : "",
-    dmCard.dataFimPrevista ? cardDetalheRow("Prazo previsto", formatDataCurta(dmCard.dataFimPrevista)) : "",
+    dmCard.dataFimPrevista ? cardDetalheRow("Finalização prevista", formatDataCurta(dmCard.dataFimPrevista)) : "",
+    dmCard.dataFimAtualizada
+      ? cardDetalheRow("Finalização atualizada", formatDataCurta(dmCard.dataFimAtualizada))
+      : "",
+    dmCard.dataTermino ? cardDetalheRow("Término", formatDataCurta(dmCard.dataTermino)) : "",
     dmCard.chamadoOcomon ? cardDetalheRow("Ocomon", dmCard.chamadoOcomon) : "",
-    proximaLabel ? cardDetalheRow("Próxima etapa", proximaLabel) : "",
-    pendente ? cardDetalheRow("Próx. atividade", pendente.name) : "",
     respNomes.length > 1 ? cardDetalheRow("Projetistas", respNomes.join(", ")) : "",
   ].join("");
   const detalhesId = `cardDet-${d.id}`;
@@ -5089,6 +5113,7 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
       ${pessoaHtml}
       ${cidadeHtml}
     </div>
+    ${checklistHtml}
     ${detalhesHtml}
     <div class="card__foot">
       <div class="card__stats">${stats.join("")}</div>
