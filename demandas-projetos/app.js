@@ -4846,6 +4846,12 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   }
   el.draggable = !isReadOnlyUser();
   el.dataset.id = d.id;
+  el.tabIndex = 0;
+  el.setAttribute("role", "button");
+  el.setAttribute("aria-label", `Abrir projeto ${d.titulo || ""}`.trim());
+  if (!isReadOnlyUser() && (canMoveUp || canMoveDown)) {
+    el.setAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown");
+  }
   if (isReadOnlyUser()) el.classList.add("card--readonly");
   el.addEventListener("dragstart", (e) => {
     const from = e.target instanceof Element ? e.target : e.target?.parentElement;
@@ -4859,11 +4865,29 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     }
     e.dataTransfer.setData("text/plain", d.id);
     e.dataTransfer.effectAllowed = "move";
+    // Depois do snapshot da imagem de arraste: o card de origem vira "fantasma".
+    setTimeout(() => el.classList.add("card--drag-source"), 0);
   });
+  el.addEventListener("dragend", () => el.classList.remove("card--drag-source"));
   el.addEventListener("click", (e) => {
     const from = e.target instanceof Element ? e.target : e.target?.parentElement;
     if (from?.closest(".card__prio")) return;
     openDemandaModal(d.id);
+  });
+  el.addEventListener("keydown", (e) => {
+    if (e.target !== el) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openDemandaModal(d.id);
+      return;
+    }
+    if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && !isReadOnlyUser()) {
+      e.preventDefault();
+      const dir = e.key === "ArrowUp" ? -1 : 1;
+      if ((dir < 0 && !canMoveUp) || (dir > 0 && !canMoveDown)) return;
+      moveDemandaOrdemEsteira(d.id, dir);
+      focusCardById(d.id);
+    }
   });
 
   const atr = isAtraso(d) ? `<span class="badge badge--atr">Atraso</span>` : "";
@@ -4891,7 +4915,7 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   const editingHtml = cardEditingByHtml(d);
   const respNomes = demandaProjetistasList(d);
   const respAtrib = respNomes.length
-    ? `<span title="${escapeHtml(respNomes.join(" · "))}">${escapeHtml(respNomes.join(" · "))}</span>`
+    ? cardPessoasHtml(respNomes)
     : `<span class="badge badge--pend">${escapeHtml(labelProjetista(d.responsavel))}</span>`;
   const tipo = normalizeTipo(d.tipo);
   const produtoHtml =
@@ -4924,6 +4948,7 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     : "";
   el.innerHTML = `
     ${prioHtml}
+    <span class="card__open" aria-hidden="true" title="Abrir detalhes">↗</span>
     <h3 class="card__title"></h3>
     ${editingHtml}
     ${statusTxtHtml}
@@ -4953,6 +4978,49 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     btn.addEventListener("mousedown", (e) => e.stopPropagation());
   });
   return el;
+}
+
+/** Devolve o foco ao card após um re-render do board (ex.: reordenar pelo teclado). */
+function focusCardById(id) {
+  requestAnimationFrame(() => {
+    const sel = `.card[data-id="${CSS.escape(String(id))}"]`;
+    document.querySelector(sel)?.focus({ preventScroll: false });
+  });
+}
+
+function cardAvatarIniciais(nome) {
+  const partes = String(nome || "").trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return "?";
+  const first = partes[0][0] || "";
+  const last = partes.length > 1 ? partes[partes.length - 1][0] || "" : "";
+  return (first + last).toUpperCase();
+}
+
+/** Matiz estável por nome — o mesmo projetista mantém a mesma cor em todos os cards. */
+function cardAvatarHue(nome) {
+  let h = 0;
+  for (const ch of String(nome || "")) h = (h * 31 + ch.codePointAt(0)) % 360;
+  return h;
+}
+
+function cardPessoasHtml(nomes) {
+  const max = 3;
+  const avatars = nomes
+    .slice(0, max)
+    .map(
+      (n) =>
+        `<span class="card__avatar" style="--avatar-h:${cardAvatarHue(n)}" title="${escapeHtml(n)}">` +
+        `${escapeHtml(cardAvatarIniciais(n))}</span>`,
+    )
+    .join("");
+  const extra = nomes.length > max ? `<span class="card__avatar card__avatar--more">+${nomes.length - max}</span>` : "";
+  const label = nomes.join(" · ");
+  return (
+    `<span class="card__people" title="${escapeHtml(label)}">` +
+    `<span class="card__avatars">${avatars}${extra}</span>` +
+    `<span class="card__people-names">${escapeHtml(label)}</span>` +
+    `</span>`
+  );
 }
 
 function formatCallableError(err, fallback) {
@@ -5628,11 +5696,20 @@ function checklistCardHtml(dm) {
     );
   }
   const dots = items
-    .map((it) => `<span class="card__checklist-dot${it.done ? " is-on" : ""}"></span>`)
+    .map(
+      (it) =>
+        `<span class="card__checklist-dot${it.done ? " is-on" : ""}" title="${escapeHtml(
+          `${it.done ? "✓" : "○"} ${it.name}`,
+        )}"></span>`,
+    )
     .join("");
+  const completo = d === n;
+  const pct = Math.round((d / n) * 100);
   return (
-    `<div class="card__checklist" title="Checklist das tarefas do projeto ${d} de ${n}">` +
-    `<span class="card__checklist-frac">${d}/${n}</span>` +
+    `<div class="card__checklist${completo ? " card__checklist--done" : ""}" title="${escapeHtml(
+      `Tarefas do projeto: ${d} de ${n} (${pct}%) — ${checklistNextLabel(items)}`,
+    )}">` +
+    `<span class="card__checklist-frac">${completo ? "✓ " : ""}${d}/${n}</span>` +
     `<span class="card__checklist-dots">${dots}</span>` +
     `</div>`
   );
