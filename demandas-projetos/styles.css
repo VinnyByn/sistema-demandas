@@ -2431,7 +2431,7 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.checklist-gantt__row.is-off .checklist-gantt__label strong { font-weight: 500; color: var(--muted); }
+
 .checklist-gantt__axis,
 .checklist-gantt__track {
   position: relative;
@@ -2520,6 +2520,100 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 1;
+}
+.checklist-gantt__today-tag {
+  position: absolute;
+  top: 0.15rem;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--danger);
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* Barra de ferramentas: legenda + escala */
+.checklist-gantt__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.checklist-gantt__legenda { display: flex; flex-wrap: wrap; gap: 0.35rem 0.9rem; font-size: 0.74rem; color: var(--muted); }
+.checklist-gantt__leg { display: inline-flex; align-items: center; gap: 0.3rem; }
+.checklist-gantt__leg b { color: var(--text); }
+.checklist-gantt__leg i { width: 0.8rem; height: 0.45rem; border-radius: 99px; background: #94a3b8; }
+.checklist-gantt__leg.is-done i { background: var(--accent2); }
+.checklist-gantt__leg.is-active i { background: var(--accent); }
+.checklist-gantt__leg.is-late i { background: var(--danger); }
+.checklist-gantt__escala {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.checklist-gantt__escala button {
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.22rem 0.6rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.checklist-gantt__escala button:hover { color: var(--text); }
+.checklist-gantt__escala button.is-on { background: var(--accent); color: #fff; }
+/* Fins de semana */
+.checklist-gantt__fds {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(148, 163, 184, 0.07);
+  pointer-events: none;
+}
+/* Linha clicável → edita a atividade */
+.checklist-gantt__row.is-clicavel { cursor: pointer; }
+.checklist-gantt__row.is-clicavel:hover .checklist-gantt__label,
+.checklist-gantt__row.is-clicavel:hover .checklist-gantt__track { box-shadow: inset 0 0 0 999px rgba(59, 130, 246, 0.08); }
+.checklist-gantt__row.is-clicavel:hover .checklist-gantt__label strong { color: var(--accent); }
+.checklist-gantt__row.is-done .checklist-gantt__label strong {
+  text-decoration: line-through;
+  text-decoration-color: rgba(148, 163, 184, 0.6);
+  color: var(--muted);
+}
+.checklist-gantt__row.is-late .checklist-gantt__label span { color: #fca5a5; }
+.checklist-gantt__bar.has-txt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+.checklist-gantt__bar { transition: filter 0.14s ease, transform 0.14s ease; }
+.checklist-gantt__row.is-clicavel:hover .checklist-gantt__bar { filter: brightness(1.12); }
+html[data-theme="light"] .checklist-gantt__row.is-late .checklist-gantt__label span { color: #b91c1c; }
+html[data-theme="light"] .checklist-gantt__fds { background: rgba(15, 23, 42, 0.045); }
+html[data-theme="light"] .checklist-gantt__row { border-top-color: #e2e8f0; }
+html[data-theme="light"] .checklist-gantt__track {
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(var(--gantt-col) - 1px),
+    #eef2f7 calc(var(--gantt-col) - 1px),
+    #eef2f7 var(--gantt-col)
+  );
 }
 .checklist-list {
   list-style: none;
@@ -3032,16 +3126,19 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
 }
 .kpi-grid--split { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
 .kpi {
-  border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 0.85rem 1rem; background: var(--surface);
   min-width: 0; overflow: hidden; container-type: inline-size;
+  transition: border-color 0.15s ease, transform 0.15s ease;
 }
 .kpi__label {
-  font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
+  font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;
   line-height: 1.3; overflow-wrap: anywhere;
 }
+/* Número numa linha só: o tamanho acompanha a largura do cartão em vez de quebrar no meio do valor. */
 .kpi__value {
-  font-size: clamp(0.85rem, 11cqi, 1.65rem); font-weight: 800; margin-top: 0.35rem; line-height: 1.15;
-  max-width: 100%; overflow-wrap: anywhere; word-break: break-word;
+  font-size: clamp(0.85rem, 9cqi, 1.55rem); font-weight: 700; margin-top: 0.3rem; line-height: 1.2;
+  letter-spacing: -0.01em; color: var(--text);
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .kpi__sub {
   margin-top: 0.45rem;
@@ -3051,9 +3148,13 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
-.kpi--ok .kpi__value { color: var(--accent2); }
-.kpi--warn .kpi__value { color: var(--warn); }
+.kpi--ok .kpi__value { color: var(--text); }
+.kpi--vazio .kpi__value { color: var(--muted); font-weight: 600; }
+.kpi--warn { border-color: rgba(245, 158, 11, 0.45); }
+.kpi--warn .kpi__value { color: #fbbf24; }
+.kpi--bad { border-color: rgba(239, 68, 68, 0.5); background: color-mix(in srgb, var(--danger) 7%, var(--surface)); }
 .kpi--bad .kpi__value { color: #fca5a5; }
+.kpi--bad .kpi__label::before { content: "⚠ "; color: #f87171; }
 .kpi--click {
   appearance: none;
   display: block;
@@ -3348,7 +3449,8 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
 .dash-tempo-hint { padding: 1.25rem; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius); background: var(--surface); }
 .dash-tempo-intro {
   display: grid;
-  grid-template-columns: minmax(320px, 1.15fr) minmax(0, 1fr);
+  /* Empilhado: a tabela de etapas precisa da largura toda para mostrar as 5 colunas. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem 1.5rem;
   align-items: start;
   margin-bottom: 1rem;
@@ -3374,6 +3476,10 @@ html[data-theme="light"] .checklist-toggle--gantt[aria-expanded="true"] {
 #dashB2cMetricSegmentoTable { margin: 0.75rem 0 1.25rem; }
 #dashB2cSegmentoCharts { margin-top: 0.35rem; margin-bottom: 0.85rem; }
 #kpiB2cSegmentos { margin-bottom: 0.35rem; }
+/* Resumo por etapa: cabe na coluna (sem largura mínima de 720px) e rola se precisar */
+.dash-table--fase-resumo { min-width: 0; font-size: 0.82rem; }
+.dash-table--fase-resumo th, .dash-table--fase-resumo td { padding: 0.5rem 0.5rem; }
+.dash-tempo-intro__map { overflow-x: auto; }
 .dash-table--fase-resumo td:nth-child(3),
 .dash-table--fase-resumo td:nth-child(4),
 .dash-table--fase-resumo td:nth-child(5) {
@@ -4684,4 +4790,100 @@ html[data-theme="light"] .checklist-item:hover { box-shadow: 0 2px 10px rgba(15,
   .checklist-item.is-just-done,
   .checklist-item.is-just-done .checklist-check i,
   .ck-nova { animation: none; transition: none; }
+}
+
+/* ---------- Dashboard: tabela "Por tipo" ---------- */
+#kpiGeralPorTipo { padding-top: 0.25rem; }
+.dash-tipos-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.dash-tipos { min-width: 880px; font-size: 0.8rem; }
+.dash-tipos th, .dash-tipos td { vertical-align: middle; white-space: nowrap; padding: 0.5rem 0.55rem; }
+.dash-tipos thead th { font-size: 0.68rem; }
+.dash-tipos thead th { position: sticky; top: 0; }
+.dash-tipos .num { text-align: right; font-variant-numeric: tabular-nums; }
+.dash-tipos tbody th, .dash-tipos tfoot th { font-weight: 700; color: var(--text); background: none; text-transform: none; letter-spacing: 0; font-size: 0.86rem; }
+.dash-tipos tbody tr { transition: background-color 0.12s ease; }
+.dash-tipos tbody tr:hover { background: rgba(59, 130, 246, 0.07); }
+.dash-tipos td.is-vazio { color: var(--muted); }
+.dash-tipos__nome { display: inline-flex; align-items: center; gap: 0.5rem; }
+.dash-tipos__nome i { width: 0.6rem; height: 0.6rem; border-radius: 3px; flex-shrink: 0; }
+.dash-tipos__n {
+  display: inline-block;
+  min-width: 1.4rem;
+  padding: 0 0.35rem;
+  margin-right: 0.25rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.15);
+}
+.dash-tipos__pct { display: inline-flex; align-items: center; gap: 0.5rem; justify-content: flex-end; }
+.dash-tipos__pct-bar {
+  --pct: 0%;
+  width: 2.5rem;
+  height: 6px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #22c55e var(--pct), rgba(148, 163, 184, 0.22) var(--pct));
+}
+.dash-tipos tfoot td, .dash-tipos tfoot th { border-top: 2px solid var(--border); border-bottom: none; font-weight: 700; background: var(--surface2); }
+.dash-tipos__nota { margin: 0.5rem 0 0; }
+html[data-theme="light"] .kpi--vazio .kpi__value { color: #64748b; }
+html[data-theme="light"] .kpi--warn .kpi__value { color: #b45309; }
+html[data-theme="light"] .kpi--bad { background: #fef2f2; }
+html[data-theme="light"] .kpi--bad .kpi__label::before { color: #dc2626; }
+.dash-blocos-acoes { display: inline-flex; gap: 0.35rem; margin-left: auto; align-self: flex-end; margin-bottom: 0.1rem; }
+/* Tabelas cruzadas como mapa de calor */
+.dash-pj-matrix__num.is-heat {
+  background: rgba(57, 135, 229, var(--heat, 0.15));
+  font-weight: 700;
+  color: var(--text);
+}
+html[data-theme="light"] .dash-pj-matrix__num.is-heat { background: rgba(42, 120, 214, calc(var(--heat, 0.15) * 0.75)); }
+
+/* ---------- Dashboard: resumo nos blocos, valor por fase ---------- */
+.dash-block__toggle { gap: 0.75rem; }
+.dash-block__toggle > span:first-child { flex: 0 1 auto; }
+.dash-block__resumo {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.kpi-grid--6 { grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); }
+.kpi-grid--3 { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
+.kpi__dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 3px;
+  margin-right: 0.4rem;
+  background: var(--fase, var(--accent));
+  vertical-align: 0.02rem;
+}
+.kpi--fase { border-top: 3px solid var(--fase); }
+.dash-fases-barra {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  margin: 0.75rem 0 0.35rem;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.dash-fases-barra span { background: var(--fase); min-width: 4px; }
+.dash-fases-total { margin: 0; }
+@media (max-width: 640px) {
+  .dash-block__resumo { display: none; }
+}
+.kpi__value-extra {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0;
 }

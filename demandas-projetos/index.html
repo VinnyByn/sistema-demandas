@@ -303,6 +303,10 @@
             <button type="button" class="btn btn--ghost btn--sm" id="btnDashPeriodoLimpar" title="Remover filtro de datas">
               Todo o período
             </button>
+            <div class="dash-blocos-acoes" role="group" aria-label="Blocos do dashboard">
+              <button type="button" class="btn btn--ghost btn--sm" id="btnDashExpandirTudo" title="Abrir todos os blocos">Expandir tudo</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnDashRecolherTudo" title="Fechar todos os blocos">Recolher tudo</button>
+            </div>
             <p class="muted small" id="dashValoresFinanceirosHint"></p>
           </div>
         </div>
@@ -312,22 +316,106 @@
             <span class="dash-block__chevron" aria-hidden="true"></span>
           </button>
           <div class="dash-block__body" id="dashBlockKpiGeral">
-            <p class="muted small dash-block__hint">Esteira Projetos (sem B2B). A base é a coluna <strong>Conclusão</strong>: quantidade, valor, portas, metragem e médias usam só os projetos nessa coluna. % de conclusão = concluídos ÷ total cadastrados.</p>
-            <h3 class="dash-subhead">Resumo dos concluídos</h3>
-            <div class="kpi-grid" id="kpiGeralBaseConclusao"></div>
-            <h3 class="dash-subhead">Na esteira</h3>
-            <div class="kpi-grid" id="kpiGeral"></div>
-            <h3 class="dash-subhead">Valores por fase (referência)</h3>
-            <div class="kpi-grid" id="dashValoresFinanceirosKpis"></div>
+            <p class="muted small dash-block__hint">Esteira Projetos (sem B2B). Portas novas, médias e o “Por tipo” usam a coluna <strong>Conclusão</strong>; o valor total segue a <strong>base de indicadores</strong> escolhida no topo. % de conclusão = concluídos ÷ total cadastrados.</p>
+            <h3 class="dash-subhead">Visão geral</h3>
+            <div class="kpi-grid kpi-grid--6" id="kpiGeralBaseConclusao"></div>
+            <h3 class="dash-subhead">Valor por fase</h3>
+            <div id="dashValoresFinanceirosKpis"></div>
+            <h3 class="dash-subhead">Pede atenção</h3>
+            <div class="kpi-grid kpi-grid--3" id="kpiGeral"></div>
             <div class="dash-sub-block" data-dash-sub-block="kpi-geral-por-tipo">
               <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockKpiGeralPorTipo">
                 <span>Por tipo</span>
                 <span class="dash-sub-block__chevron" aria-hidden="true"></span>
               </button>
               <div class="dash-sub-block__body" id="dashSubBlockKpiGeralPorTipo">
-                <div class="kpi-grid kpi-grid--split" id="kpiGeralPorTipo"></div>
+                <div id="kpiGeralPorTipo"></div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section class="dash-block" data-dash-block="tempo">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockTempo">
+            <span>Tempo na esteira por setor</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockTempo">
+        <p class="muted small dash-block__hint">Cada <strong>coluna da esteira</strong> pertence a um <strong>setor</strong>. <strong>Execução Regional</strong> → Operação; <strong>Execução Terceirizada</strong> → Terceirizada; <strong>IP e Serviços</strong> e <strong>Transmissão e Infra</strong> com setores homônimos. O tempo considera as etapas operacionais (até <strong>Documentação</strong>) — <strong>sem</strong> Conclusão, Pausado ou Reprovado. Em <strong>Projetista</strong>, escolha <strong>Todos os projetistas</strong> para a visão geral.</p>
+        <div class="dash-tempo-intro">
+          <div class="dash-tempo-intro__map">
+            <h4 class="dash-tempo-intro__title">Resumo por etapa</h4>
+            <p class="muted small dash-tempo-resumo-hint">Tempo acumulado, % do total e média de dias em cada coluna da esteira.</p>
+            <div class="dashboard-table-wrap">
+              <table class="dash-table dash-table--fase-resumo" aria-label="Tempo por etapa da esteira">
+                <thead><tr><th>Etapa</th><th>Setor</th><th>Tempo acumulado</th><th>% do total</th><th>Média de dias</th></tr></thead>
+                <tbody id="dashTempoSetorMapBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="dash-tempo-intro__resumo">
+            <h4 class="dash-tempo-intro__title">Resumo por setor</h4>
+            <p class="muted small dash-tempo-resumo-hint" id="dashTempoResumoHint">Tempo acumulado de todos os projetos na esteira operacional.</p>
+            <div class="dash-tempo-resumo-body">
+              <div class="dashboard-table-wrap" id="dashTempoSetorResumoTable"></div>
+              <div class="chart-card chart-card--resumo-setor">
+                <p class="muted small chart-card__sub">Barras = média de dias por setor.</p>
+                <div class="chart-wrap chart-wrap--resumo-setor"><canvas id="chartTempoSetorResumo" aria-label="Gráfico de tempo por setor"></canvas></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dash-tempo-toolbar">
+          <label class="field field--inline">
+            <span>Buscar projeto</span>
+            <input type="search" id="filterDashTempoBusca" placeholder="Nome, cidade ou solicitante…" />
+          </label>
+          <label class="field field--inline">
+            <span>Projetista</span>
+            <select id="filterDashTempoResp">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Status</span>
+            <select id="filterDashTempoStatus">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Ano</span>
+            <select id="filterDashTempoAno">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Mês</span>
+            <select id="filterDashTempoMes">
+              <option value="">Selecione…</option>
+            </select>
+          </label>
+        </div>
+        <p class="muted small" id="dashTempoCount"></p>
+        <div id="dashTempoCharts" class="dash-tempo-charts" hidden>
+          <div class="kpi-grid" id="dashTempoKpis"></div>
+          <div class="dashboard-charts dashboard-charts--tempo">
+            <div class="chart-card chart-card--wide">
+              <h4>Tempo médio por etapa (dias)</h4>
+              <p class="muted small chart-card__sub">Barras coloridas pelo setor responsável.</p>
+              <div class="chart-wrap chart-wrap--tempo-fase"><canvas id="chartTempoFase"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h4>Distribuição por setor</h4>
+              <p class="muted small chart-card__sub">Soma do tempo de todas as etapas do filtro.</p>
+              <div class="chart-wrap"><canvas id="chartTempoSetor"></canvas></div>
+            </div>
+            <div class="chart-card chart-card--wide">
+              <h4>Tempo por setor — top projetos</h4>
+              <p class="muted small chart-card__sub">Até 10 projetos com maior tempo total no filtro.</p>
+              <div class="chart-wrap chart-wrap--tall"><canvas id="chartTempoSetorStack"></canvas></div>
+            </div>
+          </div>
+        </div>
           </div>
         </section>
 
@@ -487,90 +575,6 @@
           </div>
         </section>
 
-        <section class="dash-block" data-dash-block="tempo">
-          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockTempo">
-            <span>Tempo na esteira por setor</span>
-            <span class="dash-block__chevron" aria-hidden="true"></span>
-          </button>
-          <div class="dash-block__body" id="dashBlockTempo">
-        <p class="muted small dash-block__hint">Cada <strong>coluna da esteira</strong> pertence a um <strong>setor</strong>. <strong>Execução Regional</strong> → Operação; <strong>Execução Terceirizada</strong> → Terceirizada; <strong>IP e Serviços</strong> e <strong>Transmissão e Infra</strong> com setores homônimos. O tempo considera as etapas operacionais (até <strong>Documentação</strong>) — <strong>sem</strong> Conclusão, Pausado ou Reprovado. Em <strong>Projetista</strong>, escolha <strong>Todos os projetistas</strong> para a visão geral.</p>
-        <div class="dash-tempo-intro">
-          <div class="dash-tempo-intro__map">
-            <h4 class="dash-tempo-intro__title">Resumo por etapa</h4>
-            <p class="muted small dash-tempo-resumo-hint">Tempo acumulado, % do total e média de dias em cada coluna da esteira.</p>
-            <div class="dashboard-table-wrap">
-              <table class="dash-table dash-table--fase-resumo" aria-label="Tempo por etapa da esteira">
-                <thead><tr><th>Etapa</th><th>Setor</th><th>Tempo acumulado</th><th>% do total</th><th>Média de dias</th></tr></thead>
-                <tbody id="dashTempoSetorMapBody"></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="dash-tempo-intro__resumo">
-            <h4 class="dash-tempo-intro__title">Resumo por setor</h4>
-            <p class="muted small dash-tempo-resumo-hint" id="dashTempoResumoHint">Tempo acumulado de todos os projetos na esteira operacional.</p>
-            <div class="dash-tempo-resumo-body">
-              <div class="dashboard-table-wrap" id="dashTempoSetorResumoTable"></div>
-              <div class="chart-card chart-card--resumo-setor">
-                <p class="muted small chart-card__sub">Barras = média de dias por setor.</p>
-                <div class="chart-wrap chart-wrap--resumo-setor"><canvas id="chartTempoSetorResumo" aria-label="Gráfico de tempo por setor"></canvas></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="dash-tempo-toolbar">
-          <label class="field field--inline">
-            <span>Buscar projeto</span>
-            <input type="search" id="filterDashTempoBusca" placeholder="Nome, cidade ou solicitante…" />
-          </label>
-          <label class="field field--inline">
-            <span>Projetista</span>
-            <select id="filterDashTempoResp">
-              <option value="">Selecione…</option>
-            </select>
-          </label>
-          <label class="field field--inline">
-            <span>Status</span>
-            <select id="filterDashTempoStatus">
-              <option value="">Selecione…</option>
-            </select>
-          </label>
-          <label class="field field--inline">
-            <span>Ano</span>
-            <select id="filterDashTempoAno">
-              <option value="">Selecione…</option>
-            </select>
-          </label>
-          <label class="field field--inline">
-            <span>Mês</span>
-            <select id="filterDashTempoMes">
-              <option value="">Selecione…</option>
-            </select>
-          </label>
-        </div>
-        <p class="muted small" id="dashTempoCount"></p>
-        <div id="dashTempoCharts" class="dash-tempo-charts" hidden>
-          <div class="kpi-grid" id="dashTempoKpis"></div>
-          <div class="dashboard-charts dashboard-charts--tempo">
-            <div class="chart-card chart-card--wide">
-              <h4>Tempo médio por etapa (dias)</h4>
-              <p class="muted small chart-card__sub">Barras coloridas pelo setor responsável.</p>
-              <div class="chart-wrap chart-wrap--tempo-fase"><canvas id="chartTempoFase"></canvas></div>
-            </div>
-            <div class="chart-card">
-              <h4>Distribuição por setor</h4>
-              <p class="muted small chart-card__sub">Soma do tempo de todas as etapas do filtro.</p>
-              <div class="chart-wrap"><canvas id="chartTempoSetor"></canvas></div>
-            </div>
-            <div class="chart-card chart-card--wide">
-              <h4>Tempo por setor — top projetos</h4>
-              <p class="muted small chart-card__sub">Até 10 projetos com maior tempo total no filtro.</p>
-              <div class="chart-wrap chart-wrap--tall"><canvas id="chartTempoSetorStack"></canvas></div>
-            </div>
-          </div>
-        </div>
-          </div>
-        </section>
-
         <section class="dash-block" data-dash-block="indicadores-b2c">
           <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockIndicadoresB2c">
             <span>Indicadores B2C</span>
@@ -700,17 +704,19 @@
 
             <div class="dash-sub-block" data-dash-sub-block="b2b-graficos">
               <button type="button" class="dash-sub-block__toggle" aria-expanded="true" aria-controls="dashSubBlockB2bGraficos">
-                <span>Produto e status</span>
+                <span>Produtos e etapas</span>
                 <span class="dash-sub-block__chevron" aria-hidden="true"></span>
               </button>
               <div class="dash-sub-block__body" id="dashSubBlockB2bGraficos">
                 <div class="dashboard-charts dashboard-charts--cols2">
                   <div class="chart-card">
-                    <h4>Produto B2B</h4>
+                    <h4>Produtos B2B</h4>
+                    <p class="muted small chart-card__sub">Projetos por produto. Passe o mouse para ver a % e o valor.</p>
                     <div class="chart-wrap"><canvas id="chartB2bProduto"></canvas></div>
                   </div>
                   <div class="chart-card">
-                    <h4>Status B2B</h4>
+                    <h4>Funil da esteira B2B</h4>
+                    <p class="muted small chart-card__sub">Projetos em cada etapa, na ordem do fluxo. Pausados em cinza.</p>
                     <div class="chart-wrap"><canvas id="chartB2bStatus"></canvas></div>
                   </div>
                 </div>
@@ -737,8 +743,7 @@
                   </div>
                   <div class="chart-card chart-card--wide">
                     <h4>Principais cidades por solicitante</h4>
-                    <p class="muted small chart-card__sub">Até 10 cidades com mais projetos — empilhado por solicitante comercial.</p>
-                    <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bSolicitanteCidade"></canvas></div>
+                    <p class="muted small chart-card__sub">Até 10 cidades com mais projetos. Quanto mais forte o fundo, mais projetos.</p>
                     <div class="dashboard-table-wrap" id="dashB2bSolicitanteCidadeTable"></div>
                   </div>
                 </div>
@@ -863,6 +868,7 @@
             </div>
           </div>
         </section>
+
       </section>
     </main>
     </div>
