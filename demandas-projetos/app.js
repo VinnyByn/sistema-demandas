@@ -7055,6 +7055,300 @@ function expandirTodasSecoes() {
   for (const sec of DEM_SECOES) setSecaoColapsada(sec, false, { persistir: false });
 }
 
+/* ---------- Seções do modal: modo leitura (resumo visual) + edição sob demanda ---------- */
+/** Seções com leitura/edição (checklist e tempo na esteira já têm interação própria). */
+const DEM_SECOES_LEITURA = ["chegada", "atribuicao", "esteira", "atraso", "custo", "referencias"];
+
+function lvVal(id) {
+  return (document.getElementById(id)?.value || "").trim();
+}
+
+function lvOptTxt(id) {
+  const sel = document.getElementById(id);
+  return sel && sel.value ? (sel.selectedOptions[0]?.textContent || "").trim() : "";
+}
+
+function lvPar(label, valorHtml, extra = "") {
+  return (
+    `<div class="seg-lv${extra}"><span class="seg-lv__label">${escapeHtml(label)}</span>` +
+    `<span class="seg-lv__valor">${valorHtml}</span></div>`
+  );
+}
+
+function lvVazio(txt = "—") {
+  return `<span class="seg-lv__vazio">${escapeHtml(txt)}</span>`;
+}
+
+function lvData(iso, { relativo = false } = {}) {
+  if (!iso) return lvVazio();
+  const txt = escapeHtml(formatDataCurta(iso));
+  if (!relativo) return txt;
+  const dias = diasEntreDatasISO(iso, todayISODate());
+  const rel = dias === 0 ? "hoje" : dias === 1 ? "há 1 dia" : `há ${dias} dias`;
+  return `${txt} <span class="seg-lv__sub">${rel}</span>`;
+}
+
+function lvPessoa(nome) {
+  return (
+    `<span class="seg-lv__pessoa"><span class="ck-avatar" style="--avatar-h:${cardAvatarHue(nome)}" aria-hidden="true">` +
+    `${escapeHtml(cardAvatarIniciais(nome))}</span>${escapeHtml(nome)}</span>`
+  );
+}
+
+function lvMoney(id) {
+  const v = lvVal(id);
+  return v ? `R$ ${escapeHtml(v)}` : "";
+}
+
+function demSecaoLeituraHtml(key) {
+  switch (key) {
+    case "chegada": {
+      const tipo = normalizeTipo(lvVal("demTipo"));
+      const extraTipo = tipo === "B2B" ? lvOptTxt("demProdutoB2b") : tipo === "B2C" ? lvOptTxt("demSegmentoB2c") : "";
+      const desc = lvVal("demDescricao");
+      return (
+        `<div class="seg-lv-hero"><p class="seg-lv-hero__titulo">${escapeHtml(lvVal("demTitulo")) || lvVazio("Sem nome")}</p>` +
+        `<div class="seg-lv-hero__tags"><span class="badge ${tipoBadgeClass(tipo)}">${escapeHtml(tipo)}</span>` +
+        (extraTipo ? `<span class="badge badge--segmento-b2c">${escapeHtml(extraTipo)}</span>` : "") +
+        `</div></div>` +
+        `<div class="seg-lv-grid">${lvPar("Chegada", lvData(lvVal("demDataChegada"), { relativo: true }))}</div>` +
+        `<div class="seg-lv-texto">${desc ? escapeHtml(desc) : lvVazio("Sem descrição")}</div>`
+      );
+    }
+    case "atribuicao": {
+      const resp = normalizeResponsavel(lvVal("demResponsavel"));
+      const extras = editingProjetistasExtra || [];
+      const pessoas = resp
+        ? [resp, ...extras].map(lvPessoa).join("")
+        : `<span class="badge badge--pend">Não atribuído</span>`;
+      const cidade = lvOptTxt("demCidade");
+      const regional = lvOptTxt("demRegional");
+      const cidadesExtra = readCidadesExtraFromForm();
+      const local =
+        (regional || cidade
+          ? `${escapeHtml([regional, cidade].filter(Boolean).join(" · "))}`
+          : lvVazio()) +
+        (cidadesExtra.length
+          ? `<span class="seg-lv__chips">${cidadesExtra.map((c) => `<span class="seg-lv__chip">+ ${escapeHtml(c)}</span>`).join("")}</span>`
+          : "");
+      const sol = readSolicitanteFromForm();
+      const setor = readSetorSolicitanteB2bFromForm();
+      return (
+        `<div class="seg-lv-grid seg-lv-grid--2">` +
+        lvPar(extras.length ? "Projetistas" : "Projetista", `<span class="seg-lv__pessoas">${pessoas}</span>`) +
+        lvPar("Local", local) +
+        lvPar("Solicitante", sol ? `${escapeHtml(sol)}${setor ? ` <span class="seg-lv__sub">${escapeHtml(setor)}</span>` : ""}` : lvVazio()) +
+        `</div>`
+      );
+    }
+    case "esteira": {
+      const prev = demandaPreviewFromForm();
+      const prazo = cardPrazoInfo(prev);
+      const statusAtual = lvVal("demStatusAtual");
+      const dias = demandaInicioContagemAberto(prev) ? formatDiasAbertoLabel(demandaDiasAberto(prev)) : "";
+      const prazoHtml = prazo
+        ? `<div class="card__prazo card__prazo--${prazo.tom} seg-lv-prazo"><div class="card__prazo-bar"><span style="width:${prazo.pct}%"></span></div>` +
+          `<p class="card__prazo-txt">${escapeHtml(prazo.texto)}</p></div>`
+        : `<p class="seg-lv__vazio seg-lv-prazo">Sem finalização prevista</p>`;
+      return (
+        `<div class="seg-lv-hero seg-lv-hero--linha"><span class="seg-lv-etapa">${escapeHtml(
+          labelStatus(lvVal("demStatus"), editingLinhaEsteira),
+        )}</span>` +
+        `<p class="seg-lv-status">${statusAtual ? escapeHtml(statusAtual) : lvVazio("Sem status atual")}</p></div>` +
+        prazoHtml +
+        `<div class="seg-lv-grid">` +
+        lvPar("Chegada", lvData(prev.dataChegada)) +
+        lvPar("Finalização prevista", lvData(lvVal("demDataFimPrevista"))) +
+        (lvVal("demDataFimAtualizada") ? lvPar("Finalização atualizada", lvData(lvVal("demDataFimAtualizada"))) : "") +
+        (lvVal("demDataTermino") ? lvPar("Término", lvData(lvVal("demDataTermino"))) : "") +
+        (dias ? lvPar("Dias aberto", escapeHtml(dias)) : "") +
+        `</div>`
+      );
+    }
+    case "atraso": {
+      const itens = readMotivosAtrasoFromDom({ forSave: true });
+      const totalDias = demandaDiasAtraso(demandaPreviewFromForm());
+      if (!itens.length) return `<p class="seg-lv__vazio">Nenhum motivo registrado — clique para informar.</p>`;
+      return (
+        `<ul class="seg-lv-lista">${itens
+          .map(
+            (it) =>
+              `<li><span>${escapeHtml(it.motivo || "Sem descrição")}</span>${
+                it.dias !== "" ? `<b>${escapeHtml(formatDiasAtrasoLabel(it.dias))}</b>` : ""
+              }</li>`,
+          )
+          .join("")}</ul>` +
+        (totalDias > 0 ? `<p class="seg-lv__sub">Atraso total: <strong>${escapeHtml(formatDiasAtrasoLabel(totalDias))}</strong></p>` : "")
+      );
+    }
+    case "custo": {
+      const exec = lvVal("custoExecucao");
+      const execHtml =
+        exec && exec !== "Não se aplica"
+          ? lvPar(
+              "Execução",
+              escapeHtml(exec) +
+                [lvMoney("custoExecucaoRegional") && `Regional ${lvMoney("custoExecucaoRegional")}`, lvMoney("custoExecucaoTerceirizada") && `Terceirizada ${lvMoney("custoExecucaoTerceirizada")}`]
+                  .filter(Boolean)
+                  .map((t) => ` <span class="seg-lv__sub">${t}</span>`)
+                  .join(""),
+            )
+          : "";
+      if (lvVal("demTemLevantamento") !== "sim") {
+        return `<p class="seg-lv__vazio">Sem levantamento de custo (não se aplica).</p>` + (execHtml ? `<div class="seg-lv-grid">${execHtml}</div>` : "");
+      }
+      const final = lvMoney("custoValorFinal");
+      let html =
+        `<div class="seg-lv-valores">` +
+        `<div><span class="seg-lv__label">Valor do projeto</span><strong>${lvMoney("custoValorProjeto") || "—"}</strong></div>` +
+        `<div><span class="seg-lv__label">+ 5%</span><strong>${lvMoney("custoValor5") || "—"}</strong></div>` +
+        `<div class="is-destaque"><span class="seg-lv__label">Valor final</span><strong>${final || "—"}</strong></div>` +
+        `</div>`;
+      const pares = [];
+      if (lvVal("demTemPortas") === "sim") {
+        const atual = lvVal("custoPenetracaoAtual");
+        const nova = lvVal("custoNovaPenetracao");
+        pares.push(lvPar("Casas", escapeHtml(lvVal("custoQtdCasas") || "—")));
+        pares.push(lvPar("Portas", `${escapeHtml(lvVal("custoQtdPortasAtual") || "0")} existentes <span class="seg-lv__sub">+ ${escapeHtml(lvVal("custoQtdNovasPortas") || "0")} novas</span>`));
+        if (atual || nova) pares.push(lvPar("Penetração", `${escapeHtml(atual || "—")} → <strong>${escapeHtml(nova || "—")}</strong>`));
+        if (lvVal("custoValorPorPortaNova")) pares.push(lvPar("Valor por porta nova", lvMoney("custoValorPorPortaNova")));
+      }
+      if (lvVal("demTemLancamento") === "sim") {
+        const cabos = (editingLancamentoCabos || []).filter((c) => c.metragem !== "" && c.metragem != null);
+        pares.push(
+          lvPar(
+            "Lançamento",
+            `${escapeHtml(lvVal("custoTotalMetragem") || "0")} m` +
+              (cabos.length
+                ? `<span class="seg-lv__chips">${cabos
+                    .map((c) => `<span class="seg-lv__chip">${escapeHtml(c.tipo)}: ${escapeHtml(String(c.metragem))} m</span>`)
+                    .join("")}</span>`
+                : ""),
+          ),
+        );
+      }
+      if (execHtml) pares.push(execHtml);
+      if (editingPdfLevantamento?.name) {
+        pares.push(
+          lvPar(
+            "PDF",
+            editingPdfLevantamento.dataUrl
+              ? `<a href="${editingPdfLevantamento.dataUrl}" download="${escapeHtml(editingPdfLevantamento.name)}" target="_blank" rel="noopener" class="seg-lv__link" data-lv-acao="1">${escapeHtml(editingPdfLevantamento.name)}</a>`
+              : escapeHtml(editingPdfLevantamento.name),
+          ),
+        );
+      }
+      if (pares.length) html += `<div class="seg-lv-grid seg-lv-grid--2">${pares.join("")}</div>`;
+      return html;
+    }
+    case "referencias": {
+      const link = document.getElementById("demClickupLink");
+      const hint = (document.getElementById("demClickupHint")?.textContent || "").trim();
+      const podeEnviar = !document.getElementById("btnEnviarClickup")?.hidden;
+      let clickup = "";
+      if (link && !link.hidden && link.getAttribute("href")) {
+        clickup =
+          `${escapeHtml(hint || "Tarefa criada")} ` +
+          `<a class="seg-lv__link" href="${escapeHtml(link.getAttribute("href"))}" target="_blank" rel="noopener" data-lv-acao="1">Abrir no ClickUp ↗</a>`;
+      } else if (podeEnviar) {
+        clickup = `<button type="button" class="btn btn--primary btn--sm" data-lv-clickup="1" data-lv-acao="1">Enviar à Operação</button>`;
+      } else {
+        clickup = hint ? escapeHtml(hint) : lvVazio("Não enviada");
+      }
+      return (
+        `<div class="seg-lv-grid">` +
+        lvPar("Chamado Ocomon", lvVal("demChamadoOcomon") ? `<span class="seg-lv__codigo">${escapeHtml(lvVal("demChamadoOcomon"))}</span>` : lvVazio()) +
+        lvPar("O.S. Aniel", lvVal("demOsAniel") ? `<span class="seg-lv__codigo">${escapeHtml(lvVal("demOsAniel"))}</span>` : lvVazio()) +
+        lvPar("ClickUp (Operação)", clickup) +
+        `</div>`
+      );
+    }
+    default:
+      return "";
+  }
+}
+
+/** Campos obrigatórios vazios fazem a seção abrir direto em edição. */
+function demSecaoTemPendencia(key) {
+  if (key === "chegada") return !lvVal("demTitulo") || !lvVal("demDescricao") || !lvVal("demDataChegada");
+  if (key === "atribuicao") return !lvVal("demCidade");
+  if (key === "esteira") return !lvVal("demStatusAtual");
+  if (key === "atraso") return !readMotivosAtrasoFromDom({ forSave: true }).length;
+  return false;
+}
+
+function renderDemSecaoLeitura(sec) {
+  const fs = demSecaoEl(sec);
+  const box = fs?.querySelector(":scope > .seg-leitura");
+  if (!box) return;
+  const podeEditar = !isReadOnlyUser();
+  box.innerHTML =
+    (podeEditar ? `<button type="button" class="seg-leitura__editar" data-ui-nav="1" data-lv-acao="1">✎ Editar</button>` : "") +
+    demSecaoLeituraHtml(sec.key);
+}
+
+function setDemSecaoModo(sec, modo) {
+  const fs = demSecaoEl(sec);
+  if (!fs) return;
+  const leitura = modo === "leitura";
+  if (leitura) renderDemSecaoLeitura(sec);
+  fs.classList.toggle("is-leitura", leitura);
+  fs.classList.toggle("is-editando", !leitura && fs.dataset.lvExistente === "1");
+}
+
+/** Ao abrir o modal: projeto existente começa em leitura; novo (ou com pendência) em edição. */
+function iniciarModosSecoesDemanda(existente) {
+  for (const sec of DEM_SECOES) {
+    if (!DEM_SECOES_LEITURA.includes(sec.key)) continue;
+    const fs = demSecaoEl(sec);
+    if (!fs) continue;
+    fs.dataset.lvExistente = existente ? "1" : "";
+    const leitura = existente && (isReadOnlyUser() || !demSecaoTemPendencia(sec.key));
+    setDemSecaoModo(sec, leitura ? "leitura" : "edicao");
+  }
+}
+
+function secoesParaEdicao() {
+  for (const sec of DEM_SECOES) {
+    if (DEM_SECOES_LEITURA.includes(sec.key) && demSecaoEl(sec)?.classList.contains("is-leitura")) {
+      setDemSecaoModo(sec, "edicao");
+    }
+  }
+}
+
+function initDemSecoesLeitura() {
+  for (const sec of DEM_SECOES) {
+    if (!DEM_SECOES_LEITURA.includes(sec.key)) continue;
+    const fs = demSecaoEl(sec);
+    if (!fs || fs.querySelector(":scope > .seg-leitura")) continue;
+    const box = document.createElement("div");
+    box.className = "seg-leitura";
+    box.title = "Clique para editar";
+    fs.querySelector(":scope > legend")?.after(box);
+    box.addEventListener("click", (e) => {
+      const alvo = e.target instanceof Element ? e.target : null;
+      if (alvo?.closest("[data-lv-clickup]")) {
+        e.preventDefault();
+        document.getElementById("btnEnviarClickup")?.click();
+        return;
+      }
+      if (alvo?.closest("a[data-lv-acao]")) return;
+      if (isReadOnlyUser()) return;
+      setDemSecaoModo(sec, "edicao");
+      fs.querySelector("input:not([type=hidden]):not([type=file]), select, textarea")?.focus({ preventScroll: true });
+    });
+    // Rodapé da edição: volta para a leitura.
+    const foot = document.createElement("div");
+    foot.className = "seg-edit-foot";
+    foot.innerHTML = `<button type="button" class="btn btn--ghost btn--sm seg-edit-foot__ok" data-ui-nav="1">✓ Concluir edição</button>`;
+    foot.querySelector("button").addEventListener("click", () => {
+      setDemSecaoModo(sec, "leitura");
+      fs.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+    fs.appendChild(foot);
+  }
+}
+
 /** Resumo curto de cada seção: aparece no título quando ela está recolhida. */
 function demSecaoResumo(key) {
   const val = (id) => (document.getElementById(id)?.value || "").trim();
@@ -7162,10 +7456,14 @@ function initDemNavegacao() {
   document.getElementById("btnSalvarDemanda")?.parentElement?.addEventListener(
     "click",
     (e) => {
-      if (e.target instanceof Element && e.target.closest("#btnSalvarDemanda")) expandirTodasSecoes();
+      if (e.target instanceof Element && e.target.closest("#btnSalvarDemanda")) {
+        expandirTodasSecoes();
+        secoesParaEdicao();
+      }
     },
     true,
   );
+  initDemSecoesLeitura();
 }
 
 initDemNavegacao();
@@ -7305,6 +7603,7 @@ function openDemandaModal(id) {
   const scrollSnap = snapshotPageScroll();
   setDemandaModalScrollLock(true);
   syncDemNavegacao();
+  iniciarModosSecoesDemanda(Boolean(d?.id));
   modalDemanda.showModal();
   document.getElementById("demFormCol")?.scrollTo({ top: 0 });
   restorePageScroll(scrollSnap);
