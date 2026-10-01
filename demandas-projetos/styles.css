@@ -5344,3 +5344,23 @@ html[data-theme="light"] .btn--danger-ghost { color: #b91c1c; border-color: #fec
 html[data-theme="light"] .btn--danger-ghost:hover { color: #fff; background: #dc2626; border-color: #dc2626; }
 html[data-theme="light"] .modal__foot-aviso { color: #b45309; }
 @media (prefers-reduced-motion: reduce) { .modal__foot-aviso { animation: none; } }
+
+/* Concluir edição: verde no hover (confirmação) */
+.seg-edit-foot__ok,
+.timeline-table tr.is-editing .timeline-edit {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.seg-edit-foot__ok:hover,
+.seg-edit-foot__ok:focus-visible {
+  color: #fff;
+  background: #16a34a;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
+}
+.seg-edit-foot__ok:active { background: #15803d; border-color: #15803d; }
+.timeline-table tr.is-editing .timeline-edit:hover,
+.timeline-table tr.is-editing .timeline-edit:focus-visible {
+  background: #16a34a;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
+}
