@@ -4962,3 +4962,42 @@ html[data-theme="light"] .dash-pj-matrix__num.is-heat { background: rgba(42, 120
 html[data-theme="light"] .ck-prazo.is-atrasada { color: #b91c1c; }
 html[data-theme="light"] .ck-status--andamento { color: #1d4ed8; background-color: #dbeafe; }
 html[data-theme="light"] .ck-status--concluida { color: #15803d; background-color: #dcfce7; }
+
+/* ---------- Card: progresso do checklist + próxima atividade ---------- */
+.card__ck { display: flex; flex-direction: column; gap: 0.3rem; }
+.card__ck-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; }
+.card__ck-titulo { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--muted); font-weight: 600; }
+.card__ck-frac { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.card__ck-frac.is-completo { color: #22c55e; }
+.card__ck-bar { display: flex; gap: 2px; height: 6px; }
+.card__ck-seg { flex: 1; min-width: 3px; border-radius: 99px; background: rgba(148, 163, 184, 0.3); }
+.card__ck-seg.is-done { background: #22c55e; }
+.card__ck-seg.is-active { background: var(--accent); }
+.card__ck-seg.is-late { background: var(--danger); }
+.card__ck-prox {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.card__ck-prox-label { color: var(--muted); font-weight: 500; }
+.card__ck-prox.is-late { color: #fca5a5; }
+.card__ck-prox.is-late .card__ck-prox-label::before { content: "⚠ "; }
+.card__ck-prox.is-completo { color: #22c55e; }
+.card__ck-vazio {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+html[data-theme="light"] .card__ck-prox.is-late { color: #b91c1c; }
+html[data-theme="light"] .card__ck-frac.is-completo,
+html[data-theme="light"] .card__ck-prox.is-completo { color: #15803d; }
