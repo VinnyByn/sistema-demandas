@@ -9048,8 +9048,16 @@ function calcResumoIndicadoresDashboard(list = demandasDashOperacionalList()) {
 /** Valor "vazio" (zero, traço) — mostrado em cinza, não como alerta. */
 function kpiValorVazio(value) {
   const t = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (t.includes(" · ")) return t.split(" · ").every((p) => kpiValorVazio(p));
   if (!t || t === "—" || t === "-") return true;
   return /^(R\$ )?0([.,]0+)?( ?(m|%))?$/.test(t);
+}
+
+/** "R$ 1.197.523,95 · 61,4%" → valor principal + complemento menor (que pode ir para a linha de baixo). */
+function kpiValorHtml(value) {
+  if (typeof value !== "string" || value.includes("<") || !value.includes(" · ")) return value;
+  const [principal, ...resto] = value.split(" · ");
+  return `${principal}<span class="kpi__value-extra">${resto.join(" · ")}</span>`;
 }
 
 function kpiCard(label, value, tone, sub) {
@@ -9058,7 +9066,7 @@ function kpiCard(label, value, tone, sub) {
   const tom = tone === "warn" && kpiValorVazio(value) ? "vazio" : tone;
   return (
     `<div class="kpi kpi--${tom}"><div class="kpi__label">${label}</div>` +
-    `<div class="kpi__value" title="${escapeHtml(String(value ?? ""))}">${value}</div>${subHtml}</div>`
+    `<div class="kpi__value" title="${escapeHtml(String(value ?? ""))}">${kpiValorHtml(value)}</div>${subHtml}</div>`
   );
 }
 
@@ -9066,17 +9074,42 @@ function renderDashValoresFinanceirosKpis(list = demandasDashOperacionalList()) 
   const el = document.getElementById("dashValoresFinanceirosKpis");
   if (!el) return;
   const r = calcResumoIndicadoresDashboard(list);
+  const fases = [
+    { k: "aprovacao", label: "Em aprovação", cor: "#eda100", ...r.aprovacao },
+    { k: "execucao", label: "Em execução", cor: "#3987e5", ...r.execucao },
+    { k: "concluido", label: "Concluído", cor: "#22c55e", ...r.concluido },
+  ];
+  const total = fases.reduce((s2, f) => s2 + f.valor, 0);
+  const pct = (v) => (total > 0 ? (v / total) * 100 : 0);
   el.innerHTML =
-    kpiCard("Valor concluído", formatBRL(r.concluido.valor), r.concluido.valor ? "ok" : "warn") +
-    kpiCard(`${r.concluido.n} na Conclusão`, r.concluido.n ? String(r.concluido.n) : "—", "ok") +
-    kpiCard("Valor em execução", formatBRL(r.execucao.valor), r.execucao.valor ? "ok" : "warn") +
-    kpiCard(`${r.execucao.n} em execução`, r.execucao.n ? String(r.execucao.n) : "—", "ok") +
-    kpiCard("Valor em aprovação", formatBRL(r.aprovacao.valor), r.aprovacao.valor ? "ok" : "warn") +
-    kpiCard(`${r.aprovacao.n} em aprovação`, r.aprovacao.n ? String(r.aprovacao.n) : "—", "ok") +
-    kpiCard("Valor total geral", formatBRL(r.geral.valor), r.geral.valor ? "ok" : "warn") +
-    kpiCard(`${r.geral.n} projeto(s)`, r.geral.n ? String(r.geral.n) : "—", "ok");
-  const hintEl = document.getElementById("dashValoresFinanceirosHint");
-  if (hintEl) updateDashPeriodoHint();
+    `<div class="kpi-grid kpi-grid--3">` +
+    fases
+      .map(
+        (f) =>
+          `<div class="kpi kpi--fase ${f.valor ? "kpi--ok" : "kpi--vazio"}" style="--fase:${f.cor}">` +
+          `<div class="kpi__label"><i class="kpi__dot" aria-hidden="true"></i>${f.label}</div>` +
+          `<div class="kpi__value" title="${escapeHtml(formatBRL(f.valor))}">${formatBRL(f.valor)}</div>` +
+          `<div class="kpi__sub">${f.n} projeto(s) · ${formatPct(Math.round(pct(f.valor) * 10) / 10)} do valor</div></div>`,
+      )
+      .join("") +
+    `</div>` +
+    (total > 0
+      ? `<div class="dash-fases-barra" role="img" aria-label="${escapeHtml(
+          fases.map((f) => `${f.label}: ${formatPct(Math.round(pct(f.valor) * 10) / 10)}`).join(", "),
+        )}">` +
+        fases
+          .filter((f) => f.valor > 0)
+          .map(
+            (f) =>
+              `<span style="--fase:${f.cor};flex-grow:${f.valor}" title="${escapeHtml(
+                `${f.label}: ${formatBRL(f.valor)}`,
+              )}"></span>`,
+          )
+          .join("") +
+        `</div><p class="muted small dash-fases-total">Total: <strong>${formatBRL(total)}</strong> em ${
+          fases.reduce((s2, f) => s2 + f.n, 0)
+        } projeto(s)</p>`
+      : "");
 }
 
 /** Totais da coluna Conclusão — base dos Indicadores Gerais (inclui médias). */
@@ -9088,17 +9121,31 @@ function renderKpiGeralBaseConclusao(list = demandasDashOperacionalList()) {
   const portas = sumPortasDashboard(list, mode);
   const metragem = sumMetragemDashboard(list, mode);
   const m = calcMediasIndicadoresGeral(list, mode);
+  const g = countDemandas(list);
+  const naEsteira = demandasAteDocumentacao(list).length;
+  const modoTopo = getDashValorModo();
+  const r = calcResumoIndicadoresDashboard(list)[modoTopo] || { valor: 0, n: 0 };
   el.innerHTML =
-    kpiCard("Total de projetos", m.totalCadastro, m.totalCadastro ? "ok" : "warn") +
-    kpiCard("Projetos na Conclusão", m.n, m.n ? "ok" : "warn") +
-    kpiCard("% de conclusão", formatPct(m.pctConclusao), m.pctConclusao != null ? "ok" : "warn") +
-    kpiCard("Valor final (R$)", formatBRL(valor), valor ? "ok" : "warn") +
-    kpiCard("Portas novas", formatQtd(portas), portas ? "ok" : "warn") +
-    kpiCard("Metragem lançamento", formatMetros(metragem), metragem ? "ok" : "warn") +
+    kpiCard("Total de projetos", m.totalCadastro, m.totalCadastro ? "ok" : "warn", `${naEsteira} na esteira`) +
     kpiCard(
-      "Média de gastos / projeto",
+      "Concluídos",
+      m.n,
+      m.n ? "ok" : "warn",
+      `${formatPct(m.pctConclusao)} do total · ${formatBRL(valor)}`,
+    ) +
+    kpiCard("Em atraso", g.atraso, g.atraso ? "bad" : "ok", "Prazo previsto vencido") +
+    kpiCard(labelValorDashModo(modoTopo), formatBRL(r.valor), r.valor ? "ok" : "warn", `${r.n} projeto(s)`) +
+    kpiCard(
+      "Portas novas",
+      formatQtd(portas),
+      portas ? "ok" : "warn",
+      metragem ? `Concluídos · ${formatMetros(metragem)} de lançamento` : "Concluídos",
+    ) +
+    kpiCard(
+      "Média por projeto",
       m.mediaGastos != null ? formatBRL(m.mediaGastos) : "—",
       m.mediaGastos != null && m.mediaGastos > 0 ? "ok" : "warn",
+      "Gasto médio dos concluídos",
     );
 }
 
@@ -9207,6 +9254,18 @@ function dashChartTooltipTema() {
  */
 function ajustarDashChartConfig(cfg) {
   const opts = (cfg.options = cfg.options || {});
+  // Barras verticais com nomes longos (cidades, regionais, pessoas) viram horizontais:
+  // o nome fica legível sem inclinar e a lista cresce para baixo.
+  if (cfg.type === "bar" && opts.indexAxis !== "y") {
+    const labels = cfg.data?.labels || [];
+    const longo = labels.some((l) => String(l).length > 12);
+    if (longo && labels.length >= 2 && opts.scales?.x && opts.scales?.y) {
+      opts.indexAxis = "y";
+      const { x, y } = opts.scales;
+      opts.scales = { ...opts.scales, x: y, y: { ...x, grid: { display: false } } };
+      cfg.__autoHorizontal = labels.length;
+    }
+  }
   const scales = opts.scales || {};
   const empilhado = Object.values(scales).some((sc) => sc && sc.stacked);
   for (const sc of Object.values(scales)) {
@@ -9271,7 +9330,20 @@ function ajustarDashChartConfig(cfg) {
 
 function criarDashChart(el, cfg) {
   aplicarPadroesChartJs();
-  return new Chart(el, ajustarDashChartConfig(cfg));
+  ajustarDashChartConfig(cfg);
+  const wrap = el.closest?.(".chart-wrap");
+  if (wrap) {
+    const horizontal = cfg.options?.indexAxis === "y";
+    const n = cfg.data?.labels?.length || 0;
+    if (cfg.__autoHorizontal || (horizontal && n)) {
+      // Altura acompanha o número de linhas (+ legenda e eixo).
+      const series = (cfg.data?.datasets || []).length;
+      const legenda = series > 1 ? 24 * Math.ceil(series / 4) : 0;
+      wrap.style.height = `${Math.max(200, n * 30 + 48 + legenda)}px`;
+      wrap.classList.add("chart-wrap--auto");
+    }
+  }
+  return new Chart(el, cfg);
 }
 
 /** Padrões globais do Chart.js (fonte do app, cores neutras). */
@@ -11889,6 +11961,11 @@ function renderDashGrupoMatrixTable(containerId, rowHeader, rowKeys, colKeys, co
   }
   const fmtCell = opts.formatCell || ((n) => (n ? String(n) : "—"));
   const fmtTotal = opts.formatTotal || fmtCell;
+  // Intensidade do fundo proporcional ao valor (lê-se a tabela como um mapa de calor).
+  let maxCell = 0;
+  for (const rk of rowKeys) for (const ck of colKeys) maxCell = Math.max(maxCell, numDash(matrix[rk]?.[ck]));
+  const heat = (n) =>
+    n > 0 && maxCell > 0 ? ` style="--heat:${(0.12 + (n / maxCell) * 0.5).toFixed(2)}"` : "";
   const colTotals = Object.fromEntries(colKeys.map((k) => [k, 0]));
   let body = "";
   let grandTotal = 0;
@@ -11903,7 +11980,7 @@ function renderDashGrupoMatrixTable(containerId, rowHeader, rowKeys, colKeys, co
       const n = row[k] || 0;
       rowTotal += n;
       colTotals[k] += n;
-      body += `<td class="dash-pj-matrix__num">${fmtCell(n)}</td>`;
+      body += `<td class="dash-pj-matrix__num${n > 0 ? " is-heat" : ""}"${heat(n)}>${fmtCell(n)}</td>`;
     });
     grandTotal += rowTotal;
     body += `<td class="dash-pj-matrix__num dash-pj-matrix__total"><strong>${fmtTotal(rowTotal)}</strong></td></tr>`;
@@ -12099,16 +12176,22 @@ const SEGMENTO_B2C_CHART_COLORS = {
 
 const B2B_PRODUTO_SEM = "Sem produto";
 
-const PRODUTO_B2B_CHART_COLORS = {
-  "Evento IP": "#a855f7",
-  "IP Dedicado": "#6366f1",
-  "IP Trânsito": "#818cf8",
-  "Lan to Lan": "#c084fc",
-  "Projeto Especial": "#e879f9",
-  "Transporte PTT": "#7c3aed",
-  Wireless: "#d946ef",
-  [B2B_PRODUTO_SEM]: "#64748b",
+/** Cores dos produtos B2B — paleta categórica validada (daltonismo), uma variação por tema. */
+const PRODUTO_B2B_CORES = {
+  "Evento IP": ["#2a78d6", "#3987e5"],
+  "IP Dedicado": ["#eb6834", "#d95926"],
+  "IP Trânsito": ["#1baf7a", "#199e70"],
+  "Lan to Lan": ["#eda100", "#c98500"],
+  "Projeto Especial": ["#e87ba4", "#d55181"],
+  "Transporte PTT": ["#008300", "#008300"],
+  Wireless: ["#4a3aa7", "#9085e9"],
 };
+
+function produtoB2bCor(prod) {
+  const par = PRODUTO_B2B_CORES[prod];
+  if (!par) return "#94a3b8";
+  return document.documentElement.getAttribute("data-theme") === "light" ? par[0] : par[1];
+}
 
 function produtoB2bBucket(d) {
   const dm = migrateDemanda(d);
@@ -12145,7 +12228,7 @@ function renderDashProdutoB2bPorGrupo(canvasId, tableId, tableRowHeader, demanda
     .map((prod) => ({
       label: prod,
       data: rowKeys.map((k) => matrix[k][prod] || 0),
-      backgroundColor: PRODUTO_B2B_CHART_COLORS[prod] || "#64748b",
+      backgroundColor: produtoB2bCor(prod),
       borderWidth: 0,
     }))
     .filter((ds) => ds.data.some((n) => n > 0));
@@ -12173,23 +12256,7 @@ const DASH_B2B_REGIONAL_CHART_IDS = [
   "chartB2bProdutoRegional",
 ];
 
-const DASH_B2B_COMERCIAL_CHART_IDS = [
-  "chartB2bSolicitanteQtd",
-  "chartB2bSolicitanteValor",
-  "chartB2bSolicitanteCidade",
-];
-
-const SOLICITANTE_B2B_CHART_COLORS = {
-  "Christopher Kurt": "#14b8a6",
-  "Igor Barreto": "#6366f1",
-  "Igor Raposo": "#818cf8",
-  "Lorrany Rodrigues": "#a855f7",
-  "Michel Dias": "#c084fc",
-  "Pedro Cardoso": "#7c3aed",
-  "Thiago Miranda": "#8b5cf6",
-  [SOLICITANTE_B2B_OUTROS]: "#64748b",
-  [SOLICITANTE_B2B_SEM]: "#475569",
-};
+const DASH_B2B_COMERCIAL_CHART_IDS = ["chartB2bSolicitanteQtd", "chartB2bSolicitanteValor"];
 
 function destroyDashB2bComercialCharts() {
   DASH_B2B_COMERCIAL_CHART_IDS.forEach((id) => {
@@ -12256,7 +12323,8 @@ function renderDashSolicitanteB2bCharts(list = demandasB2bDashboardList()) {
   const mode = getDashValorModo();
   const rows = statsSolicitanteB2bComercial(list, mode);
   const labels = SOLICITANTES_B2B_COMERCIAL;
-  const colors = labels.map((l) => SOLICITANTE_B2B_CHART_COLORS[l] || "#94a3b8");
+  // Série única por gráfico: uma cor só (o nome do solicitante já está no eixo).
+  const colors = labels.map(() => dashSerieCor());
   const temProjetos = rows.some((r) => r.n > 0);
   const temValor = rows.some((r) => r.valor > 0);
 
@@ -12289,24 +12357,8 @@ function renderDashSolicitanteB2bCharts(list = demandasB2bDashboardList()) {
   const activeSol = labels.filter((s) => cidades.some((c) => (matrix[s][c] || 0) > 0));
   if (!activeSol.length) return;
 
-  const cityColors = ["#6366f1", "#818cf8", "#a855f7", "#c084fc", "#7c3aed", "#8b5cf6", "#22c55e", "#14b8a6", "#f59e0b", "#ef4444"];
-  const datasets = cidades
-    .map((cid, i) => ({
-      label: truncateChartLabel(cid, 20),
-      data: activeSol.map((sol) => matrix[sol][cid] || 0),
-      backgroundColor: cityColors[i % cityColors.length],
-      borderWidth: 0,
-    }))
-    .filter((ds) => ds.data.some((n) => n > 0));
-
-  makeDashChartProjetistaStacked(
-    "chartB2bSolicitanteCidade",
-    activeSol.map((s) => truncateChartLabel(s, 22)),
-    datasets,
-    { stepSize: 1 },
-  );
-
-  scheduleDashChartsResize(["chartB2bSolicitanteCidade"]);
+  // Cidades × solicitante: com até 10 cidades, cores empilhadas não se distinguem —
+  // a tabela com intensidade (mapa de calor) mostra o cruzamento com clareza.
 
   const tableMatrix = Object.fromEntries(activeSol.map((s) => [s, Object.fromEntries(cidades.map((c) => [c, matrix[s][c] || 0]))]));
   renderDashGrupoMatrixTable(
@@ -12346,11 +12398,9 @@ function countBySegmentoB2c(list = demandasB2cDashboardList()) {
   return countByValoresLista(list, SEGMENTOS_B2C, (d) => normalizeSegmentoB2c(d.segmentoB2c));
 }
 
-function countByProdutoB2b(list = demandasB2bDashboardList()) {
-  return countByValoresLista(list, PRODUTOS_B2B, (d) => normalizeProdutoB2b(d.produtoB2b));
-}
-
 function countB2bIndicadores(list = demandasB2bDashboardList()) {
+  let comValor = 0;
+  let atraso = 0;
   let aguardandoBp = 0;
   let aprovados = 0;
   let execucaoRegional = 0;
@@ -12367,7 +12417,10 @@ function countB2bIndicadores(list = demandasB2bDashboardList()) {
     else if (STATUS_B2B_EXECUCAO_TERCEIRIZADA.includes(st)) execucaoTerceirizada += 1;
     else if (st === "pausado") pausados += 1;
     else if (STATUS_B2B_CONCLUIDOS.has(st)) concluido += 1;
-    valorTotal += demandaValorDashPorModo(raw, getDashValorModo());
+    const v = demandaValorDashPorModo(raw, getDashValorModo());
+    valorTotal += v;
+    if (v > 0) comValor += 1;
+    if (isAtrasoAtivo(raw)) atraso += 1;
   }
   return {
     total: list.length,
@@ -12378,22 +12431,73 @@ function countB2bIndicadores(list = demandasB2bDashboardList()) {
     pausados,
     concluido,
     valorTotal,
+    ticketMedio: comValor ? valorTotal / comValor : null,
+    atraso,
   };
 }
 
-/** Gráfico de status B2B — projeto_final agrupado como Aprovados. */
-function countByStatusDashboardB2b(list = demandasB2bDashboardList()) {
-  const counts = new Map();
-  const add = (label, n = 1) => counts.set(label, (counts.get(label) || 0) + n);
+/** Funil da esteira B2B: quantos projetos em cada etapa, na ordem do fluxo. */
+function funilEsteiraB2b(list) {
+  const conta = Object.fromEntries(STATUS_ORDER_B2B.map(([k]) => [k, 0]));
   list.forEach((d) => {
     const st = migrateDemanda(d).status;
-    if (st === "projeto_final") add("Aprovados");
-    else add(labelStatus(st, LINHA_ESTEIRA_B2B));
+    if (conta[st] !== undefined) conta[st] += 1;
   });
-  return [...counts.entries()]
-    .map(([label, n]) => ({ label, n }))
-    .filter((x) => x.n > 0)
-    .sort((a, b) => b.n - a.n || a.label.localeCompare(b.label, "pt-BR"));
+  return STATUS_ORDER_B2B.map(([k, label]) => ({ k, label, n: conta[k] }));
+}
+
+function renderDashB2bProdutoEFunil(list, listModo) {
+  const mode = getDashValorModo();
+  const porProduto = PRODUTOS_B2B.map((p) => {
+    const doProd = list.filter((d) => normalizeProdutoB2b(d.produtoB2b) === p);
+    return {
+      p,
+      n: doProd.length,
+      valor: doProd.reduce((s, d) => s + demandaValorDashPorModo(d, mode), 0),
+    };
+  })
+    .filter((r) => r.n > 0)
+    .sort((a, b) => b.n - a.n || b.valor - a.valor);
+  if (porProduto.length) {
+    makeDashChartMetricBar(
+      "chartB2bProduto",
+      porProduto.map((r) => r.p),
+      porProduto.map((r) => r.n),
+      {
+        horizontal: true,
+        colors: porProduto.map((r) => produtoB2bCor(r.p)),
+        datasetLabel: "Projetos",
+        showPct: true,
+      },
+    );
+    const chart = dashCharts.chartB2bProduto;
+    if (chart) {
+      // Tooltip também mostra o valor do produto.
+      chart.options.plugins.tooltip.callbacks.afterLabel = (ctx) =>
+        `${labelValorDashModo(mode)}: ${formatBRL(porProduto[ctx.dataIndex]?.valor || 0)}`;
+      chart.update("none");
+    }
+  } else {
+    dashCharts.chartB2bProduto?.destroy();
+    delete dashCharts.chartB2bProduto;
+  }
+  const funil = funilEsteiraB2b(list);
+  if (funil.some((r) => r.n > 0)) {
+    makeDashChartMetricBar(
+      "chartB2bStatus",
+      funil.map((r) => r.label),
+      funil.map((r) => r.n),
+      {
+        horizontal: true,
+        colors: funil.map((r) => (r.k === "pausado" ? "#94a3b8" : dashSerieCor())),
+        datasetLabel: "Projetos",
+        showPct: true,
+      },
+    );
+  } else {
+    dashCharts.chartB2bStatus?.destroy();
+    delete dashCharts.chartB2bStatus;
+  }
 }
 
 function makeDashChartChegadasFin(labels, chegadas, finalizacoes) {
@@ -13344,12 +13448,9 @@ function renderDashboard() {
   renderKpiGeralBaseConclusao(todas);
 
   document.getElementById("kpiGeral").innerHTML =
-    kpiCard("Na esteira", naEsteira.length, naEsteira.length ? "ok" : "warn") +
-    kpiCard("Não atribuídas", semDirEsteira, semDirEsteira ? "warn" : "ok") +
-    kpiCard("Concluídos", g.concluidas, "ok") +
+    kpiCard("Não atribuídas", semDirEsteira, semDirEsteira ? "warn" : "ok", "Na esteira sem projetista") +
     kpiCard("Pausados", g.pausadas, g.pausadas ? "warn" : "ok") +
-    kpiCard("Reprovados", g.reprovadas, g.reprovadas ? "warn" : "ok") +
-    kpiCard("Em atraso", g.atraso, g.atraso ? "bad" : "ok");
+    kpiCard("Reprovados", g.reprovadas, g.reprovadas ? "warn" : "ok");
 
   renderDashValoresFinanceirosKpis(todas);
   renderKpiGeralPorTipo(todas);
@@ -13359,6 +13460,39 @@ function renderDashboard() {
   if (isDashBlockVisible("tempo")) renderDashTempoTable();
   if (isDashBlockVisible("indicadores-b2c")) renderDashIndicadoresB2c();
   if (isDashBlockVisible("indicadores-b2b")) renderDashIndicadoresB2b();
+  renderDashBlocosResumo(todas, g);
+}
+
+/** Resumo curto no título de cada bloco — continua visível com o bloco recolhido. */
+function renderDashBlocosResumo(todas, g) {
+  const set = (id, txt) => {
+    const btn = document.querySelector(`.dash-block[data-dash-block="${id}"] .dash-block__toggle`);
+    if (!btn) return;
+    let span = btn.querySelector(".dash-block__resumo");
+    if (!span) {
+      span = document.createElement("span");
+      span.className = "dash-block__resumo";
+      btn.insertBefore(span, btn.querySelector(".dash-block__chevron"));
+    }
+    span.textContent = txt;
+  };
+  const modo = getDashValorModo();
+  const valorDe = (list) => list.reduce((s2, d) => s2 + demandaValorDashPorModo(d, modo), 0);
+  set(
+    "kpi-geral",
+    `${todas.length} projetos · ${g.atraso} em atraso · ${formatBRLCompact(valorDe(todas))}`,
+  );
+  const naEsteira = demandasAteDocumentacao(todas);
+  set("tempo", `${naEsteira.length} projeto(s) na esteira`);
+  const pjs = new Set(todas.map((d) => normalizeResponsavel(d.responsavel)).filter(Boolean));
+  set("projetistas", `${pjs.size} projetista(s)`);
+  const regs = buildStatsPorRegional(todas).length;
+  const cids = buildStatsPorCidade(todas).length;
+  set("cidades", `${regs} regional(is) · ${cids} cidade(s)`);
+  const b2c = demandasB2cDashboardList();
+  set("indicadores-b2c", `${b2c.length} projeto(s) · ${formatBRLCompact(valorDe(b2c))}`);
+  const b2b = demandasB2bDashboardList();
+  set("indicadores-b2b", `${b2b.length} projeto(s) · ${formatBRLCompact(valorDe(b2b))}`);
 }
 
 function countByStatusForList(list, linha = LINHA_ESTEIRA_OPERACIONAL) {
@@ -13510,17 +13644,27 @@ function renderDashIndicadoresB2b() {
 
   const kpiEl = document.getElementById("kpiB2b");
   if (kpiEl) {
+    const emExecucao = b.execucaoRegional + b.execucaoTerceirizada;
     kpiEl.innerHTML =
-      kpiCard("Total de projetos", b.total, "ok") +
-      kpiCard("Regionais", rowsRegional.length, "ok") +
-      kpiCard("Cidades", rowsCidade.length, "ok") +
-      kpiCard("Aguardando BP", b.aguardandoBp, b.aguardandoBp ? "warn" : "ok") +
-      kpiCard("Aprovados", b.aprovados, b.aprovados ? "ok" : "warn") +
-      kpiCard("Exec. Regional", b.execucaoRegional, b.execucaoRegional ? "ok" : "warn") +
-      kpiCard("Exec. Terceirizada", b.execucaoTerceirizada, b.execucaoTerceirizada ? "ok" : "warn") +
-      kpiCard("Pausados", b.pausados, b.pausados ? "warn" : "ok") +
-      kpiCard("Concluído", b.concluido, "ok") +
-      kpiCard(labelValorDashModo(), formatBRL(b.valorTotal), b.valorTotal ? "ok" : "warn");
+      kpiCard("Total de projetos", b.total, "ok", `${rowsRegional.length} regional(is) · ${rowsCidade.length} cidade(s)`) +
+      kpiCard(labelValorDashModo(), formatBRL(b.valorTotal), b.valorTotal ? "ok" : "warn") +
+      kpiCard(
+        "Ticket médio",
+        b.ticketMedio != null ? formatBRL(b.ticketMedio) : "—",
+        b.ticketMedio != null ? "ok" : "warn",
+        "Valor ÷ projetos com valor",
+      ) +
+      kpiCard("Aguardando BP", b.aguardandoBp, b.aguardandoBp ? "warn" : "ok", "Parados na aprovação") +
+      kpiCard("Aprovados", b.aprovados, b.aprovados ? "ok" : "warn", "Projeto final e estoque") +
+      kpiCard(
+        "Em execução",
+        emExecucao,
+        emExecucao ? "ok" : "warn",
+        `${b.execucaoRegional} regional · ${b.execucaoTerceirizada} terceirizada`,
+      ) +
+      kpiCard("Concluídos", b.concluido, b.concluido ? "ok" : "warn") +
+      kpiCard("Em atraso", b.atraso, b.atraso ? "bad" : "ok") +
+      kpiCard("Pausados", b.pausados, b.pausados ? "warn" : "ok");
   }
 
   const countEl = document.getElementById("dashB2bCount");
@@ -13574,32 +13718,7 @@ function renderDashIndicadoresB2b() {
     return;
   }
 
-  const prodData = countByProdutoB2b(listModo);
-  if (prodData.length) {
-    makeDashChart(
-      "chartB2bProduto",
-      "doughnut",
-      prodData.map((s) => s.label),
-      prodData.map((s) => s.n),
-      { colors: prodData.map((s) => PRODUTO_B2B_CHART_COLORS[s.label] || "#a855f7") },
-    );
-  } else {
-    dashCharts.chartB2bProduto?.destroy();
-    delete dashCharts.chartB2bProduto;
-  }
-
-  const statusData = countByStatusDashboardB2b(listModo);
-  if (statusData.length) {
-    makeDashChart(
-      "chartB2bStatus",
-      "doughnut",
-      statusData.map((s) => s.label),
-      statusData.map((s) => s.n),
-    );
-  } else {
-    dashCharts.chartB2bStatus?.destroy();
-    delete dashCharts.chartB2bStatus;
-  }
+  renderDashB2bProdutoEFunil(list, listModo);
 
   const topCidades = rowsCidade.slice(0, 12);
   makeDashChart(
@@ -13607,7 +13726,7 @@ function renderDashIndicadoresB2b() {
     "bar",
     topCidades.map((r) => truncateChartLabel(r.cidade, 22)),
     topCidades.map((r) => r.projetos),
-    { color: "#a855f7", datasetLabel: "Projetos" },
+    { color: dashSerieCor(), datasetLabel: "Projetos" },
   );
 
   makeDashChart(
@@ -13615,7 +13734,7 @@ function renderDashIndicadoresB2b() {
     "bar",
     rowsRegional.map((r) => truncateChartLabel(r.cidade, 22)),
     rowsRegional.map((r) => r.projetos),
-    { color: "#7c3aed", datasetLabel: "Projetos" },
+    { color: dashSerieCor(), datasetLabel: "Projetos" },
   );
 
   renderDashProdutoB2bPorGrupo(
