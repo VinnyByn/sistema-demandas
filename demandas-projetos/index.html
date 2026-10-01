@@ -303,6 +303,10 @@
             <button type="button" class="btn btn--ghost btn--sm" id="btnDashPeriodoLimpar" title="Remover filtro de datas">
               Todo o período
             </button>
+            <div class="dash-blocos-acoes" role="group" aria-label="Blocos do dashboard">
+              <button type="button" class="btn btn--ghost btn--sm" id="btnDashExpandirTudo" title="Abrir todos os blocos">Expandir tudo</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnDashRecolherTudo" title="Fechar todos os blocos">Recolher tudo</button>
+            </div>
             <p class="muted small" id="dashValoresFinanceirosHint"></p>
           </div>
         </div>
@@ -325,7 +329,7 @@
                 <span class="dash-sub-block__chevron" aria-hidden="true"></span>
               </button>
               <div class="dash-sub-block__body" id="dashSubBlockKpiGeralPorTipo">
-                <div class="kpi-grid kpi-grid--split" id="kpiGeralPorTipo"></div>
+                <div id="kpiGeralPorTipo"></div>
               </div>
             </div>
           </div>

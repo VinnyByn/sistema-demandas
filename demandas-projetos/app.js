@@ -6443,6 +6443,71 @@ function setChecklistToggleLabel(btn, label) {
   else btn.textContent = label;
 }
 
+/** Escala do cronograma: "auto" escolhe dias ou semanas pelo tamanho do período. */
+let checklistGanttEscala = "auto";
+
+function checklistGanttIsFds(iso) {
+  const t = parseDate(iso);
+  if (t == null) return false;
+  const dia = new Date(t).getDay();
+  return dia === 0 || dia === 6;
+}
+
+/** Abre a atividade para edição na lista (a partir do cronograma). */
+function editarChecklistItemPeloGantt(id) {
+  if (isReadOnlyUser() || !requireWriteAccess()) return;
+  persistOpenChecklistEdit();
+  checklistFiltro = "todas";
+  editingChecklistItemId = id;
+  renderChecklistEditor();
+  const input = document.getElementById("demChecklistEditName");
+  input?.closest(".checklist-item")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  input?.focus({ preventScroll: true });
+}
+
+function renderChecklistGanttToolbar(host, items) {
+  const conta = { done: 0, active: 0, late: 0, wait: 0 };
+  for (const it of items) conta[checklistItemSituacao(it).tom] += 1;
+  const bar = document.createElement("div");
+  bar.className = "checklist-gantt__toolbar";
+  const legenda = document.createElement("div");
+  legenda.className = "checklist-gantt__legenda";
+  [
+    ["done", "Concluída"],
+    ["active", "Em andamento"],
+    ["late", "Atrasada"],
+    ["wait", "Aguardando"],
+  ].forEach(([tom, label]) => {
+    const item = document.createElement("span");
+    item.className = `checklist-gantt__leg is-${tom}`;
+    item.innerHTML = `<i aria-hidden="true"></i>${label} <b>${conta[tom]}</b>`;
+    legenda.appendChild(item);
+  });
+  const escala = document.createElement("div");
+  escala.className = "checklist-gantt__escala";
+  escala.setAttribute("role", "group");
+  escala.setAttribute("aria-label", "Escala do cronograma");
+  [
+    ["auto", "Automático"],
+    ["dias", "Dias"],
+    ["semanas", "Semanas"],
+  ].forEach(([k, label]) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.uiNav = "1";
+    b.textContent = label;
+    b.className = checklistGanttEscala === k ? "is-on" : "";
+    b.setAttribute("aria-pressed", String(checklistGanttEscala === k));
+    b.addEventListener("click", () => {
+      checklistGanttEscala = k;
+      renderChecklistGantt();
+    });
+    escala.appendChild(b);
+  });
+  bar.append(legenda, escala);
+  host.appendChild(bar);
+}
+
 function setChecklistGanttOpen(open) {
   const btn = document.getElementById("btnChecklistGantt");
   const panel = document.getElementById("demChecklistGantt");
@@ -6475,8 +6540,16 @@ function renderChecklistGantt() {
     host.appendChild(empty);
     return;
   }
-  const compact = days.length > GANTT_WEEK_AFTER_DAYS;
-  const colPx = compact ? GANTT_COL_COMPACT_PX : GANTT_COL_DAY_PX;
+  renderChecklistGanttToolbar(host, items);
+  const compact =
+    checklistGanttEscala === "semanas" ||
+    (checklistGanttEscala === "auto" && days.length > GANTT_WEEK_AFTER_DAYS);
+  // Estica as colunas para ocupar a largura disponível (11rem = coluna dos nomes).
+  const disponivel = (host.clientWidth || 0) - 176 - 2;
+  const colPx = Math.max(
+    compact ? GANTT_COL_COMPACT_PX : GANTT_COL_DAY_PX,
+    disponivel > 0 ? Math.floor(disponivel / days.length) : 0,
+  );
   const chartW = days.length * colPx;
   const today = todayISODate();
   const todayIdx = days.indexOf(today);
@@ -6539,23 +6612,49 @@ function renderChecklistGantt() {
     todayLine.style.left = `${todayPct}%`;
     todayLine.setAttribute("aria-hidden", "true");
     axis.appendChild(todayLine);
+    const todayTag = document.createElement("span");
+    todayTag.className = "checklist-gantt__today-tag";
+    todayTag.style.left = `${todayPct}%`;
+    todayTag.textContent = "Hoje";
+    axis.appendChild(todayTag);
   }
   head.append(headLabel, axis);
+  // Fins de semana sombreados (posições em % do eixo).
+  const fds = [];
+  days.forEach((iso, i) => {
+    if (checklistGanttIsFds(iso)) fds.push(i);
+  });
+  const readOnlyGantt = isReadOnlyUser();
 
   const body = document.createElement("div");
   body.className = "checklist-gantt__body";
   items.forEach((it) => {
     const row = document.createElement("div");
-    row.className = "checklist-gantt__row" + (it.done ? " is-done" : " is-off");
+    const sitRow = checklistItemSituacao(it);
+    row.className = "checklist-gantt__row" + (it.done ? " is-done" : " is-off") + ` is-${sitRow.tom}`;
     const label = document.createElement("div");
     label.className = "checklist-gantt__label";
     const name = document.createElement("strong");
     name.textContent = it.name || "Atividade";
+    name.title = it.name || "";
     const who = document.createElement("span");
-    who.textContent = it.who || "—";
+    who.textContent = `${it.who || "—"} · ${sitRow.texto}`;
     label.append(name, who);
+    if (!readOnlyGantt) {
+      row.classList.add("is-clicavel");
+      row.title = "Clique para editar esta atividade";
+      row.addEventListener("click", () => editarChecklistItemPeloGantt(it.id));
+    }
     const track = document.createElement("div");
     track.className = "checklist-gantt__track";
+    fds.forEach((i) => {
+      const f = document.createElement("i");
+      f.className = "checklist-gantt__fds";
+      f.style.left = `${(i / days.length) * 100}%`;
+      f.style.width = `${(1 / days.length) * 100}%`;
+      f.setAttribute("aria-hidden", "true");
+      track.appendChild(f);
+    });
     if (todayPct != null) {
       const todayLine = document.createElement("i");
       todayLine.className = "checklist-gantt__today";
@@ -6580,6 +6679,11 @@ function renderChecklistGantt() {
         bar.style.left = `${(i0 / days.length) * 100}%`;
         bar.style.width = `${((i1 - i0 + 1) / days.length) * 100}%`;
         bar.title = `${it.name} · ${it.who || "—"} · ${checklistGanttToneLabel(tone)} · Início ${formatDataCurta(start)} · Término ${formatDataCurta(end)}`;
+        const dur = i1 - i0 + 1;
+        if (dur * colPx >= 34) {
+          bar.textContent = `${dur}d`;
+          bar.classList.add("has-txt");
+        }
         track.appendChild(bar);
       }
     } else if (end || start) {
@@ -6600,6 +6704,10 @@ function renderChecklistGantt() {
   inner.append(head, body);
   scroll.appendChild(inner);
   host.appendChild(scroll);
+  if (todayIdx >= 0) {
+    const alvo = 176 + todayIdx * colPx - scroll.clientWidth / 2;
+    scroll.scrollLeft = Math.max(0, alvo);
+  }
 }
 
 function addChecklistEtapaFromForm() {
@@ -8739,6 +8847,18 @@ function initDashBlocks() {
   initDashSubBlocks(state);
   initDashChartTables(state);
   saveDashBlocksState(state);
+  const todos = (visivel) => {
+    document.querySelectorAll(".dash-block[data-dash-block]").forEach((block) => {
+      setDashBlockVisible(block.dataset.dashBlock, visivel, state);
+    });
+    saveDashBlocksState(state);
+    if (visivel && panels.dashboard && !panels.dashboard.hidden) renderDashboard();
+  };
+  document.getElementById("btnDashExpandirTudo")?.addEventListener("click", () => todos(true));
+  document.getElementById("btnDashRecolherTudo")?.addEventListener("click", () => {
+    todos(false);
+    document.getElementById("panelDashboard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 function destroyDashboardCharts() {
@@ -8925,11 +9045,20 @@ function calcResumoIndicadoresDashboard(list = demandasDashOperacionalList()) {
   return resumo;
 }
 
+/** Valor "vazio" (zero, traço) — mostrado em cinza, não como alerta. */
+function kpiValorVazio(value) {
+  const t = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!t || t === "—" || t === "-") return true;
+  return /^(R\$ )?0([.,]0+)?( ?(m|%))?$/.test(t);
+}
+
 function kpiCard(label, value, tone, sub) {
   const subHtml = sub ? `<div class="kpi__sub">${sub}</div>` : "";
+  // "ok" = valor normal (cor do texto); "warn" num valor zerado = vazio; "bad" = problema real.
+  const tom = tone === "warn" && kpiValorVazio(value) ? "vazio" : tone;
   return (
-    `<div class="kpi kpi--${tone}"><div class="kpi__label">${label}</div>` +
-    `<div class="kpi__value">${value}</div>${subHtml}</div>`
+    `<div class="kpi kpi--${tom}"><div class="kpi__label">${label}</div>` +
+    `<div class="kpi__value" title="${escapeHtml(String(value ?? ""))}">${value}</div>${subHtml}</div>`
   );
 }
 
@@ -9049,6 +9178,111 @@ function destroyDashRegionalCharts() {
   });
 }
 
+/* ---------- Dashboard: padrão visual dos gráficos (aplicado a todos) ---------- */
+/** Cor única de série (magnitude), conforme o tema. */
+function dashSerieCor() {
+  return document.documentElement.getAttribute("data-theme") === "light" ? "#2a78d6" : "#3987e5";
+}
+
+/** R$ compacto para eixos: R$ 1,2 mi · R$ 350 mil · R$ 900. */
+function formatBRLCompact(n) {
+  const v = numDash(n);
+  const abs = Math.abs(v);
+  const fmt = (x, d) => x.toLocaleString("pt-BR", { maximumFractionDigits: d });
+  if (abs >= 1e6) return `R$ ${fmt(v / 1e6, abs >= 1e7 ? 0 : 1)} mi`;
+  if (abs >= 1e3) return `R$ ${fmt(v / 1e3, 0)} mil`;
+  return `R$ ${fmt(v, 0)}`;
+}
+
+function dashChartTooltipTema() {
+  const light = document.documentElement.getAttribute("data-theme") === "light";
+  return light
+    ? { backgroundColor: "#ffffff", titleColor: "#0f172a", bodyColor: "#334155", borderColor: "#d5dee9" }
+    : { backgroundColor: "#0f1620", titleColor: "#e8edf5", bodyColor: "#cbd5e1", borderColor: "#2a3544" };
+}
+
+/**
+ * Ajusta qualquer configuração de gráfico do dashboard: barras finas e arredondadas,
+ * eixos discretos, R$ compacto nos eixos, contagens sem casas decimais, legenda e tooltip padronizados.
+ */
+function ajustarDashChartConfig(cfg) {
+  const opts = (cfg.options = cfg.options || {});
+  const scales = opts.scales || {};
+  const empilhado = Object.values(scales).some((sc) => sc && sc.stacked);
+  for (const sc of Object.values(scales)) {
+    if (!sc || typeof sc !== "object") continue;
+    sc.border = { display: false, ...(sc.border || {}) };
+    sc.grid = { drawTicks: false, ...(sc.grid || {}) };
+    const ticks = (sc.ticks = sc.ticks || {});
+    ticks.padding = ticks.padding ?? 6;
+    if (sc.beginAtZero || sc.type === "linear") {
+      // Eixo de valor: inteiros, poucas marcações e sem inclinar o texto.
+      ticks.precision = ticks.precision ?? 0;
+      if (ticks.stepSize === 1) delete ticks.stepSize;
+      ticks.maxTicksLimit = ticks.maxTicksLimit ?? 6;
+      ticks.maxRotation = 0;
+    }
+    if (typeof ticks.callback === "function") {
+      const orig = ticks.callback;
+      ticks.callback = function (value, index, all) {
+        const out = orig.call(this, value, index, all);
+        // Valores em R$ no eixo viram formato compacto (o tooltip mantém o valor completo).
+        if (typeof out === "string" && /^-?R\$/.test(out.trim()) && typeof value === "number") {
+          return formatBRLCompact(value);
+        }
+        return out;
+      };
+    }
+  }
+  if (cfg.type === "bar") {
+    for (const ds of cfg.data?.datasets || []) {
+      ds.maxBarThickness = ds.maxBarThickness ?? 26;
+      ds.categoryPercentage = ds.categoryPercentage ?? 0.72;
+      ds.barPercentage = ds.barPercentage ?? 0.9;
+      if (!empilhado) {
+        ds.borderRadius = ds.borderRadius ?? 4;
+        ds.borderSkipped = ds.borderSkipped ?? "start";
+      }
+    }
+  }
+  const plugins = (opts.plugins = opts.plugins || {});
+  if (plugins.legend && plugins.legend.display !== false) {
+    plugins.legend.labels = {
+      usePointStyle: true,
+      pointStyle: "rectRounded",
+      boxWidth: 10,
+      boxHeight: 10,
+      padding: 14,
+      ...(plugins.legend.labels || {}),
+    };
+  }
+  plugins.tooltip = {
+    padding: 10,
+    cornerRadius: 8,
+    borderWidth: 1,
+    boxPadding: 4,
+    usePointStyle: true,
+    titleFont: { weight: "700" },
+    ...dashChartTooltipTema(),
+    ...(plugins.tooltip || {}),
+  };
+  return cfg;
+}
+
+function criarDashChart(el, cfg) {
+  aplicarPadroesChartJs();
+  return new Chart(el, ajustarDashChartConfig(cfg));
+}
+
+/** Padrões globais do Chart.js (fonte do app, cores neutras). */
+function aplicarPadroesChartJs() {
+  if (typeof Chart === "undefined" || aplicarPadroesChartJs.feito) return;
+  aplicarPadroesChartJs.feito = true;
+  Chart.defaults.font.family = '"DM Sans", system-ui, sans-serif';
+  Chart.defaults.font.size = 11;
+  Chart.defaults.animation.duration = 450;
+}
+
 function dashChartDatasetTotal(ctx) {
   return (ctx?.dataset?.data || []).reduce((s, n) => s + numDash(n), 0);
 }
@@ -9089,7 +9323,7 @@ function dashChartBarScales(options, { valueTicks, categoryTicks }) {
     : { scales: { x: categoryScale, y: valueScale } };
 }
 
-function makeDashChartMoneyBar(canvasId, labels, data, color = "#22c55e", options = {}) {
+function makeDashChartMoneyBar(canvasId, labels, data, color = dashSerieCor(), options = {}) {
   if (typeof Chart === "undefined") return;
   const el = document.getElementById(canvasId);
   if (!el) return;
@@ -9100,7 +9334,7 @@ function makeDashChartMoneyBar(canvasId, labels, data, color = "#22c55e", option
   if (!labels.length) return;
   const bg = Array.isArray(color) ? color : color;
   const datasetLabel = options.datasetLabel || "Investimento (R$)";
-  dashCharts[canvasId] = new Chart(el, {
+  dashCharts[canvasId] = criarDashChart(el, {
     type: "bar",
     data: {
       labels,
@@ -9136,8 +9370,8 @@ function makeDashChartMetricBar(canvasId, labels, data, options = {}) {
   }
   if (!labels.length) return;
   const formatValue = options.formatValue || ((v) => String(v));
-  const bg = options.colors || options.color || "#6366f1";
-  dashCharts[canvasId] = new Chart(el, {
+  const bg = options.colors || options.color || dashSerieCor();
+  dashCharts[canvasId] = criarDashChart(el, {
     type: "bar",
     data: {
       labels,
@@ -10015,46 +10249,55 @@ function kpiMediasIndicadoresHtml(m, { includePortas = true } = {}) {
 function renderKpiGeralPorTipo(list = demandasDashOperacionalList()) {
   const el = document.getElementById("kpiGeralPorTipo");
   if (!el) return;
-  let html = "";
-  for (const tipo of tiposFiltroEsteiraProjetos()) {
-    const doTipo = list.filter((d) => normalizeTipo(d.tipo) === tipo);
+  const cel = (txt, vazio = false, extra = "") =>
+    `<td class="num${vazio ? " is-vazio" : ""}${extra}">${txt}</td>`;
+  const linha = (nome, cor, doTipo, { showPortas = true, total = false } = {}) => {
     const g = countDemandas(doTipo);
     const r = calcResumoIndicadoresDashboard(doTipo);
     const m = calcMediasIndicadoresGeral(doTipo, DASH_BASE_CONCLUSAO);
-    const color = TIPO_CHART_COLORS[tipo] || "#94a3b8";
-    const showPortas = !["SWAP", "Backbone", "Licenciamento", "Mapeamento"].includes(tipo);
-    html +=
-      `<div class="kpi dash-tipo-card" style="border-left-color:${color}">` +
-      `<div class="kpi__label dash-tipo-card__nome"><span>${escapeHtml(tipo)}</span>` +
-      `<span class="dash-tipo-card__meta">${g.total} cadastrados</span></div>` +
-      `<div class="dash-pj-grid kpi-grid">` +
-      kpiCard("Total de projetos", g.total, g.total ? "ok" : "warn") +
-      kpiCard("Valor concluído", formatBRL(r.concluido.valor), r.concluido.valor ? "ok" : "warn") +
-      kpiCard(
-        `${r.concluido.n} na Conclusão`,
-        r.concluido.n ? String(r.concluido.n) : "—",
-        r.concluido.n ? "ok" : "warn",
-      ) +
-      kpiCard("Valor em execução", formatBRL(r.execucao.valor), r.execucao.valor ? "ok" : "warn") +
-      kpiCard(
-        `${r.execucao.n} em execução`,
-        r.execucao.n ? String(r.execucao.n) : "—",
-        r.execucao.n ? "ok" : "warn",
-      ) +
-      kpiCard("Valor em aprovação", formatBRL(r.aprovacao.valor), r.aprovacao.valor ? "ok" : "warn") +
-      kpiCard(
-        `${r.aprovacao.n} em aprovação`,
-        r.aprovacao.n ? String(r.aprovacao.n) : "—",
-        r.aprovacao.n ? "ok" : "warn",
-      ) +
-      (showPortas
-        ? kpiCard("Portas novas (Conclusão)", formatQtd(m.portasTotal), m.portasTotal ? "ok" : "warn")
-        : "") +
-      kpiCard("Metragem lanç. (Conclusão)", formatMetros(m.metragemTotal), m.metragemTotal ? "ok" : "warn") +
-      kpiMediasIndicadoresHtml(m, { includePortas: showPortas }) +
-      `</div></div>`;
-  }
-  el.innerHTML = html;
+    const pct = g.total ? (r.concluido.n / g.total) * 100 : 0;
+    const nTxt = (n, v) =>
+      n ? `<span class="dash-tipos__n">${n}</span> ${formatBRL(v)}` : "—";
+    return (
+      `<tr class="${total ? "dash-tipos__total" : ""}">` +
+      `<th scope="row"><span class="dash-tipos__nome">` +
+      (cor ? `<i style="background:${cor}" aria-hidden="true"></i>` : "") +
+      `${escapeHtml(nome)}</span></th>` +
+      cel(String(g.total), !g.total) +
+      `<td class="num"><span class="dash-tipos__pct"><span class="dash-tipos__pct-bar" style="--pct:${pct.toFixed(1)}%"></span>` +
+      `${r.concluido.n} · ${formatPct(Math.round(pct * 10) / 10)}</span></td>` +
+      cel(r.concluido.valor ? formatBRL(r.concluido.valor) : "—", !r.concluido.valor) +
+      cel(nTxt(r.execucao.n, r.execucao.valor), !r.execucao.n) +
+      cel(nTxt(r.aprovacao.n, r.aprovacao.valor), !r.aprovacao.n) +
+      cel(m.mediaGastos != null && m.mediaGastos > 0 ? formatBRL(m.mediaGastos) : "—", !(m.mediaGastos > 0)) +
+      cel(showPortas ? (m.portasTotal ? formatQtd(m.portasTotal) : "—") : "n/a", !showPortas || !m.portasTotal) +
+      cel(m.metragemTotal ? formatMetros(m.metragemTotal) : "—", !m.metragemTotal) +
+      `</tr>`
+    );
+  };
+  const tipos = tiposFiltroEsteiraProjetos();
+  const rows = tipos
+    .map((tipo) => {
+      const doTipo = list.filter((d) => normalizeTipo(d.tipo) === tipo);
+      return { tipo, doTipo, n: doTipo.length };
+    })
+    .sort((a, b) => b.n - a.n || a.tipo.localeCompare(b.tipo, "pt-BR"));
+  el.innerHTML =
+    `<div class="dashboard-table-wrap dash-tipos-wrap"><table class="dash-table dash-tipos" aria-label="Indicadores por tipo de projeto">` +
+    `<thead><tr><th scope="col">Tipo</th><th scope="col" class="num">Projetos</th>` +
+    `<th scope="col" class="num">Na conclusão</th><th scope="col" class="num">Valor concluído</th>` +
+    `<th scope="col" class="num">Em execução</th><th scope="col" class="num">Em aprovação</th>` +
+    `<th scope="col" class="num">Média / projeto</th><th scope="col" class="num">Portas novas</th>` +
+    `<th scope="col" class="num">Metragem</th></tr></thead><tbody>` +
+    rows
+      .map(({ tipo, doTipo }) =>
+        linha(tipo, TIPO_CHART_COLORS[tipo] || "#94a3b8", doTipo, {
+          showPortas: !["SWAP", "Backbone", "Licenciamento", "Mapeamento"].includes(tipo),
+        }),
+      )
+      .join("") +
+    `</tbody><tfoot>${linha("Total", "", list, { total: true })}</tfoot></table></div>` +
+    `<p class="muted small dash-tipos__nota">Valores, portas, metragem e média consideram a coluna <strong>Conclusão</strong>, como nos indicadores acima. Em execução e em aprovação mostram quantidade e valor final.</p>`;
 }
 
 function labelSolicitante(raw) {
@@ -10148,7 +10391,7 @@ function makeDashChartSolicitantes(canvasId, labels, abertas, fechadas, fechadas
     dashCharts[canvasId].destroy();
     delete dashCharts[canvasId];
   }
-  dashCharts[canvasId] = new Chart(el, {
+  dashCharts[canvasId] = criarDashChart(el, {
     type: "bar",
     data: {
       labels,
@@ -10910,7 +11153,8 @@ function renderDashGeoRankCharts(prefix, rows, onPick, activeNome) {
   const sitId = `${prefix}Sit`;
   const gasId = `${prefix}Gastos`;
   const porId = `${prefix}Portas`;
-  const colors = (list) => colorsForGeoNomes(list.map((r) => r.nome));
+  // Série única: uma cor só — o nome já está no eixo.
+  const colors = (list) => list.map(() => dashSerieCor());
   setDashPjChartWrapHeight(sitId, rows.length);
   setDashPjChartWrapHeight(gasId, rows.length);
   setDashPjChartWrapHeight(porId, rows.length);
@@ -11246,7 +11490,7 @@ function buildStatsPorProjetista(baseList = demandasDashOperacionalList()) {
 }
 
 function rankPjBarColors(rows) {
-  return colorsForGeoNomes(rows.map((r) => r.nome));
+  return rows.map(() => dashSerieCor());
 }
 
 function renderDashPjRankCharts(rows) {
@@ -11717,7 +11961,7 @@ function makeDashChartProjetistaStacked(canvasId, labels, datasets, chartOpts = 
         x: { stacked: true, ticks: categoryTicks, grid: { color: chartInk().grid } },
         y: { stacked: true, beginAtZero: true, ticks: valueTicks, grid: { color: chartInk().grid } },
       };
-  dashCharts[canvasId] = new Chart(el, {
+  dashCharts[canvasId] = criarDashChart(el, {
     type: "bar",
     data: { labels, datasets },
     options: {
@@ -12161,7 +12405,7 @@ function makeDashChartChegadasFin(labels, chegadas, finalizacoes) {
     dashCharts[canvasId].destroy();
     delete dashCharts[canvasId];
   }
-  dashCharts[canvasId] = new Chart(el, {
+  dashCharts[canvasId] = criarDashChart(el, {
     type: "bar",
     data: {
       labels,
@@ -12197,7 +12441,7 @@ function makeDashChart(canvasId, type, labels, data, options = {}) {
     options.colors ||
     (type === "doughnut" ? palette.slice(0, labels.length) : color);
   const formatValue = options.formatValue || ((v) => String(v));
-  dashCharts[canvasId] = new Chart(el, {
+  dashCharts[canvasId] = criarDashChart(el, {
     type,
     data: {
       labels,
@@ -12320,7 +12564,7 @@ function makeDashChartTempoSetorResumo(items, cfg = DASH_TEMPO_CFG_OP) {
   const labels = items.map((it) => it.setor);
   const colors = items.map((it) => setorColorFor(it.setor, cfg));
 
-  dashCharts[cfg.resumoChartId] = new Chart(el, {
+  dashCharts[cfg.resumoChartId] = criarDashChart(el, {
     type: "bar",
     data: {
       labels,
@@ -12433,7 +12677,7 @@ function makeDashChartTempoFase(canvasId, faseKeys, msPerFase, cfg = DASH_TEMPO_
   const labels = faseKeys.map((k) => labelStatus(k, cfg.linhaEsteira || LINHA_ESTEIRA_OPERACIONAL));
   const colors = faseKeys.map((k) => setorColorFor(cfg.setorForStatus(k), cfg));
   const dataDays = msPerFase.map(msToChartDays);
-  dashCharts[canvasId] = new Chart(el, {
+  dashCharts[canvasId] = criarDashChart(el, {
     type: "bar",
     data: {
       labels,
@@ -12478,7 +12722,7 @@ function makeDashChartTempoSetor(canvasId, setores, msPerSetor, cfg = DASH_TEMPO
     delete dashCharts[canvasId];
   }
   const colors = setores.map((s) => setorColorFor(s, cfg));
-  dashCharts[canvasId] = new Chart(el, {
+  dashCharts[canvasId] = criarDashChart(el, {
     type: "doughnut",
     data: {
       labels: setores,
@@ -12518,7 +12762,7 @@ function makeDashChartTempoSetorStack(canvasId, projectLabels, setorSeries, msMa
     borderWidth: 0,
     _msRow: msMatrix[si],
   }));
-  dashCharts[canvasId] = new Chart(el, {
+  dashCharts[canvasId] = criarDashChart(el, {
     type: "bar",
     data: { labels: projectLabels, datasets },
     options: {
