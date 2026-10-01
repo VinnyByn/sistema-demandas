@@ -4831,35 +4831,100 @@ function applyUserHomeOnLogin(user) {
   renderBoard();
 }
 
+/** Cards com o painel de detalhes aberto — sobrevive aos re-renders do board. */
+const cardsExpandidos = new Set();
+
+const CARD_ICONS = {
+  relogio:
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8.5" r="5.5"/><path d="M8 5.5v3l2 1.5M6.5 1.5h3"/></svg>',
+  tarefas:
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2.5"/><path d="M5 8.2l2 2 4-4.2"/></svg>',
+  comentario:
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>',
+  imagem:
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1.2"/><path d="M2.5 12l3.5-3.5 2.5 2.5 2-2 3 3"/></svg>',
+  pino:
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.5s4.5-4.2 4.5-7.7a4.5 4.5 0 0 0-9 0c0 3.5 4.5 7.7 4.5 7.7z"/><circle cx="8" cy="6.8" r="1.6"/></svg>',
+};
+
+/** Próxima coluna do fluxo (sem pausado/reprovado); execução regional/terceirizada são alternativas. */
+const CARD_PROXIMA_ETAPA_FIXA = {
+  [LINHA_ESTEIRA_OPERACIONAL]: { execucao: "configuracao_op", execucao_terceirizada: "configuracao_op" },
+  [LINHA_ESTEIRA_B2B]: { configuracao: "documentacao", execucao_terceirizada: "documentacao" },
+};
+
+function cardProximaEtapa(dm) {
+  const linha = normalizeLinhaEsteira(dm.linhaEsteira);
+  if (isDemandaEncerrada(dm) || dm.status === "pausado" || dm.status === "reprovado") return "";
+  const fixa = CARD_PROXIMA_ETAPA_FIXA[linha]?.[dm.status];
+  if (fixa) return fixa;
+  const fluxo = getEsteiraConfig(linha)
+    .statusOrder.map(([k]) => k)
+    .filter((k) => k !== "pausado" && k !== "reprovado");
+  const idx = fluxo.indexOf(dm.status);
+  return idx >= 0 && idx < fluxo.length - 1 ? fluxo[idx + 1] : "";
+}
+
+/** Barra de prazo: chegada → prazo previsto, colorida pela urgência. */
+function cardPrazoInfo(dm) {
+  const prazo = dm.dataFimPrevista;
+  if (!prazo || !parseDate(prazo)) return null;
+  if (isDemandaEncerrada(dm)) {
+    if (dm.status === "reprovado") return null;
+    const atraso = demandaDiasAtraso(dm);
+    return atraso > 0
+      ? { tom: "atraso", pct: 100, texto: `Entregue com ${formatDiasAtrasoLabel(atraso)} de atraso` }
+      : { tom: "ok", pct: 100, texto: "Entregue no prazo" };
+  }
+  if (isAtraso(dm)) {
+    return { tom: "atraso", pct: 100, texto: `Atrasado ${formatDiasAtrasoLabel(demandaDiasAtraso(dm))}` };
+  }
+  const hoje = todayISODate();
+  const restam = diasEntreDatasISO(hoje, prazo);
+  const inicio = demandaInicioContagemAberto(dm);
+  const total = inicio ? diasEntreDatasISO(inicio, prazo) : 0;
+  const passados = inicio ? diasEntreDatasISO(inicio, hoje) : 0;
+  const pct = total > 0 ? Math.min(100, Math.max(4, Math.round((passados / total) * 100))) : 100;
+  const texto = restam <= 0 ? "Vence hoje" : restam === 1 ? "Vence amanhã" : `Vence em ${restam} dias`;
+  return { tom: restam <= 3 ? "alerta" : "ok", pct, texto };
+}
+
+function cardDetalheRow(label, valor) {
+  return `<dt>${escapeHtml(label)}</dt><dd title="${escapeHtml(valor)}">${escapeHtml(valor)}</dd>`;
+}
+
 function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   const el = document.createElement("article");
   const dmCard = migrateDemanda(d);
+  const readOnly = isReadOnlyUser();
+  const expandido = cardsExpandidos.has(d.id);
   el.className =
     "card " +
     tipoCardClass(d.tipo) +
     (dmCard.linhaEsteira === LINHA_ESTEIRA_B2B ? " card--b2b" : " card--esteira-projetos");
-  if (isAtraso(d)) el.classList.add("card--atraso");
+  if (isAtraso(d) && !isDemandaEncerrada(dmCard)) el.classList.add("card--atraso");
   if (d.status === "pausado") el.classList.add("card--pausado");
   if (d.status === "reprovado") el.classList.add("card--reprovado");
   if (normalizeEditingBy(d.editingBy)) {
     el.classList.add("card--being-edited");
   }
-  el.draggable = !isReadOnlyUser();
+  if (expandido) el.classList.add("card--expandido");
+  el.draggable = !readOnly;
   el.dataset.id = d.id;
   el.tabIndex = 0;
   el.setAttribute("role", "button");
   el.setAttribute("aria-label", `Abrir projeto ${d.titulo || ""}`.trim());
-  if (!isReadOnlyUser() && (canMoveUp || canMoveDown)) {
+  if (!readOnly && (canMoveUp || canMoveDown)) {
     el.setAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown");
   }
-  if (isReadOnlyUser()) el.classList.add("card--readonly");
+  if (readOnly) el.classList.add("card--readonly");
   el.addEventListener("dragstart", (e) => {
     const from = e.target instanceof Element ? e.target : e.target?.parentElement;
     if (isReadOnlyUser()) {
       e.preventDefault();
       return;
     }
-    if (from?.closest(".card__prio")) {
+    if (from?.closest(".card__prio, .card__acoes")) {
       e.preventDefault();
       return;
     }
@@ -4871,7 +4936,7 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   el.addEventListener("dragend", () => el.classList.remove("card--drag-source"));
   el.addEventListener("click", (e) => {
     const from = e.target instanceof Element ? e.target : e.target?.parentElement;
-    if (from?.closest(".card__prio")) return;
+    if (from?.closest(".card__prio, .card__acoes")) return;
     openDemandaModal(d.id);
   });
   el.addEventListener("keydown", (e) => {
@@ -4890,33 +4955,6 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     }
   });
 
-  const atr = isAtraso(d) ? `<span class="badge badge--atr">Atraso</span>` : "";
-  const st = d.status || "novo";
-  const statusBadge = `<span class="badge ${statusBadgeClass(st)}">${escapeHtml(labelStatus(st, dmCard.linhaEsteira))}</span>`;
-  const statusTxt = (d.statusAtual || "").trim();
-  const statusTxtHtml = statusTxt
-    ? `<p class="card__status-atual">${escapeHtml(statusTxt)}</p>`
-    : "";
-  const diasAtraso = demandaDiasAtraso(d);
-  const atrasoHtml =
-    isAtraso(d) && diasAtraso > 0
-      ? `<div class="card__atraso"><p class="card__atraso-dias"><strong>Atraso:</strong> ${escapeHtml(formatDiasAtrasoLabel(diasAtraso))}</p></div>`
-      : "";
-  const diasAberto = demandaDiasAberto(d);
-  const diasAbertoTitle = isStatusConcluidoDemanda(dmCard)
-    ? "Dias aberto até a conclusão"
-    : dmCard.status === "reprovado"
-      ? "Dias aberto até a reprovação"
-      : "Dias desde a chegada — atualiza diariamente";
-  const diasAbertoHtml =
-    demandaInicioContagemAberto(dmCard)
-      ? `<p class="card__dias-aberto" title="${diasAbertoTitle}"><strong>Aberto:</strong> ${escapeHtml(formatDiasAbertoLabel(diasAberto))}</p>`
-      : "";
-  const editingHtml = cardEditingByHtml(d);
-  const respNomes = demandaProjetistasList(d);
-  const respAtrib = respNomes.length
-    ? cardPessoasHtml(respNomes)
-    : `<span class="badge badge--pend">${escapeHtml(labelProjetista(d.responsavel))}</span>`;
   const tipo = normalizeTipo(d.tipo);
   const produtoHtml =
     tipo === "B2B" && dmCard.produtoB2b
@@ -4926,12 +4964,24 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     tipo === "B2C" && dmCard.segmentoB2c
       ? `<span class="badge badge--segmento-b2c">${escapeHtml(dmCard.segmentoB2c)}</span>`
       : "";
-  const prioHtml = isReadOnlyUser()
+  const prioHtml = readOnly
     ? ""
     : `<div class="card__prio" title="Ajuste fino na coluna (mesma data de chegada)">` +
       `<button type="button" class="card-prio-btn" data-dir="-1" aria-label="Subir na coluna"${canMoveUp ? "" : " disabled"}>▲</button>` +
       `<button type="button" class="card-prio-btn" data-dir="1" aria-label="Descer na coluna"${canMoveDown ? "" : " disabled"}>▼</button>` +
       `</div>`;
+
+  const statusTxt = (d.statusAtual || "").trim();
+  const statusTxtHtml = statusTxt ? `<p class="card__status-atual">${escapeHtml(statusTxt)}</p>` : "";
+
+  const prazo = cardPrazoInfo(dmCard);
+  const prazoHtml = prazo
+    ? `<div class="card__prazo card__prazo--${prazo.tom}" title="Prazo previsto: ${escapeHtml(formatDataCurta(dmCard.dataFimPrevista))}">` +
+      `<div class="card__prazo-bar"><span style="width:${prazo.pct}%"></span></div>` +
+      `<p class="card__prazo-txt">${escapeHtml(prazo.texto)}</p>` +
+      `</div>`
+    : "";
+
   const snoozeAtivo =
     alertaSnoozeAtivo(dmCard, ALERTA_KIND_SEM_ATRIB) || alertaSnoozeAtivo(dmCard, ALERTA_KIND_COLUNA);
   const diasColuna = diasNaColunaAtual(dmCard);
@@ -4946,25 +4996,90 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   const colunaAlertaHtml = mostraColunaAlerta
     ? `<p class="card__coluna-alerta"><strong>${escapeHtml(String(diasColuna))} dia(s)</strong> nesta coluna</p>`
     : "";
+
+  const respNomes = demandaProjetistasList(d);
+  const pessoaHtml = respNomes.length
+    ? cardPessoasHtml(respNomes)
+    : `<span class="badge badge--pend">${escapeHtml(labelProjetista(d.responsavel))}</span>`;
+  const cidades = formatCidadesDemanda(d);
+  const cidadeHtml = cidades
+    ? `<span class="card__cidade" title="${escapeHtml(cidades)}">${CARD_ICONS.pino}<span>${escapeHtml(cidades)}</span></span>`
+    : "";
+
+  const checklist = normalizeChecklist(dmCard.checklist);
+  const feitas = checklist.filter((it) => it.done).length;
+  const nComent = Array.isArray(dmCard.comentarios) ? dmCard.comentarios.length : 0;
+  const nImg = Array.isArray(dmCard.imagens) ? dmCard.imagens.length : 0;
+  const diasAberto = demandaDiasAberto(d);
+  const diasAbertoTitle = isStatusConcluidoDemanda(dmCard)
+    ? "Dias aberto até a conclusão"
+    : dmCard.status === "reprovado"
+      ? "Dias aberto até a reprovação"
+      : "Dias desde a chegada — atualiza diariamente";
+  const stats = [];
+  if (demandaInicioContagemAberto(dmCard)) {
+    stats.push(`<span class="card__stat" title="${diasAbertoTitle}">${CARD_ICONS.relogio}${diasAberto}d</span>`);
+  }
+  if (checklist.length) {
+    stats.push(
+      `<span class="card__stat${feitas === checklist.length ? " card__stat--ok" : ""}" title="${escapeHtml(
+        `Tarefas do projeto: ${feitas} de ${checklist.length} — ${checklistNextLabel(checklist)}`,
+      )}">${CARD_ICONS.tarefas}${feitas}/${checklist.length}</span>`,
+    );
+  }
+  if (nComent) stats.push(`<span class="card__stat" title="${nComent} comentário(s)">${CARD_ICONS.comentario}${nComent}</span>`);
+  if (nImg) stats.push(`<span class="card__stat" title="${nImg} imagem(ns)">${CARD_ICONS.imagem}${nImg}</span>`);
+
+  const proxima = cardProximaEtapa(dmCard);
+  const proximaLabel = proxima ? labelStatus(proxima, dmCard.linhaEsteira) : "";
+  const podeAvancar = !readOnly && proxima && normalizeResponsavel(dmCard.responsavel);
+  const avancarHtml = podeAvancar
+    ? `<button type="button" class="card__avancar" title="Mover para ${escapeHtml(proximaLabel)}">Avançar ▸</button>`
+    : "";
+
+  let solicitante = (d.solicitante || "").trim();
+  if (solicitante && dmCard.setorSolicitanteB2b) solicitante += ` (${dmCard.setorSolicitanteB2b})`;
+  const pendente = checklist.find((it) => !it.done);
+  const detalhes = [
+    solicitante ? cardDetalheRow("Solicitante", solicitante) : "",
+    dmCard.dataChegada ? cardDetalheRow("Chegada", formatDataCurta(dmCard.dataChegada)) : "",
+    dmCard.dataFimPrevista ? cardDetalheRow("Prazo previsto", formatDataCurta(dmCard.dataFimPrevista)) : "",
+    dmCard.chamadoOcomon ? cardDetalheRow("Ocomon", dmCard.chamadoOcomon) : "",
+    proximaLabel ? cardDetalheRow("Próxima etapa", proximaLabel) : "",
+    pendente ? cardDetalheRow("Próx. atividade", pendente.name) : "",
+    respNomes.length > 1 ? cardDetalheRow("Projetistas", respNomes.join(", ")) : "",
+  ].join("");
+  const detalhesId = `cardDet-${d.id}`;
+  const detalhesHtml = expandido
+    ? `<dl class="card__detalhes" id="${escapeHtml(detalhesId)}">${detalhes || cardDetalheRow("Detalhes", "Sem dados adicionais")}</dl>`
+    : "";
+
   el.innerHTML = `
-    ${prioHtml}
-    <span class="card__open" aria-hidden="true" title="Abrir detalhes">↗</span>
+    <div class="card__top">
+      <div class="card__tags">
+        <span class="badge ${tipoBadgeClass(tipo)}">${escapeHtml(tipo)}</span>
+        ${produtoHtml}
+        ${segmentoHtml}
+      </div>
+      ${prioHtml}
+    </div>
     <h3 class="card__title"></h3>
-    ${editingHtml}
+    ${cardEditingByHtml(d)}
     ${statusTxtHtml}
-    ${diasAbertoHtml}
-    ${atrasoHtml}
+    ${prazoHtml}
     ${colunaAlertaHtml}
-    ${checklistCardHtml(dmCard)}
-    <div class="card__meta">
-      <span class="badge ${tipoBadgeClass(tipo)}">${escapeHtml(tipo)}</span>
-      ${produtoHtml}
-      ${segmentoHtml}
-      ${statusBadge}
-      ${respAtrib}
-      ${demandaCidadesList(d).length ? `<span title="${escapeHtml(formatCidadesDemanda(d))}">${escapeHtml(formatCidadesDemanda(d))}</span>` : ""}
-      ${d.solicitante ? `<span>${escapeHtml(d.solicitante)}</span>` : ""}
-      ${atr}
+    <div class="card__pessoa">
+      ${pessoaHtml}
+      ${cidadeHtml}
+    </div>
+    ${detalhesHtml}
+    <div class="card__foot">
+      <div class="card__stats">${stats.join("")}</div>
+      <div class="card__acoes">
+        ${avancarHtml}
+        <button type="button" class="card__expandir" aria-expanded="${expandido}" aria-controls="${escapeHtml(detalhesId)}"
+          aria-label="${expandido ? "Recolher detalhes" : "Ver detalhes"}" title="${expandido ? "Recolher detalhes" : "Ver detalhes"}">${expandido ? "▴" : "▾"}</button>
+      </div>
     </div>
   `;
   el.querySelector(".card__title").textContent = d.titulo;
@@ -4977,6 +5092,21 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     });
     btn.addEventListener("mousedown", (e) => e.stopPropagation());
   });
+  el.querySelector(".card__expandir")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (cardsExpandidos.has(d.id)) cardsExpandidos.delete(d.id);
+    else cardsExpandidos.add(d.id);
+    const novo = renderCard(d, { canMoveUp, canMoveDown });
+    el.replaceWith(novo);
+    novo.querySelector(".card__expandir")?.focus();
+  });
+  el.querySelector(".card__avancar")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const dem = state.demandas.find((x) => x.id === d.id);
+    if (!dem) return;
+    handleDemandaDrop(dem, proxima, BOARD_ATRIBUIDOS);
+    toast(`Movido para ${proximaLabel}`);
+  });
   return el;
 }
 
@@ -4988,12 +5118,12 @@ function focusCardById(id) {
   });
 }
 
+/** Iniciais do avatar: "Vinicius" → VI, "Ana Souza" → AS. */
 function cardAvatarIniciais(nome) {
   const partes = String(nome || "").trim().split(/\s+/).filter(Boolean);
   if (!partes.length) return "?";
-  const first = partes[0][0] || "";
-  const last = partes.length > 1 ? partes[partes.length - 1][0] || "" : "";
-  return (first + last).toUpperCase();
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
 }
 
 /** Matiz estável por nome — o mesmo projetista mantém a mesma cor em todos os cards. */
@@ -5004,21 +5134,12 @@ function cardAvatarHue(nome) {
 }
 
 function cardPessoasHtml(nomes) {
-  const max = 3;
-  const avatars = nomes
-    .slice(0, max)
-    .map(
-      (n) =>
-        `<span class="card__avatar" style="--avatar-h:${cardAvatarHue(n)}" title="${escapeHtml(n)}">` +
-        `${escapeHtml(cardAvatarIniciais(n))}</span>`,
-    )
-    .join("");
-  const extra = nomes.length > max ? `<span class="card__avatar card__avatar--more">+${nomes.length - max}</span>` : "";
-  const label = nomes.join(" · ");
+  const principal = nomes[0];
+  const extra = nomes.length > 1 ? ` <span class="card__people-more">+${nomes.length - 1}</span>` : "";
   return (
-    `<span class="card__people" title="${escapeHtml(label)}">` +
-    `<span class="card__avatars">${avatars}${extra}</span>` +
-    `<span class="card__people-names">${escapeHtml(label)}</span>` +
+    `<span class="card__people" title="${escapeHtml(nomes.join(" · "))}">` +
+    `<span class="card__avatar" style="--avatar-h:${cardAvatarHue(principal)}">${escapeHtml(cardAvatarIniciais(principal))}</span>` +
+    `<span class="card__people-names">${escapeHtml(principal)}${extra}</span>` +
     `</span>`
   );
 }
@@ -5683,37 +5804,6 @@ let editingLancamentoCabos = [];
 let editingComentarios = [];
 let editingChecklist = [];
 let editingChecklistItemId = "";
-
-function checklistCardHtml(dm) {
-  const items = normalizeChecklist(dm?.checklist);
-  const n = items.length;
-  const d = items.filter((it) => it.done).length;
-  if (!n) {
-    return (
-      `<div class="card__checklist card__checklist--empty" title="Sem atividades registradas">` +
-      `<span class="card__checklist-frac">Sem Atividades Registradas</span>` +
-      `</div>`
-    );
-  }
-  const dots = items
-    .map(
-      (it) =>
-        `<span class="card__checklist-dot${it.done ? " is-on" : ""}" title="${escapeHtml(
-          `${it.done ? "✓" : "○"} ${it.name}`,
-        )}"></span>`,
-    )
-    .join("");
-  const completo = d === n;
-  const pct = Math.round((d / n) * 100);
-  return (
-    `<div class="card__checklist${completo ? " card__checklist--done" : ""}" title="${escapeHtml(
-      `Tarefas do projeto: ${d} de ${n} (${pct}%) — ${checklistNextLabel(items)}`,
-    )}">` +
-    `<span class="card__checklist-frac">${completo ? "✓ " : ""}${d}/${n}</span>` +
-    `<span class="card__checklist-dots">${dots}</span>` +
-    `</div>`
-  );
-}
 
 function checklistNextLabel(items) {
   const pending = items.find((it) => !it.done);
