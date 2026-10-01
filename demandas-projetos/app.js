@@ -6540,6 +6540,7 @@ function setDemandaFormReadOnly(readOnly) {
   if (modal) modal.classList.toggle("demanda-modal--readonly", !!readOnly);
   if (form) {
     form.querySelectorAll("input, select, textarea, button").forEach((el) => {
+      if (el.dataset.uiNav) return;
         if (el.id === "modalDemandaClose" || el.id === "btnFecharDemanda" || el.id === "btnEnviarClickup" || el.id === "btnCancelarClickup" || el.id === "btnDemClickupCiente" || el.id === "btnChecklistExpand" || el.id === "btnChecklistGantt") return;
       if (el.closest(".comments-panel__toggle")) return;
       if (el.classList.contains("timeline-move-up") || el.classList.contains("timeline-move-down") || el.classList.contains("checklist-item__move-up") || el.classList.contains("checklist-item__move-down")) {
@@ -6571,6 +6572,416 @@ function setDemandaFormReadOnly(readOnly) {
     title.textContent = "Visualizar demanda";
   }
 }
+
+/* ---------- Modal demanda: trilha de etapas, navegação e seções recolhíveis ---------- */
+const DEM_SECOES = [
+  {
+    key: "chegada",
+    sel: ".fieldset--chegada",
+    curto: "Chegada",
+    icone: '<path d="M2.5 9.5h3l1 2h3l1-2h3"/><path d="M2.5 9.5 4.5 3.5h7l2 6v3h-11z"/>',
+  },
+  {
+    key: "atribuicao",
+    sel: ".fieldset--atribuicao",
+    curto: "Atribuição",
+    icone: '<circle cx="8" cy="5.5" r="2.5"/><path d="M3 13.5c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"/>',
+  },
+  {
+    key: "esteira",
+    sel: ".fieldset--esteira-form",
+    curto: "Prazo e status",
+    icone: '<circle cx="8" cy="8.5" r="5.5"/><path d="M8 5.5v3l2 1.5"/>',
+  },
+  {
+    key: "atraso",
+    sel: "#fieldsetMotivosAtraso",
+    curto: "Atraso",
+    icone: '<path d="M8 2.5 14 13H2z"/><path d="M8 6.5v3M8 11.3v.2"/>',
+  },
+  {
+    key: "custo",
+    sel: "#fieldsetCusto",
+    curto: "Custo",
+    icone: '<rect x="2" y="4" width="12" height="8.5" rx="1.5"/><circle cx="8" cy="8.2" r="1.8"/>',
+  },
+  {
+    key: "referencias",
+    sel: ".fieldset--referencias",
+    curto: "Referências",
+    icone: '<path d="M6.5 9.5 9.5 6.5"/><path d="M7 4.5 8.5 3a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5 7.5 13A2.5 2.5 0 0 1 4 9.5L5.5 8"/>',
+  },
+  {
+    key: "checklist",
+    sel: ".fieldset--checklist",
+    curto: "Tarefas",
+    icone: '<rect x="2" y="2" width="12" height="12" rx="2.5"/><path d="M5 8.2l2 2 4-4.2"/>',
+  },
+  {
+    key: "timeline",
+    sel: ".fieldset--timeline",
+    curto: "Tempo na esteira",
+    icone: '<path d="M2.5 4h6M5 8h8.5M3.5 12h5"/>',
+  },
+];
+const DEM_SECOES_COLAPSADAS_KEY = "demandas.secoesColapsadas";
+/** Status salvo quando o modal abriu — a trilha mostra a mudança pendente até salvar. */
+let demJornadaStatusOriginal = "";
+let demNavSyncRaf = 0;
+
+function demSecaoEl(sec) {
+  return document.querySelector(`#formDemanda ${sec.sel}`);
+}
+
+function demSvgIcone(paths) {
+  return `<svg viewBox="0 0 16 16" aria-hidden="true">${paths}</svg>`;
+}
+
+function lerSecoesColapsadas() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DEM_SECOES_COLAPSADAS_KEY) || "[]");
+    return new Set(Array.isArray(raw) ? raw : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function gravarSecoesColapsadas(set) {
+  try {
+    localStorage.setItem(DEM_SECOES_COLAPSADAS_KEY, JSON.stringify([...set]));
+  } catch {
+    /* preferência só local — sem storage, segue tudo aberto */
+  }
+}
+
+function setSecaoColapsada(sec, colapsada, { persistir = true } = {}) {
+  const fs = demSecaoEl(sec);
+  if (!fs) return;
+  fs.classList.toggle("is-collapsed", colapsada);
+  fs.querySelector(".seg-toggle")?.setAttribute("aria-expanded", String(!colapsada));
+  if (!persistir) return;
+  const set = lerSecoesColapsadas();
+  if (colapsada) set.add(sec.key);
+  else set.delete(sec.key);
+  gravarSecoesColapsadas(set);
+}
+
+function expandirTodasSecoes() {
+  for (const sec of DEM_SECOES) setSecaoColapsada(sec, false, { persistir: false });
+}
+
+/** Resumo curto de cada seção: aparece no chip da navegação e no título quando recolhida. */
+function demSecaoResumo(key) {
+  const val = (id) => (document.getElementById(id)?.value || "").trim();
+  const optTxt = (id) => {
+    const sel = document.getElementById(id);
+    return sel && sel.value ? (sel.selectedOptions[0]?.textContent || "").trim() : "";
+  };
+  switch (key) {
+    case "chegada": {
+      const falta = !val("demTitulo") || !val("demDescricao") || !val("demDataChegada");
+      if (falta) return { txt: "Faltam dados", tom: "alerta" };
+      return { txt: `${val("demTipo")} · chegou ${formatDataCurta(val("demDataChegada")).slice(0, 5)}`, tom: "ok" };
+    }
+    case "atribuicao": {
+      const resp = normalizeResponsavel(val("demResponsavel"));
+      const cidade = optTxt("demCidade");
+      if (!resp) return { txt: cidade ? `Sem projetista · ${cidade}` : "Sem projetista", tom: "alerta" };
+      const extras = editingProjetistasExtra.length ? ` +${editingProjetistasExtra.length}` : "";
+      return { txt: `${resp}${extras}${cidade ? ` · ${cidade}` : ""}`, tom: "ok" };
+    }
+    case "esteira": {
+      const prazo = cardPrazoInfo(demandaPreviewFromForm());
+      if (!prazo) return { txt: "Sem prazo", tom: "neutro" };
+      return { txt: prazo.texto, tom: prazo.tom };
+    }
+    case "atraso": {
+      const n = readMotivosAtrasoFromDom({ forSave: true }).length;
+      return n ? { txt: `${n} motivo(s)`, tom: "atraso" } : { txt: "Informe o motivo", tom: "atraso" };
+    }
+    case "custo": {
+      if (val("demTemLevantamento") !== "sim") return { txt: "Não se aplica", tom: "neutro" };
+      const final = val("custoValorFinal");
+      return final ? { txt: `R$ ${final}`, tom: "ok" } : { txt: "Sem valor", tom: "alerta" };
+    }
+    case "referencias": {
+      const refs = [];
+      if (val("demChamadoOcomon")) refs.push(`Ocomon ${val("demChamadoOcomon")}`);
+      if (val("demOsAniel")) refs.push(`O.S. ${val("demOsAniel")}`);
+      if (!document.getElementById("demClickupLink")?.hidden) refs.push("ClickUp");
+      return refs.length ? { txt: refs.join(" · "), tom: "ok" } : { txt: "Nenhuma", tom: "neutro" };
+    }
+    case "checklist": {
+      const n = editingChecklist.length;
+      if (!n) return { txt: "Sem atividades", tom: "neutro" };
+      const feitas = editingChecklist.filter((it) => it.done).length;
+      return { txt: `${feitas}/${n}`, tom: feitas === n ? "ok" : "alerta" };
+    }
+    case "timeline": {
+      const n = document.querySelectorAll("#demTimelineTable tbody tr").length;
+      return n ? { txt: `${n} fase(s)`, tom: "neutro" } : { txt: "Sem histórico", tom: "neutro" };
+    }
+    default:
+      return { txt: "", tom: "neutro" };
+  }
+}
+
+/** Dias por etapa a partir do "Tempo na esteira" (inclui edições ainda não salvas). */
+function demJornadaDiasPorStatus() {
+  const out = Object.create(null);
+  const rows = document.querySelectorAll("#demTimelineTable tbody tr");
+  if (!rows.length) return out;
+  for (const seg of readTimelineHistoricoFromDom()) {
+    const ms = timelineSegmentMs(seg);
+    if (ms == null || Number.isNaN(ms)) continue;
+    out[seg.status] = (out[seg.status] || 0) + ms;
+  }
+  return out;
+}
+
+function formatDiasCurto(ms) {
+  const dias = ms / 86400000;
+  if (dias < 1) return "<1d";
+  return `${Math.round(dias)}d`;
+}
+
+function renderDemJornada() {
+  const root = document.getElementById("demJornada");
+  if (!root) return;
+  const linha = editingLinhaEsteira;
+  const cfg = getEsteiraConfig(linha);
+  const atual = demStatusSel?.value || cfg.inboxStatus;
+  const original = demJornadaStatusOriginal || atual;
+  const fluxo = cfg.statusOrder.map(([k]) => k).filter((k) => k !== "pausado" && k !== "reprovado");
+  const extras = [...cfg.statusOrder, ...cfg.statusExtra]
+    .map(([k]) => k)
+    .filter((k) => k === "pausado" || k === "reprovado");
+  const idxAtual = fluxo.indexOf(atual);
+  const idxOriginal = fluxo.indexOf(original);
+  const tempos = demJornadaDiasPorStatus();
+  const readOnly = isReadOnlyUser();
+  const passo = (k, i) => {
+    const label = labelStatus(k, linha);
+    const ms = tempos[k];
+    const estado =
+      k === atual ? "is-current" : idxAtual >= 0 && i < idxAtual ? "is-done" : "is-todo";
+    const classes = ["dem-step", estado];
+    if (k === original && k !== atual) classes.push("is-origem");
+    const tempoTxt = ms != null ? formatDiasCurto(ms) : "";
+    const titulo = `${label}${ms != null ? ` · ${formatDur(ms)} nesta etapa` : ""}${
+      readOnly ? "" : k === atual ? " · etapa selecionada" : " · clique para mover para esta etapa"
+    }`;
+    return (
+      `<li class="${classes.join(" ")}">` +
+      `<button type="button" class="dem-step__btn" data-status="${escapeHtml(k)}" title="${escapeHtml(titulo)}"` +
+      `${k === atual ? ' aria-current="step"' : ""}${readOnly ? " disabled" : ""}>` +
+      `<span class="dem-step__dot">${estado === "is-done" ? "✓" : i + 1}</span>` +
+      `<span class="dem-step__label">${escapeHtml(label)}</span>` +
+      `<span class="dem-step__dias">${escapeHtml(tempoTxt)}</span>` +
+      `</button></li>`
+    );
+  };
+  const extrasHtml = extras
+    .map((k) => {
+      const ativo = k === atual;
+      return (
+        `<button type="button" class="dem-jornada__extra dem-jornada__extra--${escapeHtml(k)}${ativo ? " is-on" : ""}"` +
+        ` data-status="${escapeHtml(k)}" aria-pressed="${ativo}"${readOnly ? " disabled" : ""}` +
+        ` title="${ativo ? "Clique para voltar à etapa anterior" : `Marcar como ${escapeHtml(labelStatus(k, linha))}`}">` +
+        `${escapeHtml(labelStatus(k, linha))}</button>`
+      );
+    })
+    .join("");
+  const posicao = idxAtual >= 0 ? `Etapa ${idxAtual + 1} de ${fluxo.length}` : labelStatus(atual, linha);
+  const msAtual = tempos[atual];
+  const infoTempo = msAtual != null && atual === original ? ` · ${formatDiasCurto(msAtual)} nesta etapa` : "";
+  const mudou = original && atual !== original;
+  const avisoHtml = mudou
+    ? `<p class="dem-jornada__aviso" role="status">Ao salvar, o projeto vai de <strong>${escapeHtml(
+        labelStatus(original, linha),
+      )}</strong> para <strong>${escapeHtml(labelStatus(atual, linha))}</strong>.` +
+      ` <button type="button" class="dem-jornada__desfazer" data-status="${escapeHtml(original)}">Desfazer</button></p>`
+    : "";
+  const proxima = cardProximaEtapa(demandaPreviewFromForm());
+  const avancarHtml =
+    proxima && !readOnly
+      ? `<button type="button" class="dem-jornada__avancar" data-status="${escapeHtml(proxima)}"` +
+        ` title="Mover para ${escapeHtml(labelStatus(proxima, linha))}">Próxima etapa ▸</button>`
+      : "";
+  root.innerHTML =
+    `<div class="dem-jornada__head">` +
+    `<div><span class="dem-jornada__titulo">Etapas da esteira</span>` +
+    `<span class="dem-jornada__info">${escapeHtml(posicao)}${escapeHtml(infoTempo)}</span></div>` +
+    `<div class="dem-jornada__acoes">${extrasHtml}${avancarHtml}</div>` +
+    `</div>` +
+    `<ol class="dem-jornada__trilha${idxAtual < 0 ? " is-fora" : ""}">${fluxo.map(passo).join("")}</ol>` +
+    avisoHtml;
+  const atualEl = root.querySelector(".dem-step.is-current");
+  const trilha = root.querySelector(".dem-jornada__trilha");
+  if (atualEl && trilha) {
+    const alvo = atualEl.offsetLeft - trilha.clientWidth / 2 + atualEl.offsetWidth / 2;
+    trilha.scrollLeft = Math.max(0, alvo);
+  }
+  if (trilha) {
+    syncTrilhaBordas(trilha);
+    trilha.addEventListener("scroll", () => syncTrilhaBordas(trilha), { passive: true });
+  }
+}
+
+function syncTrilhaBordas(trilha) {
+  trilha.classList.toggle("tem-mais-esq", trilha.scrollLeft > 2);
+  trilha.classList.toggle("tem-mais-dir", trilha.scrollLeft + trilha.clientWidth < trilha.scrollWidth - 2);
+}
+
+function setDemStatusPelaJornada(status) {
+  if (!demStatusSel || isReadOnlyUser()) return;
+  const cfg = getEsteiraConfig(editingLinhaEsteira);
+  let alvo = status;
+  // Clicar no Pausado/Reprovado já ativo volta para a etapa em que o projeto estava.
+  if (alvo === demStatusSel.value && (alvo === "pausado" || alvo === "reprovado")) {
+    alvo = demJornadaStatusOriginal !== alvo ? demJornadaStatusOriginal : cfg.inboxStatus;
+  }
+  if (!cfg.statusLabel[alvo] || alvo === demStatusSel.value) return;
+  demStatusSel.value = alvo;
+  demStatusSel.dispatchEvent(new Event("change", { bubbles: true }));
+  agendarSyncDemNavegacao();
+}
+
+function renderDemSecoesNav() {
+  const nav = document.getElementById("demSecoes");
+  if (!nav) return;
+  const atual = nav.querySelector(".dem-secoes__chip.is-active")?.dataset.secao || "";
+  nav.innerHTML = DEM_SECOES.filter((sec) => {
+    const fs = demSecaoEl(sec);
+    return fs && !fs.hidden;
+  })
+    .map((sec) => {
+      const r = demSecaoResumo(sec.key);
+      return (
+        `<button type="button" class="dem-secoes__chip${sec.key === atual ? " is-active" : ""}" data-secao="${sec.key}" data-ui-nav="1"` +
+        ` title="${escapeHtml(`${sec.curto}: ${r.txt}`)}">` +
+        `${demSvgIcone(sec.icone)}<span class="dem-secoes__nome">${escapeHtml(sec.curto)}</span>` +
+        `<span class="dem-secoes__resumo dem-tom--${r.tom}">${escapeHtml(r.txt)}</span>` +
+        `</button>`
+      );
+    })
+    .join("");
+}
+
+function syncDemSecoesResumo() {
+  for (const sec of DEM_SECOES) {
+    const fs = demSecaoEl(sec);
+    const alvo = fs?.querySelector(".seg-toggle__resumo");
+    if (!alvo) continue;
+    const r = demSecaoResumo(sec.key);
+    alvo.textContent = r.txt;
+    alvo.className = `seg-toggle__resumo dem-tom--${r.tom}`;
+  }
+}
+
+function syncDemNavegacao() {
+  demNavSyncRaf = 0;
+  renderDemJornada();
+  renderDemSecoesNav();
+  syncDemSecoesResumo();
+  atualizarSecaoAtivaDemNav();
+}
+
+function agendarSyncDemNavegacao() {
+  if (demNavSyncRaf) return;
+  demNavSyncRaf = requestAnimationFrame(syncDemNavegacao);
+}
+
+/** Destaca na barra a seção visível no topo da coluna do formulário. */
+function atualizarSecaoAtivaDemNav() {
+  const col = document.getElementById("demFormCol");
+  const nav = document.getElementById("demSecoes");
+  if (!col || !nav) return;
+  const limite = col.getBoundingClientRect().top + nav.offsetHeight + 24;
+  let ativa = "";
+  for (const sec of DEM_SECOES) {
+    const fs = demSecaoEl(sec);
+    if (!fs || fs.hidden) continue;
+    if (fs.getBoundingClientRect().top <= limite) ativa = sec.key;
+  }
+  if (!ativa) ativa = DEM_SECOES.find((sec) => demSecaoEl(sec) && !demSecaoEl(sec).hidden)?.key || "";
+  // No fim da rolagem, a última seção visível é a ativa.
+  if (col.scrollTop + col.clientHeight >= col.scrollHeight - 4) {
+    const visiveis = DEM_SECOES.filter((sec) => demSecaoEl(sec) && !demSecaoEl(sec).hidden);
+    ativa = visiveis[visiveis.length - 1]?.key || ativa;
+  }
+  nav.querySelectorAll(".dem-secoes__chip").forEach((chip) => {
+    chip.classList.toggle("is-active", chip.dataset.secao === ativa);
+  });
+  const chipAtivo = nav.querySelector(".dem-secoes__chip.is-active");
+  if (chipAtivo && nav.scrollWidth > nav.clientWidth) {
+    const left = chipAtivo.offsetLeft - nav.clientWidth / 2 + chipAtivo.offsetWidth / 2;
+    nav.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+  }
+}
+
+function irParaSecaoDem(key) {
+  const sec = DEM_SECOES.find((s) => s.key === key);
+  const fs = sec && demSecaoEl(sec);
+  const col = document.getElementById("demFormCol");
+  const nav = document.getElementById("demSecoes");
+  if (!fs || !col) return;
+  if (fs.classList.contains("is-collapsed")) setSecaoColapsada(sec, false);
+  const top = fs.getBoundingClientRect().top - col.getBoundingClientRect().top + col.scrollTop;
+  col.scrollTo({ top: Math.max(0, top - (nav?.offsetHeight || 0) - 8), behavior: "smooth" });
+  fs.classList.remove("is-flash");
+  void fs.offsetWidth;
+  fs.classList.add("is-flash");
+}
+
+function initDemNavegacao() {
+  const form = document.getElementById("formDemanda");
+  if (!form || form.dataset.navInited) return;
+  form.dataset.navInited = "1";
+  const colapsadas = lerSecoesColapsadas();
+  for (const sec of DEM_SECOES) {
+    const fs = demSecaoEl(sec);
+    const legend = fs?.querySelector(":scope > legend");
+    if (!legend) continue;
+    const titulo = legend.textContent.trim();
+    legend.innerHTML =
+      `<button type="button" class="seg-toggle" data-ui-nav="1" aria-expanded="true">` +
+      `<span class="seg-toggle__ico">${demSvgIcone(sec.icone)}</span>` +
+      `<span class="seg-toggle__titulo">${escapeHtml(titulo)}</span>` +
+      `<span class="seg-toggle__resumo"></span>` +
+      `<span class="seg-toggle__chev" aria-hidden="true">▾</span>` +
+      `</button>`;
+    legend.querySelector(".seg-toggle").addEventListener("click", () => {
+      setSecaoColapsada(sec, !fs.classList.contains("is-collapsed"));
+    });
+    if (colapsadas.has(sec.key)) setSecaoColapsada(sec, true, { persistir: false });
+  }
+  document.getElementById("demJornada")?.addEventListener("click", (e) => {
+    const btn = e.target instanceof Element ? e.target.closest("button[data-status]") : null;
+    if (btn && !btn.disabled) setDemStatusPelaJornada(btn.dataset.status);
+  });
+  document.getElementById("demSecoes")?.addEventListener("click", (e) => {
+    const chip = e.target instanceof Element ? e.target.closest(".dem-secoes__chip") : null;
+    if (chip) irParaSecaoDem(chip.dataset.secao);
+  });
+  document.getElementById("demFormCol")?.addEventListener("scroll", () => atualizarSecaoAtivaDemNav(), {
+    passive: true,
+  });
+  // Qualquer edição (inclusive listas re-renderizadas por botões) atualiza trilha e resumos.
+  form.addEventListener("input", agendarSyncDemNavegacao);
+  form.addEventListener("change", agendarSyncDemNavegacao);
+  form.addEventListener("click", agendarSyncDemNavegacao);
+  // Validação do Salvar foca campos: abre tudo antes para o foco achar o campo.
+  document.getElementById("btnSalvarDemanda")?.parentElement?.addEventListener(
+    "click",
+    (e) => {
+      if (e.target instanceof Element && e.target.closest("#btnSalvarDemanda")) expandirTodasSecoes();
+    },
+    true,
+  );
+}
+
+initDemNavegacao();
 
 function openDemandaModal(id) {
   if (!id && isReadOnlyUser()) {
@@ -6700,8 +7111,12 @@ function openDemandaModal(id) {
   syncDemClickupUi();
   const scrollSnap = snapshotPageScroll();
   setDemandaModalScrollLock(true);
+  demJornadaStatusOriginal = d?.status || cfg.inboxStatus;
+  syncDemNavegacao();
   modalDemanda.showModal();
+  document.getElementById("demFormCol")?.scrollTo({ top: 0 });
   restorePageScroll(scrollSnap);
+  requestAnimationFrame(() => syncDemNavegacao());
   requestAnimationFrame(() => syncDemandaModalAlerts());
 }
 
