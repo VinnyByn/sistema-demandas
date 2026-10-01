@@ -3519,6 +3519,7 @@ function sameChecklist(a, b) {
     if (x[i].dateInicio !== y[i].dateInicio) return false;
     if (x[i].date !== y[i].date) return false;
     if (x[i].done !== y[i].done) return false;
+    if (x[i].status !== y[i].status) return false;
   }
   return true;
 }
@@ -3643,10 +3644,25 @@ function groupComentariosPorDia(items) {
   return groups;
 }
 
+/** Status de cada atividade do checklist. `done` continua gravado (card, cronograma, dashboard). */
+const CHECKLIST_STATUS = [
+  ["afazer", "A fazer"],
+  ["andamento", "Em andamento"],
+  ["concluida", "Concluída"],
+];
+const CHECKLIST_STATUS_LABEL = Object.fromEntries(CHECKLIST_STATUS);
+
+function normalizeChecklistStatus(it) {
+  const s = String(it?.status || "").trim();
+  if (CHECKLIST_STATUS_LABEL[s]) return s;
+  return it?.done === true ? "concluida" : "afazer";
+}
+
 function normalizeChecklistItem(it) {
   if (!it || typeof it !== "object") return null;
   const name = String(it.name || it.etapa || "").trim();
   if (!name) return null;
+  const status = normalizeChecklistStatus(it);
   return {
     id: it.id || uid(),
     name,
@@ -3654,7 +3670,8 @@ function normalizeChecklistItem(it) {
     who: String(it.who || it.responsavel || "").trim(),
     dateInicio: String(it.dateInicio || it.inicio || "").trim(),
     date: String(it.date || it.dateFim || "").trim(),
-    done: it.done === true,
+    status,
+    done: status === "concluida",
   };
 }
 
@@ -5846,11 +5863,12 @@ function readChecklistEtapaDraft(ids) {
 }
 
 function validateChecklistEtapa(draft, focusId) {
-  if (!draft.name || !draft.who || !draft.dateInicio || !draft.date) {
-    toast("Preencha atividade, responsável, previsão de início e término.");
+  // Datas são opcionais: sem término a atividade fica "Sem prazo" (nunca atrasada).
+  if (!draft.name || !draft.who) {
+    toast("Preencha a atividade e o responsável.");
     return false;
   }
-  if (draft.dateInicio > draft.date) {
+  if (draft.dateInicio && draft.date && draft.dateInicio > draft.date) {
     toast("A previsão de início deve ser anterior ou igual ao término.");
     if (focusId) document.getElementById(focusId)?.focus();
     return false;
@@ -5859,8 +5877,12 @@ function validateChecklistEtapa(draft, focusId) {
 }
 
 function applyChecklistItemPatch(id, patch) {
+  // Mantém `status` e `done` coerentes, venha a mudança por um ou por outro.
+  const p = { ...patch };
+  if (p.status && CHECKLIST_STATUS_LABEL[p.status]) p.done = p.status === "concluida";
+  else if (typeof p.done === "boolean") p.status = p.done ? "concluida" : "afazer";
   editingChecklist = normalizeChecklist(editingChecklist).map((row) =>
-    row.id === id ? { ...row, ...patch } : row,
+    row.id === id ? { ...row, ...p } : row,
   );
 }
 
@@ -5963,38 +5985,52 @@ let checklistRecemConcluidaId = "";
 
 const CHECKLIST_FILTROS = [
   ["todas", "Todas"],
-  ["pendentes", "Pendentes"],
+  ["afazer", "A fazer"],
+  ["andamento", "Em andamento"],
   ["atrasadas", "Atrasadas"],
   ["concluidas", "Concluídas"],
 ];
 
-/** Situação da atividade pelas datas: concluída, atrasada, em andamento ou aguardando. */
-function checklistItemSituacao(it) {
+/** Prazo da atividade (independe do status): atrasada, termina em N dias, começa em N dias ou sem prazo. */
+function checklistItemPrazo(it) {
   let start = checklistGanttItemStart(it);
   let end = checklistGanttItemEnd(it);
   if (start && end && start > end) [start, end] = [end, start];
-  const tom = checklistGanttTone(it, start, end);
   const hoje = todayISODate();
-  if (tom === "done") return { tom, texto: "Concluída" };
-  if (tom === "late") {
+  if (it.done) return { atrasada: false, texto: "" };
+  if (end && hoje > end) {
     const n = diasEntreDatasISO(end, hoje);
-    return { tom, texto: `Atrasada ${n === 1 ? "1 dia" : `${n} dias`}` };
+    return { atrasada: true, texto: `Atrasada ${n === 1 ? "1 dia" : `${n} dias`}` };
   }
-  if (tom === "active") {
-    if (!end) return { tom, texto: "Em andamento" };
-    const n = diasEntreDatasISO(hoje, end);
-    return { tom, texto: n === 0 ? "Termina hoje" : n === 1 ? "Termina amanhã" : `Termina em ${n} dias` };
-  }
-  if (start) {
+  if (start && hoje < start && normalizeChecklistStatus(it) === "afazer") {
     const n = diasEntreDatasISO(hoje, start);
-    return { tom, texto: n <= 1 ? "Começa amanhã" : `Começa em ${n} dias` };
+    return { atrasada: false, texto: n <= 1 ? "Começa amanhã" : `Começa em ${n} dias` };
   }
-  return { tom, texto: "Sem data" };
+  if (end) {
+    const n = diasEntreDatasISO(hoje, end);
+    return { atrasada: false, texto: n === 0 ? "Termina hoje" : n === 1 ? "Termina amanhã" : `Termina em ${n} dias` };
+  }
+  return { atrasada: false, texto: "Sem prazo" };
+}
+
+/**
+ * Situação da atividade: o status escolhido manda (a fazer, em andamento, concluída);
+ * passar da data de término sem concluir vira "atrasada".
+ */
+function checklistItemSituacao(it) {
+  const status = normalizeChecklistStatus(it);
+  if (status === "concluida") return { tom: "done", texto: "Concluída" };
+  const prazo = checklistItemPrazo(it);
+  if (prazo.atrasada) return { tom: "late", texto: prazo.texto };
+  const base = CHECKLIST_STATUS_LABEL[status];
+  const sufixo = prazo.texto ? ` · ${prazo.texto.charAt(0).toLowerCase()}${prazo.texto.slice(1)}` : "";
+  return { tom: status === "andamento" ? "active" : "wait", texto: `${base}${sufixo}` };
 }
 
 function checklistPassaFiltro(it, filtro) {
   if (filtro === "concluidas") return it.done;
-  if (filtro === "pendentes") return !it.done;
+  if (filtro === "afazer") return normalizeChecklistStatus(it) === "afazer";
+  if (filtro === "andamento") return normalizeChecklistStatus(it) === "andamento";
   if (filtro === "atrasadas") return checklistItemSituacao(it).tom === "late";
   return true;
 }
@@ -6006,9 +6042,12 @@ function checklistPeriodoTexto(it) {
   return a || b || "Sem data";
 }
 
+/** Limite do nome da atividade (antes 80). */
+const CHECKLIST_NOME_MAX = 200;
+
 function setChecklistItemDone(id, done) {
   if (isReadOnlyUser() || !requireWriteAccess()) return;
-  applyChecklistItemPatch(id, { done });
+  applyChecklistItemPatch(id, { status: done ? "concluida" : "afazer" });
   checklistRecemConcluidaId = done ? id : "";
   renderChecklistEditor();
 }
@@ -6123,6 +6162,7 @@ function renderChecklistEditor() {
     if (!visiveis.includes(it)) return;
     const editing = !readOnly && editingChecklistItemId === it.id;
     const sit = checklistItemSituacao(it);
+    const status = normalizeChecklistStatus(it);
     const li = document.createElement("li");
     li.dataset.idx = String(idx);
     li.className =
@@ -6131,39 +6171,15 @@ function renderChecklistEditor() {
       (editing ? " is-editing" : "") +
       ` is-${sit.tom}` +
       (checklistRecemConcluidaId === it.id ? " is-just-done" : "");
-    const box = document.createElement("label");
-    box.className = "checklist-check";
-    box.title = it.done ? "Marcar como pendente" : "Marcar como concluída";
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = it.done;
-    cb.disabled = readOnly;
-    cb.setAttribute("aria-label", it.name);
-    cb.addEventListener("change", () => {
-      const done = cb.checked;
-      const draft = editing
-        ? readChecklistEtapaDraft({
-            name: "demChecklistEditName",
-            descricao: "demChecklistEditDesc",
-            who: "demChecklistEditWho",
-            dateInicio: "demChecklistEditInicio",
-            date: "demChecklistEditFim",
-          })
-        : {};
-      applyChecklistItemPatch(it.id, { ...draft, done });
-      checklistRecemConcluidaId = done ? it.id : "";
-      renderChecklistEditor();
-    });
-    const mark = document.createElement("i");
-    mark.setAttribute("aria-hidden", "true");
-    box.append(cb, mark);
 
-    const actions = document.createElement("div");
-    actions.className = "checklist-item__actions";
+    // Ícone só de visualização: muda conforme o status.
+    const icone = document.createElement("span");
+    icone.className = `ck-icone ck-icone--${status}`;
+    icone.setAttribute("role", "img");
+    icone.setAttribute("aria-label", CHECKLIST_STATUS_LABEL[status]);
+    icone.title = CHECKLIST_STATUS_LABEL[status];
 
-    const rm = checklistIconBtn("checklist-item__remove", "🗑", `Remover “${it.name}”`);
-    rm.disabled = readOnly;
-    rm.addEventListener("click", async () => {
+    const remover = async () => {
       if (readOnly) return;
       const ok = await confirmDialog({
         title: "Remover atividade?",
@@ -6176,7 +6192,11 @@ function renderChecklistEditor() {
       if (editingChecklistItemId === it.id) editingChecklistItemId = "";
       editingChecklist = editingChecklist.filter((x) => x.id !== it.id);
       renderChecklistEditor();
-    });
+    };
+    const cancelarEdicao = () => {
+      editingChecklistItemId = "";
+      renderChecklistEditor();
+    };
 
     if (editing) {
       const edit = document.createElement("div");
@@ -6185,9 +6205,10 @@ function renderChecklistEditor() {
         id: "demChecklistEditName",
         label: "Atividade",
         value: it.name,
-        maxLength: 80,
+        maxLength: CHECKLIST_NOME_MAX,
         placeholder: "PDF do levantamento",
       });
+      nameField.wrap.classList.add("checklist-item__edit-nome");
       const descField = createChecklistField({
         id: "demChecklistEditDesc",
         label: "Descrição",
@@ -6205,17 +6226,17 @@ function renderChecklistEditor() {
       });
       const startField = createChecklistField({
         id: "demChecklistEditInicio",
-        label: "Previsão de início",
+        label: "Início (opcional)",
         type: "date",
         value: it.dateInicio,
       });
       const endField = createChecklistField({
         id: "demChecklistEditFim",
-        label: "Previsão de término",
+        label: "Término (opcional)",
         type: "date",
         value: it.date,
       });
-      [nameField.input, whoField.input].forEach((input) => {
+      [nameField.input, whoField.input, startField.input, endField.input].forEach((input) => {
         input.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -6223,29 +6244,36 @@ function renderChecklistEditor() {
           } else if (e.key === "Escape") {
             e.preventDefault();
             e.stopPropagation();
-            editingChecklistItemId = "";
-            renderChecklistEditor();
+            cancelarEdicao();
           }
         });
       });
-      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, descField.wrap);
 
-      const save = document.createElement("button");
-      save.type = "button";
-      save.className = "checklist-item__save";
-      save.textContent = "Salvar";
-      save.addEventListener("click", () => saveChecklistItemEdit(it.id));
+      // Rodapé da edição: remover à esquerda, cancelar/salvar à direita.
+      const foot = document.createElement("div");
+      foot.className = "checklist-item__edit-foot";
+      const rm = document.createElement("button");
+      rm.type = "button";
+      rm.className = "checklist-item__remove checklist-item__remove--txt";
+      rm.textContent = "🗑 Remover";
+      rm.addEventListener("click", remover);
+      const dica = document.createElement("span");
+      dica.className = "checklist-item__edit-dica";
+      dica.textContent = "Enter salva · Esc cancela";
       const cancel = document.createElement("button");
       cancel.type = "button";
-      cancel.className = "checklist-item__cancel";
+      cancel.className = "btn btn--ghost btn--sm checklist-item__cancel";
       cancel.textContent = "Cancelar";
-      cancel.addEventListener("click", () => {
-        editingChecklistItemId = "";
-        renderChecklistEditor();
-      });
-      appendChecklistMoveButtons(actions, it, idx, n, readOnly);
-      actions.append(save, cancel, rm);
-      li.append(box, edit, actions);
+      cancel.addEventListener("click", cancelarEdicao);
+      const save = document.createElement("button");
+      save.type = "button";
+      save.className = "btn btn--primary btn--sm checklist-item__save";
+      save.textContent = "Salvar";
+      save.addEventListener("click", () => saveChecklistItemEdit(it.id));
+      foot.append(rm, dica, cancel, save);
+
+      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, descField.wrap, foot);
+      li.append(icone, edit);
     } else {
       const body = document.createElement("div");
       body.className = "checklist-item__body";
@@ -6283,19 +6311,47 @@ function renderChecklistEditor() {
       } else {
         who.textContent = "Sem responsável";
       }
-      const periodo = document.createElement("time");
-      periodo.dateTime = it.date || it.dateInicio || "";
-      periodo.textContent = checklistPeriodoTexto(it);
-      periodo.title = `Início ${it.dateInicio ? formatDataCurta(it.dateInicio) : "—"} · Término ${
-        it.date ? formatDataCurta(it.date) : "—"
-      }`;
-      meta.append(who, periodo);
+      meta.append(who);
+      if (it.dateInicio || it.date) {
+        const periodo = document.createElement("time");
+        periodo.dateTime = it.date || it.dateInicio || "";
+        periodo.textContent = checklistPeriodoTexto(it);
+        periodo.title = `Início ${it.dateInicio ? formatDataCurta(it.dateInicio) : "—"} · Término ${
+          it.date ? formatDataCurta(it.date) : "—"
+        }`;
+        meta.append(periodo);
+      }
       body.append(meta);
 
-      const situacao = document.createElement("span");
-      situacao.className = `ck-situacao ck-situacao--${sit.tom}`;
-      situacao.textContent = sit.texto;
+      // Prazo (texto) + status (seletor) à direita.
+      const prazo = checklistItemPrazo(it);
+      const prazoEl = document.createElement("span");
+      prazoEl.className = "ck-prazo" + (prazo.atrasada ? " is-atrasada" : "") + (!prazo.texto ? " is-vazio" : "");
+      prazoEl.textContent = prazo.texto;
 
+      const sel = document.createElement("select");
+      sel.className = `ck-status ck-status--${status}`;
+      sel.setAttribute("aria-label", `Status de “${it.name}”`);
+      sel.disabled = readOnly;
+      CHECKLIST_STATUS.forEach(([k, label]) => {
+        const o = document.createElement("option");
+        o.value = k;
+        o.textContent = label;
+        o.selected = k === status;
+        sel.appendChild(o);
+      });
+      sel.addEventListener("change", () => {
+        if (isReadOnlyUser() || !requireWriteAccess()) {
+          sel.value = status;
+          return;
+        }
+        applyChecklistItemPatch(it.id, { status: sel.value });
+        checklistRecemConcluidaId = sel.value === "concluida" ? it.id : "";
+        renderChecklistEditor();
+      });
+
+      const actions = document.createElement("div");
+      actions.className = "checklist-item__actions";
       const editBtn = checklistIconBtn("checklist-item__edit-btn", "✎", `Editar “${it.name}”`);
       editBtn.disabled = readOnly;
       editBtn.addEventListener("click", () => {
@@ -6305,9 +6361,12 @@ function renderChecklistEditor() {
         renderChecklistEditor();
         document.getElementById("demChecklistEditName")?.focus();
       });
+      const rm = checklistIconBtn("checklist-item__remove", "🗑", `Remover “${it.name}”`);
+      rm.disabled = readOnly;
+      rm.addEventListener("click", remover);
       appendChecklistMoveButtons(actions, it, idx, n, readOnly);
       actions.append(editBtn, rm);
-      li.append(box, body, situacao, actions);
+      li.append(icone, body, prazoEl, sel, actions);
     }
     list.appendChild(li);
   });
@@ -6330,21 +6389,15 @@ function checklistGanttItemEnd(it) {
   return isoDatePart(it?.date) || "";
 }
 
-function checklistGanttTone(it, start, end) {
-  if (it?.done) return "done";
-  const today = todayISODate();
-  if (end && today > end) return "late";
-  const begun = !start || today >= start;
-  const open = !end || today <= end;
-  if (begun && open && (start || end)) return "active";
-  return "wait";
+function checklistGanttTone(it) {
+  return checklistItemSituacao(it).tom;
 }
 
 function checklistGanttToneLabel(tone) {
   if (tone === "done") return "Concluída";
   if (tone === "late") return "Passou da data final";
-  if (tone === "active") return "Dentro do prazo";
-  return "Ainda não começou";
+  if (tone === "active") return "Em andamento";
+  return "A fazer";
 }
 
 function checklistGanttRange(items) {
@@ -6476,7 +6529,7 @@ function renderChecklistGanttToolbar(host, items) {
     ["done", "Concluída"],
     ["active", "Em andamento"],
     ["late", "Atrasada"],
-    ["wait", "Aguardando"],
+    ["wait", "A fazer"],
   ].forEach(([tom, label]) => {
     const item = document.createElement("span");
     item.className = `checklist-gantt__leg is-${tom}`;
@@ -6720,6 +6773,8 @@ function addChecklistEtapaFromForm() {
     date: "demChecklistDate",
   });
   if (!validateChecklistEtapa(draft, "demChecklistDateInicio")) return;
+  const selStatus = document.getElementById("demChecklistStatus");
+  const novoStatus = CHECKLIST_STATUS_LABEL[selStatus?.value] ? selStatus.value : "afazer";
   editingChecklistItemId = "";
   editingChecklist = [
     ...normalizeChecklist(editingChecklist),
@@ -6730,7 +6785,8 @@ function addChecklistEtapaFromForm() {
       who: draft.who,
       dateInicio: draft.dateInicio,
       date: draft.date,
-      done: true,
+      status: novoStatus,
+      done: novoStatus === "concluida",
     },
   ];
   const etapa = document.getElementById("demChecklistEtapa");
@@ -6739,6 +6795,11 @@ function addChecklistEtapaFromForm() {
   if (etapa) etapa.value = "";
   if (desc) desc.value = "";
   if (resp) resp.value = "";
+  ["demChecklistDateInicio", "demChecklistDate"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  if (selStatus) selStatus.value = "afazer";
   checklistFiltro = "todas";
   renderChecklistEditor();
   toast(`Atividade “${draft.name}” adicionada`);
@@ -6785,10 +6846,6 @@ function bindChecklistEditor() {
       }
     });
   });
-  const dateStartEl = document.getElementById("demChecklistDateInicio");
-  if (dateStartEl && !dateStartEl.value) dateStartEl.value = todayISODate();
-  const dateEl = document.getElementById("demChecklistDate");
-  if (dateEl && !dateEl.value) dateEl.value = todayISODate();
 }
 
 function renderComentariosList() {
@@ -7174,10 +7231,13 @@ function openDemandaModal(id) {
   }
   if (details) details.hidden = true;
   setChecklistGanttOpen(false);
+  // Datas da nova atividade começam vazias (opcionais) e o status em "A fazer".
   const dateStartEl = document.getElementById("demChecklistDateInicio");
-  if (dateStartEl) dateStartEl.value = todayISODate();
+  if (dateStartEl) dateStartEl.value = "";
   const dateEl = document.getElementById("demChecklistDate");
-  if (dateEl) dateEl.value = todayISODate();
+  if (dateEl) dateEl.value = "";
+  const statusNovoEl = document.getElementById("demChecklistStatus");
+  if (statusNovoEl) statusNovoEl.value = "afazer";
   const etapaEl = document.getElementById("demChecklistEtapa");
   const descEl = document.getElementById("demChecklistDesc");
   const whoEl = document.getElementById("demChecklistWho");

@@ -1226,7 +1226,7 @@
 
         <fieldset class="fieldset fieldset--segment fieldset--checklist">
           <legend>Checklist das tarefas do projeto</legend>
-          <p class="muted small">Marque as atividades concluídas, filtre por situação e use <strong>↑</strong> <strong>↓</strong> para mudar a ordem — vale na lista e no cronograma.</p>
+          <p class="muted small">Mude o <strong>status</strong> de cada atividade no seletor ao lado dela, filtre por situação e use <strong>↑</strong> <strong>↓</strong> para mudar a ordem — vale na lista e no cronograma.</p>
           <div class="ck-resumo">
             <div class="ck-progresso" id="demChecklistProgress" aria-label="Avanço do checklist das tarefas do projeto">
               <span class="ck-anel" id="demChecklistAnel" aria-hidden="true"><span id="demChecklistPct">0%</span></span>
@@ -1259,19 +1259,27 @@
             <div class="checklist-add">
               <label class="field">
                 <span>Atividade</span>
-                <input id="demChecklistEtapa" maxlength="80" placeholder="PDF do levantamento" autocomplete="off" />
+                <input id="demChecklistEtapa" maxlength="200" placeholder="PDF do levantamento" autocomplete="off" />
               </label>
               <label class="field">
                 <span>Responsável</span>
                 <input id="demChecklistWho" maxlength="80" placeholder="Nome do responsável" autocomplete="off" />
               </label>
               <label class="field">
-                <span>Previsão de início</span>
+                <span>Início (opcional)</span>
                 <input id="demChecklistDateInicio" type="date" />
               </label>
               <label class="field">
-                <span>Previsão de término</span>
+                <span>Término (opcional)</span>
                 <input id="demChecklistDate" type="date" />
+              </label>
+              <label class="field">
+                <span>Status</span>
+                <select id="demChecklistStatus">
+                  <option value="afazer" selected>A fazer</option>
+                  <option value="andamento">Em andamento</option>
+                  <option value="concluida">Concluída</option>
+                </select>
               </label>
               <label class="field field--span">
                 <span>Descrição</span>
