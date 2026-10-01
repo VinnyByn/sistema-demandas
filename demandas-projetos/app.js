@@ -7246,6 +7246,33 @@ function lvMoney(id) {
   return v ? `R$ ${escapeHtml(v)}` : "";
 }
 
+/** Cores dos cabos no resumo do levantamento — paleta categórica validada. */
+const CUSTO_LV_CORES = ["#3987e5", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#9085e9"];
+
+function formatIntBr(n) {
+  return formatBr().formatIntegerBr?.(n) ?? Number(n).toLocaleString("pt-BR");
+}
+
+function custoLvNum(txt) {
+  if (!txt) return null;
+  const n = parseFloat(String(txt).replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
+function custoLvLinha(rotuloHtml, valorHtml, rotuloJaHtml = false) {
+  return `<div class="custo-lv__linha"><span>${rotuloJaHtml ? rotuloHtml : escapeHtml(rotuloHtml)}</span><span>${valorHtml}</span></div>`;
+}
+
+function custoLvBloco(ico, titulo, principalHtml, corpoHtml) {
+  return (
+    `<section class="custo-lv__bloco" data-bloco="${escapeHtml(titulo)}">` +
+    `<header class="custo-lv__bloco-head"><span class="custo-lv__ico" aria-hidden="true">${ico}</span>${escapeHtml(titulo)}</header>` +
+    principalHtml +
+    (corpoHtml ? `<div class="custo-lv__corpo">${corpoHtml}</div>` : "") +
+    `</section>`
+  );
+}
+
 function demSecaoLeituraHtml(key) {
   switch (key) {
     case "chegada": {
@@ -7329,63 +7356,115 @@ function demSecaoLeituraHtml(key) {
     }
     case "custo": {
       const exec = lvVal("custoExecucao");
-      const execHtml =
-        exec && exec !== "Não se aplica"
-          ? lvPar(
-              "Execução",
-              escapeHtml(exec) +
-                [lvMoney("custoExecucaoRegional") && `Regional ${lvMoney("custoExecucaoRegional")}`, lvMoney("custoExecucaoTerceirizada") && `Terceirizada ${lvMoney("custoExecucaoTerceirizada")}`]
-                  .filter(Boolean)
-                  .map((t) => ` <span class="seg-lv__sub">${t}</span>`)
-                  .join(""),
-            )
-          : "";
-      if (lvVal("demTemLevantamento") !== "sim") {
-        return `<p class="seg-lv__vazio">Sem levantamento de custo (não se aplica).</p>` + (execHtml ? `<div class="seg-lv-grid">${execHtml}</div>` : "");
+      const temExec = exec && exec !== "Não se aplica";
+      const blocos = [];
+      if (temExec) {
+        const linhas = [];
+        if (lvMoney("custoExecucaoRegional")) linhas.push(custoLvLinha("Custo da Regional", lvMoney("custoExecucaoRegional")));
+        if (lvMoney("custoExecucaoTerceirizada")) linhas.push(custoLvLinha("Custo da Terceirizada", lvMoney("custoExecucaoTerceirizada")));
+        if (linhas.length === 2) {
+          const soma = [custoLvNum(lvVal("custoExecucaoRegional")), custoLvNum(lvVal("custoExecucaoTerceirizada"))].reduce((a, n) => a + (n || 0), 0);
+          const brl = formatBr().formatMoneyBr?.(soma);
+          if (brl) linhas.push(`<div class="custo-lv__destaque"><span>Total da execução</span><strong>R$ ${escapeHtml(brl)}</strong></div>`);
+        }
+        if (!linhas.length) linhas.push(`<p class="seg-lv__vazio">Custo não informado</p>`);
+        blocos.push(custoLvBloco("🛠", "Execução", `<p class="custo-lv__big">${escapeHtml(exec)}</p>`, linhas.join("")));
       }
-      const final = lvMoney("custoValorFinal");
-      let html =
-        `<div class="seg-lv-valores">` +
-        `<div><span class="seg-lv__label">Valor do projeto</span><strong>${lvMoney("custoValorProjeto") || "—"}</strong></div>` +
-        `<div><span class="seg-lv__label">+ 5%</span><strong>${lvMoney("custoValor5") || "—"}</strong></div>` +
-        `<div class="is-destaque"><span class="seg-lv__label">Valor final</span><strong>${final || "—"}</strong></div>` +
+      if (lvVal("demTemLevantamento") !== "sim") {
+        return (
+          `<p class="seg-lv__vazio">Sem levantamento de custo (não se aplica).</p>` +
+          (blocos.length ? `<div class="custo-lv__blocos">${blocos.join("")}</div>` : "")
+        );
+      }
+      const conta =
+        `<div class="custo-lv__conta">` +
+        `<div class="custo-lv__termo"><span class="seg-lv__label">Valor do projeto</span><strong>${lvMoney("custoValorProjeto") || "—"}</strong></div>` +
+        `<span class="custo-lv__op" aria-hidden="true">+</span>` +
+        `<div class="custo-lv__termo"><span class="seg-lv__label">Acréscimo 5%</span><strong>${lvMoney("custoValor5") || "—"}</strong></div>` +
+        `<span class="custo-lv__op" aria-hidden="true">=</span>` +
+        `<div class="custo-lv__termo is-final"><span class="seg-lv__label">Valor final</span><strong>${lvMoney("custoValorFinal") || "—"}</strong></div>` +
         `</div>`;
-      const pares = [];
       if (lvVal("demTemPortas") === "sim") {
-        const atual = lvVal("custoPenetracaoAtual");
-        const nova = lvVal("custoNovaPenetracao");
-        pares.push(lvPar("Casas", escapeHtml(lvVal("custoQtdCasas") || "—")));
-        pares.push(lvPar("Portas", `${escapeHtml(lvVal("custoQtdPortasAtual") || "0")} existentes <span class="seg-lv__sub">+ ${escapeHtml(lvVal("custoQtdNovasPortas") || "0")} novas</span>`));
-        if (atual || nova) pares.push(lvPar("Penetração", `${escapeHtml(atual || "—")} → <strong>${escapeHtml(nova || "—")}</strong>`));
-        if (lvVal("custoValorPorPortaNova")) pares.push(lvPar("Valor por porta nova", lvMoney("custoValorPorPortaNova")));
+        const num = (id) => custoLvNum(lvVal(id));
+        const casas = num("custoQtdCasas");
+        const existentes = num("custoQtdPortasAtual") ?? 0;
+        const novas = num("custoQtdNovasPortas") ?? 0;
+        const linhas = [
+          custoLvLinha("Portas existentes", escapeHtml(lvVal("custoQtdPortasAtual") || "0")),
+          custoLvLinha("Total após o projeto", `<strong>${escapeHtml(formatIntBr(existentes + novas))}</strong>`),
+          custoLvLinha("Casas", casas ? escapeHtml(lvVal("custoQtdCasas")) : lvVazio("Não informado")),
+        ];
+        let penetracao = "";
+        const atual = custoLvNum(lvVal("custoPenetracaoAtual"));
+        const nova = custoLvNum(lvVal("custoNovaPenetracao"));
+        if (casas && nova != null) {
+          const pa = Math.max(0, Math.min(100, atual ?? 0));
+          const pn = Math.max(pa, Math.min(100, nova));
+          penetracao =
+            `<div class="custo-lv__pen">` +
+            `<div class="custo-lv__pen-head"><span>Penetração</span><span>${escapeHtml(lvVal("custoPenetracaoAtual") || "0%")} → <strong>${escapeHtml(
+              lvVal("custoNovaPenetracao"),
+            )}</strong></span></div>` +
+            `<div class="custo-lv__pen-bar" role="img" aria-label="Penetração de ${escapeHtml(lvVal("custoPenetracaoAtual") || "0%")} para ${escapeHtml(
+              lvVal("custoNovaPenetracao"),
+            )}"><span class="custo-lv__pen-nova" style="width:${pn}%"></span><span class="custo-lv__pen-atual" style="width:${pa}%"></span></div>` +
+            `</div>`;
+        }
+        const vpp = lvMoney("custoValorPorPortaNova");
+        blocos.unshift(
+          custoLvBloco(
+            "🚪",
+            "Portas",
+            `<p class="custo-lv__big">+ ${escapeHtml(formatIntBr(novas))} <small>${novas === 1 ? "porta nova" : "portas novas"}</small></p>`,
+            linhas.join("") +
+              penetracao +
+              (vpp ? `<div class="custo-lv__destaque"><span>Valor por porta nova</span><strong>${vpp}</strong></div>` : ""),
+          ),
+        );
       }
       if (lvVal("demTemLancamento") === "sim") {
-        const cabos = (editingLancamentoCabos || []).filter((c) => c.metragem !== "" && c.metragem != null);
-        pares.push(
-          lvPar(
-            "Lançamento",
-            `${escapeHtml(lvVal("custoTotalMetragem") || "0")} m` +
-              (cabos.length
-                ? `<span class="seg-lv__chips">${cabos
-                    .map((c) => `<span class="seg-lv__chip">${escapeHtml(c.tipo)}: ${escapeHtml(String(c.metragem))} m</span>`)
-                    .join("")}</span>`
-                : ""),
-          ),
-        );
+        const cabos = (editingLancamentoCabos || [])
+          .map((c) => ({ tipo: c.tipo || "Cabo", m: Number(c.metragem) }))
+          .filter((c) => Number.isFinite(c.m) && c.m > 0);
+        const total = cabos.reduce((acc, c) => acc + c.m, 0);
+        let detalhe = `<p class="seg-lv__vazio">Nenhum cabo informado</p>`;
+        if (cabos.length && total > 0) {
+          const cor = (i) => CUSTO_LV_CORES[i % CUSTO_LV_CORES.length];
+          detalhe =
+            (cabos.length > 1
+              ? `<div class="custo-lv__stack" aria-hidden="true">${cabos
+                  .map((c, i) => `<span style="flex:${c.m} 1 0;background:${cor(i)}"></span>`)
+                  .join("")}</div>`
+              : "") +
+            cabos
+              .map((c, i) =>
+                custoLvLinha(
+                  `<i class="custo-lv__dot" style="background:${cor(i)}"></i>${escapeHtml(c.tipo)}`,
+                  `${escapeHtml(formatIntBr(c.m))} m` +
+                    (cabos.length > 1 ? ` <span class="seg-lv__sub">${Math.round((c.m / total) * 100)}%</span>` : ""),
+                  true,
+                ),
+              )
+              .join("");
+        }
+        const totalTxt = lvVal("custoTotalMetragem") || formatIntBr(total);
+        const idx = blocos.length && blocos[blocos.length - 1].includes('data-bloco="Execução"') ? blocos.length - 1 : blocos.length;
+        blocos.splice(idx, 0, custoLvBloco("🧵", "Lançamento", `<p class="custo-lv__big">${escapeHtml(totalTxt)} <small>m de cabo</small></p>`, detalhe));
       }
-      if (execHtml) pares.push(execHtml);
       if (editingPdfLevantamento?.name) {
-        pares.push(
-          lvPar(
-            "PDF",
+        const nome = escapeHtml(editingPdfLevantamento.name);
+        blocos.push(
+          custoLvBloco(
+            "📄",
+            "PDF do levantamento",
             editingPdfLevantamento.dataUrl
-              ? `<a href="${editingPdfLevantamento.dataUrl}" download="${escapeHtml(editingPdfLevantamento.name)}" target="_blank" rel="noopener" class="seg-lv__link" data-lv-acao="1">${escapeHtml(editingPdfLevantamento.name)}</a>`
-              : escapeHtml(editingPdfLevantamento.name),
+              ? `<a href="${editingPdfLevantamento.dataUrl}" download="${nome}" target="_blank" rel="noopener" class="custo-lv__pdf" data-lv-acao="1">⬇ ${nome}</a>`
+              : `<p class="custo-lv__pdf">${nome}</p>`,
+            "",
           ),
         );
       }
-      if (pares.length) html += `<div class="seg-lv-grid seg-lv-grid--2">${pares.join("")}</div>`;
-      return html;
+      return `<div class="custo-lv">${conta}${blocos.length ? `<div class="custo-lv__blocos">${blocos.join("")}</div>` : ""}</div>`;
     }
     case "referencias": {
       const link = document.getElementById("demClickupLink");
