@@ -7328,6 +7328,7 @@ function readTimelineHistoricoFromDom() {
 }
 
 function syncDemStatusFromTimeline() {
+  renderTimelineResumo();
   const rows = document.querySelectorAll("#demTimelineTable tbody tr");
   if (!rows.length) return;
   const last = rows[rows.length - 1];
@@ -7425,6 +7426,121 @@ function confirmExcluirFaseTimeline(seg) {
   });
 }
 
+/** "2026-08-11T09:44" → "11/08/26 09:44" (exibição das datas no modo leitura). */
+function formatTimelineDataCurta(val) {
+  const m = String(val || "").match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (!m) return "";
+  return `${m[3]}/${m[2]}/${m[1].slice(2)}${m[4] ? ` ${m[4]}:${m[5]}` : ""}`;
+}
+
+/** Duração curta para o resumo: "13d 17h", "5h 20m", "12m". */
+function formatDurCurta(ms) {
+  const min = Math.floor((ms || 0) / 60000);
+  const d = Math.floor(min / 1440);
+  const h = Math.floor((min % 1440) / 60);
+  const m = min % 60;
+  if (d) return h ? `${d}d ${h}h` : `${d}d`;
+  if (h) return m ? `${h}h ${m}m` : `${h}h`;
+  return `${m}m`;
+}
+
+/** Atualiza textos de leitura da linha (datas, atualização) e o aviso de fim antes do início. */
+function syncTimelineRowView(tr) {
+  const inEl = tr.querySelector(".timeline-inicio");
+  const fimEl = tr.querySelector(".timeline-fim");
+  const obsEl = tr.querySelector(".timeline-obs");
+  const ini = tr.querySelector(".tl-data--ini");
+  const fim = tr.querySelector(".tl-data--fim");
+  const obs = tr.querySelector(".tl-obs-txt");
+  if (ini) ini.textContent = formatTimelineDataCurta(inEl?.value) || "—";
+  if (fim) {
+    const txt = formatTimelineDataCurta(fimEl?.value);
+    fim.textContent = txt || "em andamento";
+    fim.classList.toggle("is-aberta", !txt);
+  }
+  if (obs) {
+    const t = (obsEl?.value || "").trim();
+    obs.textContent = t || "Sem atualização";
+    obs.classList.toggle("is-vazia", !t);
+  }
+  const a = Date.parse(datetimeLocalToIso(inEl?.value) || "");
+  const b = Date.parse(datetimeLocalToIso(fimEl?.value || "") || "");
+  const erro = Number.isFinite(a) && Number.isFinite(b) && b < a;
+  tr.classList.toggle("is-erro", erro);
+  const aviso = tr.querySelector(".tl-aviso");
+  if (aviso) aviso.hidden = !erro;
+}
+
+/** Resumo acima da tabela: tempo total, fase atual, barra proporcional por fase e soma por setor. */
+function renderTimelineResumo() {
+  const host = document.getElementById("demTimelineResumo");
+  const rows = [...document.querySelectorAll("#demTimelineTable tbody tr")];
+  if (!host) return;
+  if (!rows.length) {
+    host.hidden = true;
+    return;
+  }
+  host.hidden = false;
+  const linha = editingLinhaEsteira;
+  const cfg = normalizeLinhaEsteira(linha) === LINHA_ESTEIRA_B2B ? DASH_TEMPO_CFG_B2B : DASH_TEMPO_CFG_OP;
+  const segs = rows.map((tr) => {
+    const inicio = datetimeLocalToIso(tr.querySelector(".timeline-inicio")?.value) || "";
+    const fim = datetimeLocalToIso(tr.querySelector(".timeline-fim")?.value || "") || "";
+    const status = tr.dataset.status;
+    const setor = setorForStatusDemanda(status, linha);
+    return { tr, status, setor, fim, ms: timelineSegmentMs({ inicio, fim }) };
+  });
+  const total = segs.reduce((acc, x) => acc + x.ms, 0);
+  const max = Math.max(1, ...segs.map((x) => x.ms));
+  // Barrinha de duração em cada linha (comparação entre fases).
+  segs.forEach((x) => {
+    const bar = x.tr.querySelector(".tl-dur-bar span");
+    if (bar) {
+      bar.style.width = `${Math.max(2, (x.ms / max) * 100)}%`;
+      bar.style.background = x.setor ? setorColorFor(x.setor, cfg) : "#94a3b8";
+    }
+  });
+  const atual = segs[segs.length - 1];
+  const atualAberta = atual && !atual.fim;
+  const porSetor = new Map();
+  segs.forEach((x) => {
+    // Fases sem setor (ex.: Pausado) aparecem pelo próprio nome.
+    const k = x.setor || labelStatus(x.status, linha);
+    porSetor.set(k, (porSetor.get(k) || 0) + x.ms);
+  });
+  const fatias = segs
+    .filter((x) => x.ms > 0)
+    .map((x) => {
+      const cor = x.setor ? setorColorFor(x.setor, cfg) : "#94a3b8";
+      const pct = total ? (x.ms / total) * 100 : 0;
+      return (
+        `<span class="tl-resumo__fatia${x === atual && atualAberta ? " is-atual" : ""}" style="flex-grow:${x.ms};background:${cor}" ` +
+        `title="${escapeHtml(`${labelStatus(x.status, linha)} · ${formatDur(x.ms)} · ${pct.toFixed(1)}%`)}"></span>`
+      );
+    })
+    .join("");
+  const chips = [...porSetor.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([setor, ms]) => {
+      const ehSetor = segs.some((x) => x.setor === setor);
+      const cor = ehSetor ? setorColorFor(setor, cfg) : "#94a3b8";
+      return `<span class="tl-resumo__chip"><i style="background:${cor}"></i>${escapeHtml(setor)} <b>${formatDurCurta(ms)}</b></span>`;
+    })
+    .join("");
+  host.innerHTML =
+    `<div class="tl-resumo__head">` +
+    `<div><span class="tl-resumo__label">Tempo total</span><strong>${formatDurCurta(total)}</strong></div>` +
+    (atual
+      ? `<div><span class="tl-resumo__label">${atualAberta ? "Fase atual" : "Última fase"}</span><strong>${escapeHtml(
+          labelStatus(atual.status, linha),
+        )}</strong> <span class="muted small">${atualAberta ? `há ${formatDurCurta(atual.ms)}` : "encerrada"}</span></div>`
+      : "") +
+    `<div><span class="tl-resumo__label">Fases</span><strong>${segs.length}</strong></div>` +
+    `</div>` +
+    `<div class="tl-resumo__barra" role="img" aria-label="Distribuição do tempo por fase">${fatias}</div>` +
+    `<div class="tl-resumo__chips">${chips}</div>`;
+}
+
 function refreshTimelineRowDur(tr) {
   const inEl = tr.querySelector(".timeline-inicio");
   const fimEl = tr.querySelector(".timeline-fim");
@@ -7435,6 +7551,8 @@ function refreshTimelineRowDur(tr) {
   durEl.textContent = formatDur(
     timelineSegmentMs({ inicio, fim: fim || "" }),
   );
+  syncTimelineRowView(tr);
+  renderTimelineResumo();
 }
 
 function renderTimeline(d) {
@@ -7452,13 +7570,16 @@ function renderTimeline(d) {
     tr.dataset.status = seg.status;
     const isLast = idx === hist.length - 1;
     const faseAtual = isLast && seg.status === statusAtual;
+    if (faseAtual && !seg.fim) tr.classList.add("is-atual");
     tr.innerHTML = `
-      <td class="timeline-table__fase"><strong>${escapeHtml(labelStatus(seg.status, linha))}</strong></td>
+      <td class="timeline-table__fase"><span class="tl-fase"><strong>${escapeHtml(labelStatus(seg.status, linha))}</strong>${
+        faseAtual && !seg.fim ? '<span class="tl-atual">Atual</span>' : ""
+      }</span><span class="tl-aviso" hidden>Fim antes do início</span></td>
       <td class="timeline-table__setor">${timelineSetorHtml(seg.status, linha)}</td>
-      <td class="timeline-table__date"></td>
-      <td class="timeline-table__date"></td>
-      <td class="timeline-dur">${formatDur(timelineSegmentMs(seg))}</td>
-      <td class="timeline-table__obs"></td>
+      <td class="timeline-table__date"><span class="tl-data tl-data--ini"></span></td>
+      <td class="timeline-table__date"><span class="tl-data tl-data--fim"></span></td>
+      <td class="timeline-table__dur"><span class="timeline-dur">${formatDur(timelineSegmentMs(seg))}</span><span class="tl-dur-bar"><span></span></span></td>
+      <td class="timeline-table__obs"><span class="tl-obs-txt"></span></td>
       <td class="timeline-table__actions"></td>
     `;
     const inInput = document.createElement("input");
@@ -7496,8 +7617,36 @@ function renderTimeline(d) {
     ta.placeholder = "Ex.: vistoria agendada, aguardando retorno do regional…";
     ta.value = seg.observacao || "";
     tr.querySelector(".timeline-table__obs").appendChild(ta);
+    ta.addEventListener("input", () => syncTimelineRowView(tr));
 
     const actionsCell = tr.querySelector(".timeline-table__actions");
+
+    // Leitura por padrão; clicar na linha (ou no ✎) abre a edição das datas e da atualização.
+    const alternarEdicao = (abrir) => {
+      if (isReadOnlyUser()) return;
+      const on = abrir ?? !tr.classList.contains("is-editing");
+      tr.classList.toggle("is-editing", on);
+      btnEdit.textContent = on ? "✓" : "✎";
+      btnEdit.title = on ? "Concluir edição" : "Editar datas e atualização";
+      btnEdit.setAttribute("aria-label", btnEdit.title);
+      if (on) inInput.focus({ preventScroll: true });
+    };
+    const btnEdit = document.createElement("button");
+    btnEdit.type = "button";
+    btnEdit.className = "timeline-edit";
+    btnEdit.textContent = "✎";
+    btnEdit.title = "Editar datas e atualização";
+    btnEdit.setAttribute("aria-label", btnEdit.title);
+    btnEdit.addEventListener("click", (e) => {
+      e.stopPropagation();
+      alternarEdicao();
+    });
+    if (!isReadOnlyUser()) actionsCell?.appendChild(btnEdit);
+    tr.addEventListener("click", (e) => {
+      const alvo = e.target instanceof Element ? e.target : null;
+      if (!alvo || alvo.closest("input, textarea, button, select")) return;
+      if (!tr.classList.contains("is-editing")) alternarEdicao(true);
+    });
 
     const btnUp = document.createElement("button");
     btnUp.type = "button";
@@ -7541,9 +7690,11 @@ function renderTimeline(d) {
     });
     actionsCell?.appendChild(btnDel);
     tb.appendChild(tr);
+    syncTimelineRowView(tr);
   });
   refreshTimelineDeleteButtons();
   refreshTimelineMoveButtons();
+  renderTimelineResumo();
 }
 
 function normalizePdfLevantamento(v) {
