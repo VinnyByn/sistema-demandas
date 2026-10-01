@@ -907,8 +907,6 @@
 
         <div class="modal__split">
           <div class="modal__form-col" id="demFormCol">
-            <section class="dem-jornada" id="demJornada" aria-label="Etapas da esteira"></section>
-            <nav class="dem-secoes" id="demSecoes" aria-label="Seções do projeto"></nav>
             <fieldset class="fieldset fieldset--segment fieldset--chegada">
               <legend>Chegada da demanda</legend>
               <p class="muted small">Nome, tipo, data de chegada e descrição do projeto.</p>
@@ -1222,21 +1220,19 @@
 
         <fieldset class="fieldset fieldset--segment fieldset--checklist">
           <legend>Checklist das tarefas do projeto</legend>
-          <p class="muted small">Atividades do projeto. O card da esteira mostra só o avanço. Use <strong>↑</strong> e <strong>↓</strong> para mudar a ordem — vale na lista e no cronograma.</p>
-          <div class="checklist-progress" id="demChecklistProgress" aria-label="Avanço do checklist das tarefas do projeto">
-            <span class="card__checklist-frac" id="demChecklistFrac">0/0</span>
-            <span class="card__checklist-dots" id="demChecklistDots" aria-hidden="true"></span>
+          <p class="muted small">Marque as atividades concluídas, filtre por situação e use <strong>↑</strong> <strong>↓</strong> para mudar a ordem — vale na lista e no cronograma.</p>
+          <div class="ck-resumo">
+            <div class="ck-progresso" id="demChecklistProgress" aria-label="Avanço do checklist das tarefas do projeto">
+              <span class="ck-anel" id="demChecklistAnel" aria-hidden="true"><span id="demChecklistPct">0%</span></span>
+              <div class="ck-progresso__info">
+                <span class="ck-progresso__titulo"><span class="card__checklist-frac" id="demChecklistFrac">0/0</span> concluídas</span>
+                <span class="card__checklist-dots" id="demChecklistDots" aria-hidden="true"></span>
+              </div>
+            </div>
+            <div class="ck-filtros" id="demChecklistFiltros" role="group" aria-label="Filtrar atividades"></div>
           </div>
+          <div class="ck-proxima" id="demChecklistNext" aria-live="polite"></div>
           <div class="checklist-actions">
-            <button type="button" class="checklist-toggle checklist-toggle--details" id="btnChecklistExpand" aria-expanded="false" aria-controls="demChecklistDetails">
-              <svg class="checklist-toggle__icon" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M2.5 4.25h11M2.5 8h11M2.5 11.75h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-              </svg>
-              <span class="checklist-toggle__label">Expandir detalhes</span>
-              <svg class="checklist-toggle__chevron" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M4 6.25 8 10.25 12 6.25" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
             <button type="button" class="checklist-toggle checklist-toggle--gantt" id="btnChecklistGantt" aria-expanded="false" aria-controls="demChecklistGantt">
               <svg class="checklist-toggle__icon" viewBox="0 0 16 16" aria-hidden="true">
                 <rect x="1.5" y="2.75" width="7.5" height="2.4" rx="1.1" fill="currentColor"/>
@@ -1245,11 +1241,15 @@
               </svg>
               <span class="checklist-toggle__label">Abrir cronograma</span>
             </button>
+            <button type="button" class="checklist-toggle checklist-toggle--details" id="btnChecklistExpand" aria-expanded="false" aria-controls="demChecklistDetails">
+              <svg class="checklist-toggle__icon" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              <span class="checklist-toggle__label">Nova atividade</span>
+            </button>
           </div>
-          <p class="muted small checklist-next" id="demChecklistNext"></p>
-          <div id="demChecklistGantt" class="checklist-gantt" hidden></div>
-          <div id="demChecklistDetails" hidden>
-            <ul class="checklist-list" id="demChecklistList"></ul>
+          <div id="demChecklistDetails" class="ck-nova" hidden>
+            <p class="ck-nova__titulo">Nova atividade</p>
             <div class="checklist-add">
               <label class="field">
                 <span>Atividade</span>
@@ -1273,9 +1273,12 @@
               </label>
             </div>
             <div class="checklist-add-actions">
-              <button type="button" class="btn btn--ghost btn--sm btn--add" id="btnChecklistAdd">+ Adicionar atividade</button>
+              <button type="button" class="btn btn--primary btn--sm" id="btnChecklistAdd">Adicionar atividade</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnChecklistAddCancelar">Cancelar</button>
             </div>
           </div>
+          <div id="demChecklistGantt" class="checklist-gantt" hidden></div>
+          <ul class="checklist-list" id="demChecklistList"></ul>
         </fieldset>
 
         <fieldset class="fieldset fieldset--segment fieldset--timeline">

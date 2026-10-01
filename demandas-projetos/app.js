@@ -5921,8 +5921,9 @@ function appendChecklistMoveButtons(actions, it, idx, n, readOnly) {
 function refreshChecklistMoveButtons() {
   const readOnly = isReadOnlyUser();
   const items = document.querySelectorAll("#demChecklistList .checklist-item");
-  const n = items.length;
-  items.forEach((li, idx) => {
+  const n = normalizeChecklist(editingChecklist).length;
+  items.forEach((li) => {
+    const idx = Number(li.dataset.idx);
     const up = li.querySelector(".checklist-item__move-up");
     const down = li.querySelector(".checklist-item__move-down");
     if (up) {
@@ -5955,25 +5956,184 @@ function saveChecklistItemEdit(id) {
   renderChecklistEditor();
 }
 
+/** Filtro da lista de atividades no modal (todas | pendentes | atrasadas | concluidas). */
+let checklistFiltro = "todas";
+/** Atividade recém-marcada — ganha uma animação curta na próxima renderização. */
+let checklistRecemConcluidaId = "";
+
+const CHECKLIST_FILTROS = [
+  ["todas", "Todas"],
+  ["pendentes", "Pendentes"],
+  ["atrasadas", "Atrasadas"],
+  ["concluidas", "Concluídas"],
+];
+
+/** Situação da atividade pelas datas: concluída, atrasada, em andamento ou aguardando. */
+function checklistItemSituacao(it) {
+  let start = checklistGanttItemStart(it);
+  let end = checklistGanttItemEnd(it);
+  if (start && end && start > end) [start, end] = [end, start];
+  const tom = checklistGanttTone(it, start, end);
+  const hoje = todayISODate();
+  if (tom === "done") return { tom, texto: "Concluída" };
+  if (tom === "late") {
+    const n = diasEntreDatasISO(end, hoje);
+    return { tom, texto: `Atrasada ${n === 1 ? "1 dia" : `${n} dias`}` };
+  }
+  if (tom === "active") {
+    if (!end) return { tom, texto: "Em andamento" };
+    const n = diasEntreDatasISO(hoje, end);
+    return { tom, texto: n === 0 ? "Termina hoje" : n === 1 ? "Termina amanhã" : `Termina em ${n} dias` };
+  }
+  if (start) {
+    const n = diasEntreDatasISO(hoje, start);
+    return { tom, texto: n <= 1 ? "Começa amanhã" : `Começa em ${n} dias` };
+  }
+  return { tom, texto: "Sem data" };
+}
+
+function checklistPassaFiltro(it, filtro) {
+  if (filtro === "concluidas") return it.done;
+  if (filtro === "pendentes") return !it.done;
+  if (filtro === "atrasadas") return checklistItemSituacao(it).tom === "late";
+  return true;
+}
+
+function checklistPeriodoTexto(it) {
+  const a = it.dateInicio ? formatDataCurta(it.dateInicio).slice(0, 5) : "";
+  const b = it.date ? formatDataCurta(it.date).slice(0, 5) : "";
+  if (a && b) return a === b ? a : `${a} → ${b}`;
+  return a || b || "Sem data";
+}
+
+function setChecklistItemDone(id, done) {
+  if (isReadOnlyUser() || !requireWriteAccess()) return;
+  applyChecklistItemPatch(id, { done });
+  checklistRecemConcluidaId = done ? id : "";
+  renderChecklistEditor();
+}
+
+function checklistIconBtn(cls, glyph, label) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = cls;
+  b.textContent = glyph;
+  b.title = label;
+  b.setAttribute("aria-label", label);
+  return b;
+}
+
+function renderChecklistResumo(items) {
+  const n = items.length;
+  const d = items.filter((it) => it.done).length;
+  const pct = n ? Math.round((d / n) * 100) : 0;
+  const frac = document.getElementById("demChecklistFrac");
+  if (frac) frac.textContent = `${d}/${n}`;
+  const pctEl = document.getElementById("demChecklistPct");
+  if (pctEl) pctEl.textContent = `${pct}%`;
+  const anel = document.getElementById("demChecklistAnel");
+  if (anel) {
+    anel.style.setProperty("--pct", String(pct));
+    anel.classList.toggle("is-completo", n > 0 && d === n);
+  }
+  const dots = document.getElementById("demChecklistDots");
+  if (dots) {
+    dots.innerHTML = items
+      .map((it) => {
+        const sit = checklistItemSituacao(it);
+        return `<span class="card__checklist-dot is-${sit.tom}${it.done ? " is-on" : ""}" title="${escapeHtml(
+          `${it.name} · ${sit.texto}`,
+        )}"></span>`;
+      })
+      .join("");
+  }
+  const filtros = document.getElementById("demChecklistFiltros");
+  if (filtros) {
+    const conta = Object.fromEntries(
+      CHECKLIST_FILTROS.map(([k]) => [k, items.filter((it) => checklistPassaFiltro(it, k)).length]),
+    );
+    filtros.hidden = !n;
+    filtros.innerHTML = CHECKLIST_FILTROS.map(
+      ([k, label]) =>
+        `<button type="button" class="ck-filtro ck-filtro--${k}${checklistFiltro === k ? " is-on" : ""}" data-filtro="${k}"` +
+        ` data-ui-nav="1" aria-pressed="${checklistFiltro === k}">${label}<span class="ck-filtro__n">${conta[k]}</span></button>`,
+    ).join("");
+  }
+}
+
+function renderChecklistProxima(items) {
+  const host = document.getElementById("demChecklistNext");
+  if (!host) return;
+  host.className = "ck-proxima";
+  if (!items.length) {
+    host.hidden = true;
+    host.replaceChildren();
+    return;
+  }
+  host.hidden = false;
+  const pendente = items.find((it) => !it.done);
+  if (!pendente) {
+    host.classList.add("is-completo");
+    host.innerHTML = `<span class="ck-proxima__ico" aria-hidden="true">✓</span><div><strong>Todas as atividades concluídas</strong><span class="ck-proxima__meta">${items.length} de ${items.length} feitas</span></div>`;
+    return;
+  }
+  const sit = checklistItemSituacao(pendente);
+  host.classList.add(`is-${sit.tom}`);
+  host.innerHTML =
+    `<span class="ck-proxima__ico" aria-hidden="true">▸</span>` +
+    `<div class="ck-proxima__txt"><span class="ck-proxima__label">Próxima atividade</span>` +
+    `<strong>${escapeHtml(pendente.name)}</strong>` +
+    `<span class="ck-proxima__meta">${escapeHtml(pendente.who || "Sem responsável")} · ${escapeHtml(
+      checklistPeriodoTexto(pendente),
+    )} · <span class="ck-situacao ck-situacao--${sit.tom}">${escapeHtml(sit.texto)}</span></span></div>`;
+  if (!isReadOnlyUser()) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ck-proxima__concluir";
+    btn.textContent = "✓ Concluir";
+    btn.title = `Marcar “${pendente.name}” como concluída`;
+    btn.addEventListener("click", () => setChecklistItemDone(pendente.id, true));
+    host.appendChild(btn);
+  }
+}
+
 function renderChecklistEditor() {
   const items = normalizeChecklist(editingChecklist);
   const n = items.length;
-  const d = items.filter((it) => it.done).length;
-  const frac = document.getElementById("demChecklistFrac");
-  const next = document.getElementById("demChecklistNext");
   const list = document.getElementById("demChecklistList");
-  if (frac) frac.textContent = `${d}/${n}`;
-  if (next) next.textContent = checklistNextLabel(items);
-  renderChecklistDots(document.getElementById("demChecklistDots"), items);
+  renderChecklistResumo(items);
+  renderChecklistProxima(items);
+  const expand = document.getElementById("btnChecklistExpand");
+  if (expand) expand.hidden = isReadOnlyUser();
   if (!list) return;
   const readOnly = isReadOnlyUser();
   list.innerHTML = "";
+  const visiveis = items.filter((it) => checklistPassaFiltro(it, checklistFiltro) || it.id === editingChecklistItemId);
+  if (!visiveis.length) {
+    const vazio = document.createElement("li");
+    vazio.className = "ck-vazio";
+    vazio.textContent = n
+      ? "Nenhuma atividade neste filtro."
+      : readOnly
+        ? "Nenhuma atividade registrada."
+        : "Nenhuma atividade ainda. Clique em “Nova atividade” para começar.";
+    list.appendChild(vazio);
+  }
   items.forEach((it, idx) => {
+    if (!visiveis.includes(it)) return;
     const editing = !readOnly && editingChecklistItemId === it.id;
+    const sit = checklistItemSituacao(it);
     const li = document.createElement("li");
-    li.className = "checklist-item" + (it.done ? "" : " is-off") + (editing ? " is-editing" : "");
+    li.dataset.idx = String(idx);
+    li.className =
+      "checklist-item" +
+      (it.done ? "" : " is-off") +
+      (editing ? " is-editing" : "") +
+      ` is-${sit.tom}` +
+      (checklistRecemConcluidaId === it.id ? " is-just-done" : "");
     const box = document.createElement("label");
     box.className = "checklist-check";
+    box.title = it.done ? "Marcar como pendente" : "Marcar como concluída";
     const cb = document.createElement("input");
     cb.type = "checkbox";
     cb.checked = it.done;
@@ -5991,6 +6151,7 @@ function renderChecklistEditor() {
           })
         : {};
       applyChecklistItemPatch(it.id, { ...draft, done });
+      checklistRecemConcluidaId = done ? it.id : "";
       renderChecklistEditor();
     });
     const mark = document.createElement("i");
@@ -6000,10 +6161,7 @@ function renderChecklistEditor() {
     const actions = document.createElement("div");
     actions.className = "checklist-item__actions";
 
-    const rm = document.createElement("button");
-    rm.type = "button";
-    rm.className = "checklist-item__remove";
-    rm.textContent = "Remover";
+    const rm = checklistIconBtn("checklist-item__remove", "🗑", `Remover “${it.name}”`);
     rm.disabled = readOnly;
     rm.addEventListener("click", async () => {
       if (readOnly) return;
@@ -6062,6 +6220,11 @@ function renderChecklistEditor() {
           if (e.key === "Enter") {
             e.preventDefault();
             saveChecklistItemEdit(it.id);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            editingChecklistItemId = "";
+            renderChecklistEditor();
           }
         });
       });
@@ -6086,6 +6249,16 @@ function renderChecklistEditor() {
     } else {
       const body = document.createElement("div");
       body.className = "checklist-item__body";
+      if (!readOnly) {
+        body.title = "Clique para editar";
+        body.addEventListener("click", () => {
+          if (!requireWriteAccess()) return;
+          persistOpenChecklistEdit();
+          editingChecklistItemId = it.id;
+          renderChecklistEditor();
+          document.getElementById("demChecklistEditName")?.focus();
+        });
+      }
       const name = document.createElement("span");
       name.className = "checklist-item__name";
       name.textContent = it.name;
@@ -6100,32 +6273,45 @@ function renderChecklistEditor() {
       meta.className = "checklist-item__meta";
       const who = document.createElement("span");
       who.className = "checklist-item__who";
-      who.textContent = it.who || "—";
-      const start = document.createElement("time");
-      start.dateTime = it.dateInicio || "";
-      start.textContent = it.dateInicio ? `Início ${formatDataCurta(it.dateInicio)}` : "Início —";
-      const when = document.createElement("time");
-      when.dateTime = it.date || "";
-      when.textContent = it.date ? `Término ${formatDataCurta(it.date)}` : "Término —";
-      meta.append(who, start, when);
+      if (it.who) {
+        const av = document.createElement("span");
+        av.className = "ck-avatar";
+        av.style.setProperty("--avatar-h", String(cardAvatarHue(it.who)));
+        av.textContent = cardAvatarIniciais(it.who);
+        av.setAttribute("aria-hidden", "true");
+        who.append(av, document.createTextNode(it.who));
+      } else {
+        who.textContent = "Sem responsável";
+      }
+      const periodo = document.createElement("time");
+      periodo.dateTime = it.date || it.dateInicio || "";
+      periodo.textContent = checklistPeriodoTexto(it);
+      periodo.title = `Início ${it.dateInicio ? formatDataCurta(it.dateInicio) : "—"} · Término ${
+        it.date ? formatDataCurta(it.date) : "—"
+      }`;
+      meta.append(who, periodo);
       body.append(meta);
-      const editBtn = document.createElement("button");
-      editBtn.type = "button";
-      editBtn.className = "checklist-item__edit-btn";
-      editBtn.textContent = "Editar";
+
+      const situacao = document.createElement("span");
+      situacao.className = `ck-situacao ck-situacao--${sit.tom}`;
+      situacao.textContent = sit.texto;
+
+      const editBtn = checklistIconBtn("checklist-item__edit-btn", "✎", `Editar “${it.name}”`);
       editBtn.disabled = readOnly;
       editBtn.addEventListener("click", () => {
         if (readOnly || !requireWriteAccess()) return;
+        persistOpenChecklistEdit();
         editingChecklistItemId = it.id;
         renderChecklistEditor();
         document.getElementById("demChecklistEditName")?.focus();
       });
       appendChecklistMoveButtons(actions, it, idx, n, readOnly);
       actions.append(editBtn, rm);
-      li.append(box, body, actions);
+      li.append(box, body, situacao, actions);
     }
     list.appendChild(li);
   });
+  checklistRecemConcluidaId = "";
   renderChecklistGantt();
 }
 
@@ -6445,7 +6631,22 @@ function addChecklistEtapaFromForm() {
   if (etapa) etapa.value = "";
   if (desc) desc.value = "";
   if (resp) resp.value = "";
+  checklistFiltro = "todas";
   renderChecklistEditor();
+  toast(`Atividade “${draft.name}” adicionada`);
+  etapa?.focus();
+}
+
+function setChecklistNovaAberta(open) {
+  const expand = document.getElementById("btnChecklistExpand");
+  const details = document.getElementById("demChecklistDetails");
+  if (expand) {
+    expand.setAttribute("aria-expanded", String(open));
+    expand.classList.toggle("is-open", open);
+    setChecklistToggleLabel(expand, open ? "Fechar" : "Nova atividade");
+  }
+  if (details) details.hidden = !open;
+  if (open) document.getElementById("demChecklistEtapa")?.focus();
 }
 
 function bindChecklistEditor() {
@@ -6453,10 +6654,14 @@ function bindChecklistEditor() {
   const details = document.getElementById("demChecklistDetails");
   expand?.addEventListener("click", () => {
     const open = expand.getAttribute("aria-expanded") === "true";
-    const next = !open;
-    expand.setAttribute("aria-expanded", String(next));
-    setChecklistToggleLabel(expand, next ? "Recolher detalhes" : "Expandir detalhes");
-    if (details) details.hidden = !next;
+    setChecklistNovaAberta(!open);
+  });
+  document.getElementById("btnChecklistAddCancelar")?.addEventListener("click", () => setChecklistNovaAberta(false));
+  document.getElementById("demChecklistFiltros")?.addEventListener("click", (e) => {
+    const btn = e.target instanceof Element ? e.target.closest("[data-filtro]") : null;
+    if (!btn) return;
+    checklistFiltro = btn.dataset.filtro || "todas";
+    renderChecklistEditor();
   });
   document.getElementById("btnChecklistGantt")?.addEventListener("click", () => {
     const btn = document.getElementById("btnChecklistGantt");
@@ -6573,60 +6778,50 @@ function setDemandaFormReadOnly(readOnly) {
   }
 }
 
-/* ---------- Modal demanda: trilha de etapas, navegação e seções recolhíveis ---------- */
+/* ---------- Modal demanda: seções recolhíveis com resumo ---------- */
 const DEM_SECOES = [
   {
     key: "chegada",
     sel: ".fieldset--chegada",
-    curto: "Chegada",
     icone: '<path d="M2.5 9.5h3l1 2h3l1-2h3"/><path d="M2.5 9.5 4.5 3.5h7l2 6v3h-11z"/>',
   },
   {
     key: "atribuicao",
     sel: ".fieldset--atribuicao",
-    curto: "Atribuição",
     icone: '<circle cx="8" cy="5.5" r="2.5"/><path d="M3 13.5c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"/>',
   },
   {
     key: "esteira",
     sel: ".fieldset--esteira-form",
-    curto: "Prazo e status",
     icone: '<circle cx="8" cy="8.5" r="5.5"/><path d="M8 5.5v3l2 1.5"/>',
   },
   {
     key: "atraso",
     sel: "#fieldsetMotivosAtraso",
-    curto: "Atraso",
     icone: '<path d="M8 2.5 14 13H2z"/><path d="M8 6.5v3M8 11.3v.2"/>',
   },
   {
     key: "custo",
     sel: "#fieldsetCusto",
-    curto: "Custo",
     icone: '<rect x="2" y="4" width="12" height="8.5" rx="1.5"/><circle cx="8" cy="8.2" r="1.8"/>',
   },
   {
     key: "referencias",
     sel: ".fieldset--referencias",
-    curto: "Referências",
     icone: '<path d="M6.5 9.5 9.5 6.5"/><path d="M7 4.5 8.5 3a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5 7.5 13A2.5 2.5 0 0 1 4 9.5L5.5 8"/>',
   },
   {
     key: "checklist",
     sel: ".fieldset--checklist",
-    curto: "Tarefas",
     icone: '<rect x="2" y="2" width="12" height="12" rx="2.5"/><path d="M5 8.2l2 2 4-4.2"/>',
   },
   {
     key: "timeline",
     sel: ".fieldset--timeline",
-    curto: "Tempo na esteira",
     icone: '<path d="M2.5 4h6M5 8h8.5M3.5 12h5"/>',
   },
 ];
 const DEM_SECOES_COLAPSADAS_KEY = "demandas.secoesColapsadas";
-/** Status salvo quando o modal abriu — a trilha mostra a mudança pendente até salvar. */
-let demJornadaStatusOriginal = "";
 let demNavSyncRaf = 0;
 
 function demSecaoEl(sec) {
@@ -6670,7 +6865,7 @@ function expandirTodasSecoes() {
   for (const sec of DEM_SECOES) setSecaoColapsada(sec, false, { persistir: false });
 }
 
-/** Resumo curto de cada seção: aparece no chip da navegação e no título quando recolhida. */
+/** Resumo curto de cada seção: aparece no título quando ela está recolhida. */
 function demSecaoResumo(key) {
   const val = (id) => (document.getElementById(id)?.value || "").trim();
   const optTxt = (id) => {
@@ -6726,148 +6921,6 @@ function demSecaoResumo(key) {
   }
 }
 
-/** Dias por etapa a partir do "Tempo na esteira" (inclui edições ainda não salvas). */
-function demJornadaDiasPorStatus() {
-  const out = Object.create(null);
-  const rows = document.querySelectorAll("#demTimelineTable tbody tr");
-  if (!rows.length) return out;
-  for (const seg of readTimelineHistoricoFromDom()) {
-    const ms = timelineSegmentMs(seg);
-    if (ms == null || Number.isNaN(ms)) continue;
-    out[seg.status] = (out[seg.status] || 0) + ms;
-  }
-  return out;
-}
-
-function formatDiasCurto(ms) {
-  const dias = ms / 86400000;
-  if (dias < 1) return "<1d";
-  return `${Math.round(dias)}d`;
-}
-
-function renderDemJornada() {
-  const root = document.getElementById("demJornada");
-  if (!root) return;
-  const linha = editingLinhaEsteira;
-  const cfg = getEsteiraConfig(linha);
-  const atual = demStatusSel?.value || cfg.inboxStatus;
-  const original = demJornadaStatusOriginal || atual;
-  const fluxo = cfg.statusOrder.map(([k]) => k).filter((k) => k !== "pausado" && k !== "reprovado");
-  const extras = [...cfg.statusOrder, ...cfg.statusExtra]
-    .map(([k]) => k)
-    .filter((k) => k === "pausado" || k === "reprovado");
-  const idxAtual = fluxo.indexOf(atual);
-  const idxOriginal = fluxo.indexOf(original);
-  const tempos = demJornadaDiasPorStatus();
-  const readOnly = isReadOnlyUser();
-  const passo = (k, i) => {
-    const label = labelStatus(k, linha);
-    const ms = tempos[k];
-    const estado =
-      k === atual ? "is-current" : idxAtual >= 0 && i < idxAtual ? "is-done" : "is-todo";
-    const classes = ["dem-step", estado];
-    if (k === original && k !== atual) classes.push("is-origem");
-    const tempoTxt = ms != null ? formatDiasCurto(ms) : "";
-    const titulo = `${label}${ms != null ? ` · ${formatDur(ms)} nesta etapa` : ""}${
-      readOnly ? "" : k === atual ? " · etapa selecionada" : " · clique para mover para esta etapa"
-    }`;
-    return (
-      `<li class="${classes.join(" ")}">` +
-      `<button type="button" class="dem-step__btn" data-status="${escapeHtml(k)}" title="${escapeHtml(titulo)}"` +
-      `${k === atual ? ' aria-current="step"' : ""}${readOnly ? " disabled" : ""}>` +
-      `<span class="dem-step__dot">${estado === "is-done" ? "✓" : i + 1}</span>` +
-      `<span class="dem-step__label">${escapeHtml(label)}</span>` +
-      `<span class="dem-step__dias">${escapeHtml(tempoTxt)}</span>` +
-      `</button></li>`
-    );
-  };
-  const extrasHtml = extras
-    .map((k) => {
-      const ativo = k === atual;
-      return (
-        `<button type="button" class="dem-jornada__extra dem-jornada__extra--${escapeHtml(k)}${ativo ? " is-on" : ""}"` +
-        ` data-status="${escapeHtml(k)}" aria-pressed="${ativo}"${readOnly ? " disabled" : ""}` +
-        ` title="${ativo ? "Clique para voltar à etapa anterior" : `Marcar como ${escapeHtml(labelStatus(k, linha))}`}">` +
-        `${escapeHtml(labelStatus(k, linha))}</button>`
-      );
-    })
-    .join("");
-  const posicao = idxAtual >= 0 ? `Etapa ${idxAtual + 1} de ${fluxo.length}` : labelStatus(atual, linha);
-  const msAtual = tempos[atual];
-  const infoTempo = msAtual != null && atual === original ? ` · ${formatDiasCurto(msAtual)} nesta etapa` : "";
-  const mudou = original && atual !== original;
-  const avisoHtml = mudou
-    ? `<p class="dem-jornada__aviso" role="status">Ao salvar, o projeto vai de <strong>${escapeHtml(
-        labelStatus(original, linha),
-      )}</strong> para <strong>${escapeHtml(labelStatus(atual, linha))}</strong>.` +
-      ` <button type="button" class="dem-jornada__desfazer" data-status="${escapeHtml(original)}">Desfazer</button></p>`
-    : "";
-  const proxima = cardProximaEtapa(demandaPreviewFromForm());
-  const avancarHtml =
-    proxima && !readOnly
-      ? `<button type="button" class="dem-jornada__avancar" data-status="${escapeHtml(proxima)}"` +
-        ` title="Mover para ${escapeHtml(labelStatus(proxima, linha))}">Próxima etapa ▸</button>`
-      : "";
-  root.innerHTML =
-    `<div class="dem-jornada__head">` +
-    `<div><span class="dem-jornada__titulo">Etapas da esteira</span>` +
-    `<span class="dem-jornada__info">${escapeHtml(posicao)}${escapeHtml(infoTempo)}</span></div>` +
-    `<div class="dem-jornada__acoes">${extrasHtml}${avancarHtml}</div>` +
-    `</div>` +
-    `<ol class="dem-jornada__trilha${idxAtual < 0 ? " is-fora" : ""}">${fluxo.map(passo).join("")}</ol>` +
-    avisoHtml;
-  const atualEl = root.querySelector(".dem-step.is-current");
-  const trilha = root.querySelector(".dem-jornada__trilha");
-  if (atualEl && trilha) {
-    const alvo = atualEl.offsetLeft - trilha.clientWidth / 2 + atualEl.offsetWidth / 2;
-    trilha.scrollLeft = Math.max(0, alvo);
-  }
-  if (trilha) {
-    syncTrilhaBordas(trilha);
-    trilha.addEventListener("scroll", () => syncTrilhaBordas(trilha), { passive: true });
-  }
-}
-
-function syncTrilhaBordas(trilha) {
-  trilha.classList.toggle("tem-mais-esq", trilha.scrollLeft > 2);
-  trilha.classList.toggle("tem-mais-dir", trilha.scrollLeft + trilha.clientWidth < trilha.scrollWidth - 2);
-}
-
-function setDemStatusPelaJornada(status) {
-  if (!demStatusSel || isReadOnlyUser()) return;
-  const cfg = getEsteiraConfig(editingLinhaEsteira);
-  let alvo = status;
-  // Clicar no Pausado/Reprovado já ativo volta para a etapa em que o projeto estava.
-  if (alvo === demStatusSel.value && (alvo === "pausado" || alvo === "reprovado")) {
-    alvo = demJornadaStatusOriginal !== alvo ? demJornadaStatusOriginal : cfg.inboxStatus;
-  }
-  if (!cfg.statusLabel[alvo] || alvo === demStatusSel.value) return;
-  demStatusSel.value = alvo;
-  demStatusSel.dispatchEvent(new Event("change", { bubbles: true }));
-  agendarSyncDemNavegacao();
-}
-
-function renderDemSecoesNav() {
-  const nav = document.getElementById("demSecoes");
-  if (!nav) return;
-  const atual = nav.querySelector(".dem-secoes__chip.is-active")?.dataset.secao || "";
-  nav.innerHTML = DEM_SECOES.filter((sec) => {
-    const fs = demSecaoEl(sec);
-    return fs && !fs.hidden;
-  })
-    .map((sec) => {
-      const r = demSecaoResumo(sec.key);
-      return (
-        `<button type="button" class="dem-secoes__chip${sec.key === atual ? " is-active" : ""}" data-secao="${sec.key}" data-ui-nav="1"` +
-        ` title="${escapeHtml(`${sec.curto}: ${r.txt}`)}">` +
-        `${demSvgIcone(sec.icone)}<span class="dem-secoes__nome">${escapeHtml(sec.curto)}</span>` +
-        `<span class="dem-secoes__resumo dem-tom--${r.tom}">${escapeHtml(r.txt)}</span>` +
-        `</button>`
-      );
-    })
-    .join("");
-}
-
 function syncDemSecoesResumo() {
   for (const sec of DEM_SECOES) {
     const fs = demSecaoEl(sec);
@@ -6881,57 +6934,12 @@ function syncDemSecoesResumo() {
 
 function syncDemNavegacao() {
   demNavSyncRaf = 0;
-  renderDemJornada();
-  renderDemSecoesNav();
   syncDemSecoesResumo();
-  atualizarSecaoAtivaDemNav();
 }
 
 function agendarSyncDemNavegacao() {
   if (demNavSyncRaf) return;
   demNavSyncRaf = requestAnimationFrame(syncDemNavegacao);
-}
-
-/** Destaca na barra a seção visível no topo da coluna do formulário. */
-function atualizarSecaoAtivaDemNav() {
-  const col = document.getElementById("demFormCol");
-  const nav = document.getElementById("demSecoes");
-  if (!col || !nav) return;
-  const limite = col.getBoundingClientRect().top + nav.offsetHeight + 24;
-  let ativa = "";
-  for (const sec of DEM_SECOES) {
-    const fs = demSecaoEl(sec);
-    if (!fs || fs.hidden) continue;
-    if (fs.getBoundingClientRect().top <= limite) ativa = sec.key;
-  }
-  if (!ativa) ativa = DEM_SECOES.find((sec) => demSecaoEl(sec) && !demSecaoEl(sec).hidden)?.key || "";
-  // No fim da rolagem, a última seção visível é a ativa.
-  if (col.scrollTop + col.clientHeight >= col.scrollHeight - 4) {
-    const visiveis = DEM_SECOES.filter((sec) => demSecaoEl(sec) && !demSecaoEl(sec).hidden);
-    ativa = visiveis[visiveis.length - 1]?.key || ativa;
-  }
-  nav.querySelectorAll(".dem-secoes__chip").forEach((chip) => {
-    chip.classList.toggle("is-active", chip.dataset.secao === ativa);
-  });
-  const chipAtivo = nav.querySelector(".dem-secoes__chip.is-active");
-  if (chipAtivo && nav.scrollWidth > nav.clientWidth) {
-    const left = chipAtivo.offsetLeft - nav.clientWidth / 2 + chipAtivo.offsetWidth / 2;
-    nav.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
-  }
-}
-
-function irParaSecaoDem(key) {
-  const sec = DEM_SECOES.find((s) => s.key === key);
-  const fs = sec && demSecaoEl(sec);
-  const col = document.getElementById("demFormCol");
-  const nav = document.getElementById("demSecoes");
-  if (!fs || !col) return;
-  if (fs.classList.contains("is-collapsed")) setSecaoColapsada(sec, false);
-  const top = fs.getBoundingClientRect().top - col.getBoundingClientRect().top + col.scrollTop;
-  col.scrollTo({ top: Math.max(0, top - (nav?.offsetHeight || 0) - 8), behavior: "smooth" });
-  fs.classList.remove("is-flash");
-  void fs.offsetWidth;
-  fs.classList.add("is-flash");
 }
 
 function initDemNavegacao() {
@@ -6956,18 +6964,7 @@ function initDemNavegacao() {
     });
     if (colapsadas.has(sec.key)) setSecaoColapsada(sec, true, { persistir: false });
   }
-  document.getElementById("demJornada")?.addEventListener("click", (e) => {
-    const btn = e.target instanceof Element ? e.target.closest("button[data-status]") : null;
-    if (btn && !btn.disabled) setDemStatusPelaJornada(btn.dataset.status);
-  });
-  document.getElementById("demSecoes")?.addEventListener("click", (e) => {
-    const chip = e.target instanceof Element ? e.target.closest(".dem-secoes__chip") : null;
-    if (chip) irParaSecaoDem(chip.dataset.secao);
-  });
-  document.getElementById("demFormCol")?.addEventListener("scroll", () => atualizarSecaoAtivaDemNav(), {
-    passive: true,
-  });
-  // Qualquer edição (inclusive listas re-renderizadas por botões) atualiza trilha e resumos.
+  // Qualquer edição (inclusive listas re-renderizadas por botões) atualiza os resumos.
   form.addEventListener("input", agendarSyncDemNavegacao);
   form.addEventListener("change", agendarSyncDemNavegacao);
   form.addEventListener("click", agendarSyncDemNavegacao);
@@ -7060,9 +7057,12 @@ function openDemandaModal(id) {
   editingChecklistItemId = "";
   const expandBtn = document.getElementById("btnChecklistExpand");
   const details = document.getElementById("demChecklistDetails");
+  checklistFiltro = "todas";
+  checklistRecemConcluidaId = "";
   if (expandBtn) {
     expandBtn.setAttribute("aria-expanded", "false");
-    setChecklistToggleLabel(expandBtn, "Expandir detalhes");
+    expandBtn.classList.remove("is-open");
+    setChecklistToggleLabel(expandBtn, "Nova atividade");
   }
   if (details) details.hidden = true;
   setChecklistGanttOpen(false);
@@ -7111,7 +7111,6 @@ function openDemandaModal(id) {
   syncDemClickupUi();
   const scrollSnap = snapshotPageScroll();
   setDemandaModalScrollLock(true);
-  demJornadaStatusOriginal = d?.status || cfg.inboxStatus;
   syncDemNavegacao();
   modalDemanda.showModal();
   document.getElementById("demFormCol")?.scrollTo({ top: 0 });
