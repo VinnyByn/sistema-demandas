@@ -3156,6 +3156,80 @@ function syncDemandaModalAlerts() {
   }
 }
 
+/* ---------- Modal: alterações não salvas, fechar com confirmação, atalhos ---------- */
+/** Ids de campos que não fazem parte do projeto (rascunhos de comentário, novas atividades, seletores de "adicionar"). */
+const DEM_CAMPOS_FORA_DO_SNAPSHOT = new Set([
+  "demComentarioNovo",
+  "demChecklistEtapa",
+  "demChecklistWho",
+  "demChecklistDateInicio",
+  "demChecklistDate",
+  "demChecklistDesc",
+  "demChecklistStatus",
+  "demExtraProjetista",
+  "demExtraRegional",
+  "demExtraCidade",
+  "demPdfInput",
+]);
+let demSnapshotInicial = "";
+
+function demFormSnapshot() {
+  const form = document.getElementById("formDemanda");
+  if (!form) return "";
+  const campos = [];
+  form.querySelectorAll("input, select, textarea").forEach((el) => {
+    if (el.type === "file" || el.type === "button") return;
+    if (el.id && DEM_CAMPOS_FORA_DO_SNAPSHOT.has(el.id)) return;
+    if (el.closest(".checklist-item__edit")) return;
+    campos.push(el.type === "checkbox" ? String(el.checked) : el.value);
+  });
+  let timeline = [];
+  try {
+    timeline = readTimelineHistoricoFromDom();
+  } catch (_) {}
+  return JSON.stringify({
+    campos,
+    checklist: normalizeChecklist(editingChecklist),
+    cidades: editingCidadesExtra,
+    projetistas: editingProjetistasExtra,
+    cabos: editingLancamentoCabos,
+    pdf: editingPdfLevantamento?.name || "",
+    timeline,
+  });
+}
+
+function marcarDemandaLimpa() {
+  demSnapshotInicial = demFormSnapshot();
+  syncDemandaSujaUi();
+}
+
+function demandaTemAlteracoes() {
+  if (!modalDemanda?.open || isReadOnlyUser()) return false;
+  return demSnapshotInicial !== "" && demFormSnapshot() !== demSnapshotInicial;
+}
+
+function syncDemandaSujaUi() {
+  const aviso = document.getElementById("demSujoAviso");
+  const sujo = demandaTemAlteracoes();
+  if (aviso) aviso.hidden = !sujo;
+  modalDemanda?.classList.toggle("is-sujo", sujo);
+}
+
+/** Fechar pelo usuário (Fechar, ×, Esc): confirma se houver alterações não salvas. */
+async function fecharDemandaComConfirmacao() {
+  if (demandaTemAlteracoes()) {
+    const ok = await confirmDialog({
+      title: "Descartar alterações?",
+      message: "Há alterações neste projeto que ainda não foram salvas.",
+      confirmText: "Descartar",
+      cancelText: "Continuar editando",
+      variant: "warn",
+    });
+    if (!ok) return;
+  }
+  closeDemandaModal();
+}
+
 function closeDemandaModal() {
   const id = editingDemandaOpenId;
   const scrollSnap = snapshotPageScroll();
@@ -6873,32 +6947,97 @@ function bindChecklistEditor() {
   });
 }
 
+/** Texto do comentário com links clicáveis (o resto escapado). */
+function comentarioTextoHtml(texto) {
+  return escapeHtml(texto).replace(
+    /(https?:\/\/[^\s<]+[^\s<.,;:!?)\]])/g,
+    (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`,
+  );
+}
+
 function renderComentariosList() {
   const list = document.getElementById("demComentariosList");
+  const count = document.getElementById("demComentariosCount");
+  if (count) {
+    count.textContent = String(editingComentarios.length);
+    count.hidden = !editingComentarios.length;
+  }
   if (!list) return;
   if (!editingComentarios.length) {
-    list.innerHTML = '<p class="comments-empty">Nenhum comentario ainda.</p>';
+    list.innerHTML =
+      '<div class="comments-empty"><span class="comments-empty__ico" aria-hidden="true">💬</span>' +
+      "<strong>Nenhum comentário ainda</strong><span>Registre atualizações, combinados e pendências do projeto.</span></div>";
     return;
   }
+  const eu = getLoggedInComentarioAutor();
+  const podeExcluir = !isReadOnlyUser();
   const groups = groupComentariosPorDia(editingComentarios);
   list.innerHTML = groups
-    .map((g) => '<div class="comments-day-label">' + escapeHtml(g.label) + "</div>" + g.items.map((c) =>
-        '<article class="comment-row">' +
-        '<div class="comment-avatar ' + comentarioAvatarClass(c.autor) + '" aria-hidden="true">' + escapeHtml(comentarioIniciais(c.autor)) + "</div>" +
-        '<div class="comment-body"><div class="comment-head"><strong>' + escapeHtml(c.autor) + '</strong><span class="comment-time">' +
-        escapeHtml(formatComentarioRelativo(c.createdAt)) + '</span></div><p class="comment-text">' + escapeHtml(c.texto) +
-        '</p></div><button type="button" class="comment-del" data-cid="' + escapeHtml(c.id) +
-        '" title="Excluir" aria-label="Excluir">×</button></article>'
-      ).join(""))
+    .map(
+      (g) =>
+        '<div class="comments-day-label"><span>' + escapeHtml(g.label) + "</span></div>" +
+        g.items
+          .map((c) => {
+            const meu = eu && eu !== "Equipe" && c.autor === eu;
+            return (
+              '<article class="comment-row' + (meu ? " is-meu" : "") + '">' +
+              '<div class="comment-avatar ' + comentarioAvatarClass(c.autor) + '" aria-hidden="true">' +
+              escapeHtml(comentarioIniciais(c.autor)) + "</div>" +
+              '<div class="comment-body"><div class="comment-head"><strong>' + escapeHtml(c.autor) +
+              (meu ? ' <span class="comment-voce">você</span>' : "") +
+              '</strong><time class="comment-time" datetime="' + escapeHtml(c.createdAt) + '" title="' +
+              escapeHtml(formatComentarioData(c.createdAt)) + '">' + escapeHtml(formatComentarioRelativo(c.createdAt)) +
+              "</time></div>" +
+              '<p class="comment-text">' + comentarioTextoHtml(c.texto) + "</p></div>" +
+              (podeExcluir
+                ? '<button type="button" class="comment-del" data-cid="' + escapeHtml(c.id) +
+                  '" title="Excluir comentário" aria-label="Excluir comentário">🗑</button>'
+                : "") +
+              "</article>"
+            );
+          })
+          .join(""),
+    )
     .join("");
   list.querySelectorAll(".comment-del").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const cid = btn.dataset.cid;
+      const c = editingComentarios.find((x) => x.id === cid);
+      const ok = await confirmDialog({
+        title: "Excluir comentário?",
+        message: c ? `“${c.texto.slice(0, 120)}${c.texto.length > 120 ? "…" : ""}”` : "",
+        confirmText: "Excluir",
+        cancelText: "Voltar",
+        variant: "danger",
+      });
+      if (!ok) return;
       editingComentarios = editingComentarios.filter((x) => x.id !== cid);
       persistComentariosDemandaAberta();
       renderComentariosList();
+      toast("Comentário excluído");
     });
   });
+}
+
+/** Campo de novo comentário: cresce com o texto e só habilita o envio com conteúdo. */
+function syncComentarioCompose() {
+  const ta = document.getElementById("demComentarioNovo");
+  const btn = document.getElementById("btnAddComentario");
+  const hint = document.getElementById("demComentarioHint");
+  if (!ta) return;
+  ta.style.height = "auto";
+  ta.style.height = `${Math.min(ta.scrollHeight, 220)}px`;
+  if (btn) btn.disabled = !ta.value.trim() || isReadOnlyUser();
+  if (hint) {
+    const restante = ta.maxLength - ta.value.length;
+    const existente = Boolean((document.getElementById("demId")?.value || "").trim());
+    hint.textContent =
+      restante < 300
+        ? `${restante} caracteres restantes · Ctrl+Enter envia`
+        : existente
+          ? "Ctrl+Enter envia · salvo na hora"
+          : "Ctrl+Enter envia · salvo junto com o projeto";
+  }
 }
 
 function persistComentariosDemandaAberta() {
@@ -6926,7 +7065,14 @@ function addComentarioFromForm() {
   const c = normalizeComentario({ texto, autor: getLoggedInComentarioAutor(), createdAt: new Date().toISOString() });
   if (c) editingComentarios.unshift(c);
   ta.value = "";
+  // Projeto existente: grava na hora (como a exclusão). Projeto novo: vai junto com o Salvar.
+  if ((document.getElementById("demId")?.value || "").trim()) {
+    persistComentariosDemandaAberta();
+    toast("Comentário publicado");
+  }
   renderComentariosList();
+  syncComentarioCompose();
+  ta.focus();
 }
 
 function setDemandaFormReadOnly(readOnly) {
@@ -7419,6 +7565,7 @@ function syncDemSecoesResumo() {
 function syncDemNavegacao() {
   demNavSyncRaf = 0;
   syncDemSecoesResumo();
+  syncDemandaSujaUi();
 }
 
 function agendarSyncDemNavegacao() {
@@ -7495,7 +7642,7 @@ function openDemandaModal(id) {
       : "Registrar chegada da demanda";
   document.getElementById("demId").value = d?.id || "";
   const btnExcluirDem = document.getElementById("btnExcluirDemanda");
-  if (btnExcluirDem) btnExcluirDem.textContent = d?.id ? "Excluir" : "Descartar";
+  if (btnExcluirDem) btnExcluirDem.textContent = d?.id ? "🗑 Excluir" : "Descartar rascunho";
   document.getElementById("demTitulo").value = d?.titulo || "";
   setDemCidadeUi(d?.cidade || "");
   editingCidadesExtra = normalizeCidadesExtra(dm?.cidadesExtra || d?.cidadesExtra, d?.cidade || "");
@@ -7571,6 +7718,7 @@ function openDemandaModal(id) {
   const comentarioNovo = document.getElementById("demComentarioNovo");
   if (comentarioNovo) comentarioNovo.value = "";
   renderComentariosList();
+  syncComentarioCompose();
   renderPdfLevantamentoPreview();
   renderTimeline(d);
   bindMotivosAtrasoUi();
@@ -7605,6 +7753,7 @@ function openDemandaModal(id) {
   syncDemNavegacao();
   iniciarModosSecoesDemanda(Boolean(d?.id));
   modalDemanda.showModal();
+  marcarDemandaLimpa();
   document.getElementById("demFormCol")?.scrollTo({ top: 0 });
   restorePageScroll(scrollSnap);
   requestAnimationFrame(() => syncDemNavegacao());
@@ -8552,6 +8701,7 @@ document.getElementById("btnAddComentario")?.addEventListener("click", () => {
   if (!requireWriteAccess()) return;
   addComentarioFromForm();
 });
+document.getElementById("demComentarioNovo")?.addEventListener("input", syncComentarioCompose);
 document.getElementById("demComentarioNovo")?.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
@@ -8567,8 +8717,21 @@ document.getElementById("commentsPanelToggle")?.addEventListener("click", () => 
   btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
 });
 bindChecklistEditor();
-document.getElementById("modalDemandaClose")?.addEventListener("click", () => closeDemandaModal());
-document.getElementById("btnFecharDemanda")?.addEventListener("click", () => closeDemandaModal());
+document.getElementById("modalDemandaClose")?.addEventListener("click", () => fecharDemandaComConfirmacao());
+document.getElementById("btnFecharDemanda")?.addEventListener("click", () => fecharDemandaComConfirmacao());
+// Esc também passa pela confirmação; Ctrl+S salva.
+modalDemanda?.addEventListener("cancel", (e) => {
+  if (!demandaTemAlteracoes()) return;
+  e.preventDefault();
+  fecharDemandaComConfirmacao();
+});
+modalDemanda?.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
+    e.preventDefault();
+    const btn = document.getElementById("btnSalvarDemanda");
+    if (btn && !btn.hidden && !btn.disabled) btn.click();
+  }
+});
 document.getElementById("btnDemConflictReload")?.addEventListener("click", () => {
   const id = editingDemandaOpenId;
   if (!id) return;

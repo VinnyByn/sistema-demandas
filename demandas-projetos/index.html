@@ -891,7 +891,7 @@
               </button>
             </div>
           </div>
-          <button type="button" class="icon-btn" id="modalDemandaClose" aria-label="Fechar">×</button>
+          <button type="button" class="icon-btn" id="modalDemandaClose" aria-label="Fechar" title="Fechar (Esc)">×</button>
         </div>
       </div>
       <div id="demSelfEditingBanner" class="demanda-alert demanda-alert--self" hidden role="status">
@@ -1312,13 +1312,14 @@
 
           <aside class="comments-panel" aria-label="Comentários do projeto">
             <button type="button" class="comments-panel__toggle" id="commentsPanelToggle" aria-expanded="true" aria-controls="commentsPanelBody">
-              <span>Comentários</span>
+              <span>Comentários <span class="comments-panel__count" id="demComentariosCount" hidden>0</span></span>
               <span class="comments-panel__chevron" aria-hidden="true"></span>
             </button>
             <div class="comments-panel__body" id="commentsPanelBody">
               <div class="comments-compose">
-                <textarea id="demComentarioNovo" rows="3" maxlength="4000" placeholder="Escreva um comentário… (Ctrl+Enter para enviar)" aria-label="Novo comentário"></textarea>
-                <button type="button" class="comments-compose__send" id="btnAddComentario" title="Enviar comentário" aria-label="Enviar comentário">&#8593;</button>
+                <textarea id="demComentarioNovo" rows="2" maxlength="4000" placeholder="Escreva um comentário…" aria-label="Novo comentário"></textarea>
+                <button type="button" class="comments-compose__send" id="btnAddComentario" title="Enviar comentário (Ctrl+Enter)" aria-label="Enviar comentário" disabled>&#8593;</button>
+                <p class="comments-compose__hint" id="demComentarioHint">Ctrl+Enter envia</p>
               </div>
               <div class="comments-feed" id="demComentariosList" role="feed"></div>
             </div>
@@ -1326,9 +1327,10 @@
         </div>
       </form>
       <div class="modal__foot">
-        <button type="button" class="btn btn--ghost" id="btnFecharDemanda">Fechar</button>
-        <button type="button" class="btn btn--danger" id="btnExcluirDemanda">Excluir</button>
-        <button type="button" class="btn btn--primary" id="btnSalvarDemanda">Salvar</button>
+        <button type="button" class="btn btn--ghost btn--danger-ghost" id="btnExcluirDemanda">Excluir</button>
+        <span class="modal__foot-aviso" id="demSujoAviso" hidden role="status">● Alterações não salvas</span>
+        <button type="button" class="btn btn--ghost" id="btnFecharDemanda" title="Fechar (Esc)">Fechar</button>
+        <button type="button" class="btn btn--primary" id="btnSalvarDemanda" title="Salvar (Ctrl+S)">✓ Salvar</button>
       </div>
     </div>
   </dialog>
