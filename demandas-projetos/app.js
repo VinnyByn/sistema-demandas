@@ -532,8 +532,32 @@ function emailLocalNameParts(email) {
     });
 }
 
+/**
+ * Cache das listas de projetistas derivadas dos papéis. Recalcula só quando os papéis mudam
+ * (DemandasRoles.getVersion) — antes era refeito a cada normalizeResponsavel, milhares de vezes por tela.
+ */
+const projetistasCache = { version: -1, rows: new Map(), todos: null, normalizados: new Map() };
+
+function projetistasCacheAtual() {
+  const v = typeof DemandasRoles !== "undefined" && DemandasRoles.getVersion ? DemandasRoles.getVersion() : 0;
+  if (projetistasCache.version !== v) {
+    projetistasCache.version = v;
+    projetistasCache.rows.clear();
+    projetistasCache.todos = null;
+    projetistasCache.normalizados.clear();
+  }
+  return projetistasCache;
+}
+
 /** Nomes exibíveis a partir dos e-mails com papel projetista/admin (homônimos → nome completo). */
 function projetistaEmailRowsFromRoles({ includeDisabled = false } = {}) {
+  const cache = projetistasCacheAtual();
+  const chave = includeDisabled ? "todos" : "ativos";
+  if (!cache.rows.has(chave)) cache.rows.set(chave, calcProjetistaEmailRows(includeDisabled));
+  return cache.rows.get(chave);
+}
+
+function calcProjetistaEmailRows(includeDisabled) {
   const map =
     typeof DemandasRoles !== "undefined"
       ? DemandasRoles.getRolesMap()
@@ -589,9 +613,13 @@ function demandasAssignedToEmail(email) {
 }
 
 function allProjetistasNomes() {
-  return sortProjetistasNomes([
-    ...new Set([...projetistaLabelsFromRoles(), ...PROJETISTAS, ...PROJETISTAS_B2B]),
-  ]);
+  const cache = projetistasCacheAtual();
+  if (!cache.todos) {
+    cache.todos = Object.freeze(
+      sortProjetistasNomes([...new Set([...projetistaLabelsFromRoles(), ...PROJETISTAS, ...PROJETISTAS_B2B])]),
+    );
+  }
+  return cache.todos;
 }
 
 function projetistasForLinha(linha = activeEsteiraCanal) {
@@ -1484,6 +1512,15 @@ function demandaMatchesEsteiraFilters(d, f) {
 function normalizeResponsavel(v, linha) {
   const s = String(v || "").trim();
   if (!s) return "";
+  const cache = projetistasCacheAtual().normalizados;
+  const chave = `${linha || ""}|${s}`;
+  if (cache.has(chave)) return cache.get(chave);
+  const r = calcNormalizeResponsavel(s, linha);
+  cache.set(chave, r);
+  return r;
+}
+
+function calcNormalizeResponsavel(s, linha) {
   const list = linha ? projetistasForLinha(linha) : allProjetistasNomes();
   if (list.includes(s)) return s;
   const slug = projetistaSlug(s);
