@@ -5986,3 +5986,24 @@ select optgroup {
   background-color: var(--surface);
   color: var(--text);
 }
+
+/* Alertas: botão Adiar/Ciente sempre visível e sem rolagem lateral no painel */
+.notif__panel .inbox-alertas .inbox-alertas__list { grid-template-columns: minmax(0, 1fr); overflow-x: hidden; }
+.alerta__acao {
+  opacity: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.7rem;
+  border-color: rgba(var(--tom), 0.55);
+  background: rgba(var(--tom), 0.1);
+  color: var(--text);
+  font-size: 0.78rem;
+}
+.alerta__acao:hover,
+.alerta__acao:focus-visible {
+  background: rgba(var(--tom), 0.22);
+  border-color: rgb(var(--tom));
+  color: var(--text);
+}
+.alerta__acao:focus-visible { outline: 2px solid rgb(var(--tom)); outline-offset: 2px; }
