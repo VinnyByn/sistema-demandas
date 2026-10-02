@@ -5201,43 +5201,73 @@ function cardPrazoInfo(dm) {
 }
 
 /**
- * "Status atual" do card, puxado da checklist: a atividade em andamento (ou, se nenhuma, a próxima a fazer),
- * com início e fim previstos e a situação do prazo.
+ * Atividade(s) em execução e a próxima da checklist.
+ * Em execução = status "Em andamento"; se nenhuma estiver marcada assim, as que já começaram pela data
+ * (início ≤ hoje) e não foram concluídas. Próxima = a primeira pendente que não está em execução.
  */
-function cardAtividadeAtualHtml(checklist) {
-  const pendentes = checklist.filter((it) => !it.done);
-  const emAndamento = pendentes.filter((it) => normalizeChecklistStatus(it) === "andamento");
-  const atual = emAndamento[0] || pendentes[0];
-  if (!atual) return "";
-  const executando = emAndamento.length > 0;
-  const sit = checklistItemSituacao(atual);
-  const prazo = checklistItemPrazo(atual);
-  const ini = atual.dateInicio ? formatDataCurta(atual.dateInicio).slice(0, 5) : "";
-  const fim = atual.date ? formatDataCurta(atual.date).slice(0, 5) : "";
-  const datas =
-    ini || fim
-      ? `<span class="card__agora-datas">${ini ? `<span>Início <b>${escapeHtml(ini)}</b></span>` : ""}${
-          fim ? `<span>Fim <b>${escapeHtml(fim)}</b></span>` : ""
-        }</span>`
-      : `<span class="card__agora-datas"><span>Sem datas previstas</span></span>`;
-  const extras = emAndamento.length > 1 ? ` <span class="card__agora-mais">+${emAndamento.length - 1}</span>` : "";
-  const quem = (atual.who || "").trim();
-  const titulo = [
-    `${executando ? "Em execução" : "Próxima atividade"}: ${atual.name}`,
-    quem ? `Responsável: ${quem}` : "",
-    atual.dateInicio ? `Início previsto: ${formatDataCurta(atual.dateInicio)}` : "",
-    atual.date ? `Fim previsto: ${formatDataCurta(atual.date)}` : "",
+function checklistAtualEProxima(checklist) {
+  const hoje = todayISODate();
+  const pendentes = (checklist || []).filter((it) => !it.done);
+  let atuais = pendentes.filter((it) => normalizeChecklistStatus(it) === "andamento");
+  if (!atuais.length) {
+    atuais = pendentes.filter((it) => {
+      const ini = checklistGanttItemStart(it);
+      return ini && ini <= hoje;
+    });
+  }
+  const proxima = pendentes.find((it) => !atuais.includes(it)) || null;
+  return { atuais, atual: atuais[0] || null, proxima };
+}
+
+function cardAtividadeDatasHtml(it) {
+  const ini = it.dateInicio ? formatDataCurta(it.dateInicio).slice(0, 5) : "";
+  const fim = it.date ? formatDataCurta(it.date).slice(0, 5) : "";
+  if (!ini && !fim) return `<span class="card__agora-datas"><span>Sem datas previstas</span></span>`;
+  return (
+    `<span class="card__agora-datas">${ini ? `<span>Início <b>${escapeHtml(ini)}</b></span>` : ""}` +
+    `${fim ? `<span>Fim <b>${escapeHtml(fim)}</b></span>` : ""}</span>`
+  );
+}
+
+function cardAtividadeTitulo(prefixo, it) {
+  const sit = checklistItemSituacao(it);
+  return [
+    `${prefixo}: ${it.name}`,
+    (it.who || "").trim() ? `Responsável: ${it.who.trim()}` : "",
+    it.dateInicio ? `Início previsto: ${formatDataCurta(it.dateInicio)}` : "",
+    it.date ? `Fim previsto: ${formatDataCurta(it.date)}` : "",
     sit.texto,
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/** "Status atual" do card: a atividade em execução (com datas e prazo) e, abaixo, a próxima. */
+function cardAtividadeAtualHtml(checklist) {
+  const { atuais, atual, proxima } = checklistAtualEProxima(checklist);
+  if (!atual && !proxima) return "";
+  const foco = atual || proxima;
+  const sit = checklistItemSituacao(foco);
+  const prazo = checklistItemPrazo(foco);
+  const tom = atual ? (sit.tom === "late" ? "late" : "active") : sit.tom === "late" ? "late" : "wait";
+  const extras = atuais.length > 1 ? ` <span class="card__agora-mais" title="${atuais.length} atividades em execução">+${atuais.length - 1}</span>` : "";
+  const prox =
+    atual && proxima
+      ? `<span class="card__agora-prox" title="${escapeHtml(cardAtividadeTitulo("Próxima atividade", proxima))}">` +
+        `<span class="card__agora-prox-label">Próxima:</span> <span class="card__agora-prox-nome">${escapeHtml(proxima.name)}</span>` +
+        (proxima.dateInicio ? ` <span class="card__agora-prox-data">· ${escapeHtml(formatDataCurta(proxima.dateInicio).slice(0, 5))}</span>` : "") +
+        `</span>`
+      : "";
   return (
-    `<div class="card__agora is-${sit.tom}${executando ? " is-executando" : ""}" title="${escapeHtml(titulo)}">` +
-    `<span class="card__agora-label">${executando ? "▶ Em execução" : "Próxima atividade"}${extras}</span>` +
-    `<strong class="card__agora-nome">${escapeHtml(atual.name)}</strong>` +
-    `<span class="card__agora-meta">${datas}${
+    `<div class="card__agora is-${tom}${atual ? " is-executando" : ""}" title="${escapeHtml(
+      cardAtividadeTitulo(atual ? "Em execução" : "Próxima atividade", foco),
+    )}">` +
+    `<span class="card__agora-label">${atual ? "▶ Em execução" : "Próxima atividade"}${extras}</span>` +
+    `<strong class="card__agora-nome">${escapeHtml(foco.name)}</strong>` +
+    `<span class="card__agora-meta">${cardAtividadeDatasHtml(foco)}${
       prazo.texto ? `<span class="card__agora-prazo">${escapeHtml(prazo.texto)}</span>` : ""
     }</span>` +
+    prox +
     `</div>`
   );
 }
@@ -5386,10 +5416,14 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   // Progresso do checklist: um segmento por atividade, colorido pelo status, e a próxima atividade abaixo.
   let checklistHtml = "";
   if (checklist.length) {
+    const { atuais } = checklistAtualEProxima(checklist);
     const segs = checklist
       .map((it) => {
         const sit = checklistItemSituacao(it);
-        return `<span class="card__ck-seg is-${sit.tom}" title="${escapeHtml(`${it.name} · ${sit.texto}`)}"></span>`;
+        const atual = atuais.includes(it);
+        const tom = atual ? "atual" : sit.tom;
+        const dica = `${it.name} · ${atual ? `Em execução · ${sit.texto}` : sit.texto}`;
+        return `<span class="card__ck-seg is-${tom}" title="${escapeHtml(dica)}"></span>`;
       })
       .join("");
     const completo = feitas === checklist.length;
