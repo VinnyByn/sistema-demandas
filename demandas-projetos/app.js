@@ -509,57 +509,6 @@ function columnVazioHtml() {
   );
 }
 
-/** Navegação rápida entre as colunas da esteira (chips acima do board). */
-function renderEsteiraNav(boardEl, cols, byCol, linha) {
-  if (!boardEl?.parentElement) return;
-  let nav = boardEl.previousElementSibling;
-  if (!nav?.classList.contains("esteira-nav")) {
-    nav = document.createElement("nav");
-    nav.className = "esteira-nav";
-    nav.setAttribute("aria-label", "Ir para a coluna");
-    boardEl.parentElement.insertBefore(nav, boardEl);
-    nav.addEventListener("click", (e) => {
-      const chip = e.target.closest("[data-nav-status]");
-      if (!chip) return;
-      const col = boardEl.querySelector(`.column[data-status="${CSS.escape(chip.dataset.navStatus)}"]`);
-      if (!col) return;
-      const alvo = col.offsetLeft - boardEl.offsetLeft - 8;
-      boardEl.scrollTo({ left: Math.max(0, alvo), behavior: "smooth" });
-      col.classList.remove("is-destacada");
-      void col.offsetWidth;
-      col.classList.add("is-destacada");
-    });
-    boardEl.addEventListener("scroll", () => syncEsteiraNavVisiveis(boardEl), { passive: true });
-    window.addEventListener("resize", () => syncEsteiraNavVisiveis(boardEl), { passive: true });
-  }
-  nav.hidden = cols.length < 2;
-  nav.innerHTML = cols
-    .map((key) => {
-      const list = byCol[key] || [];
-      const ind = columnIndicadores(list);
-      const alerta = ind.atrasados ? " tem-atraso" : "";
-      return (
-        `<button type="button" class="esteira-nav__chip${list.length ? "" : " is-vazia"}${alerta}" data-nav-status="${escapeHtml(key)}"` +
-        ` title="${escapeHtml(labelStatus(key, linha))}: ${list.length} projeto(s)${ind.atrasados ? ` · ${ind.atrasados} atrasado(s)` : ""}">` +
-        `<span>${escapeHtml(labelStatus(key, linha))}</span><b>${list.length}</b></button>`
-      );
-    })
-    .join("");
-  requestAnimationFrame(() => syncEsteiraNavVisiveis(boardEl));
-}
-
-function syncEsteiraNavVisiveis(boardEl) {
-  const nav = boardEl?.previousElementSibling;
-  if (!nav?.classList.contains("esteira-nav")) return;
-  const box = boardEl.getBoundingClientRect();
-  nav.querySelectorAll("[data-nav-status]").forEach((chip) => {
-    const col = boardEl.querySelector(`.column[data-status="${CSS.escape(chip.dataset.navStatus)}"]`);
-    const r = col?.getBoundingClientRect();
-    const visivel = r && r.right > box.left + 40 && r.left < box.right - 40;
-    chip.classList.toggle("is-visivel", Boolean(visivel));
-  });
-}
-
 function sortProjetistasNomes(list) {
   return [...list].sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
 }
@@ -5018,7 +4967,6 @@ function renderBoardInto(boardEl, boardResponsavel, linha = activeEsteiraCanal) 
     empty.className = "muted esteira-empty-modo";
     empty.textContent = "Nenhuma coluna neste modo.";
     boardEl.appendChild(empty);
-    renderEsteiraNav(boardEl, [], byCol, linha);
     restoreScroll();
     return;
   }
@@ -5056,7 +5004,6 @@ function renderBoardInto(boardEl, boardResponsavel, linha = activeEsteiraCanal) 
     frag.appendChild(col);
   }
   boardEl.appendChild(frag);
-  renderEsteiraNav(boardEl, cols, byCol, linha);
   restoreScroll();
 }
 
