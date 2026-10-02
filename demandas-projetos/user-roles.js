@@ -39,6 +39,8 @@ window.DemandasRoles = (function () {
 
   /** Mapa e-mail → papel (seed + nuvem). */
   let rolesMap = { ...(window.DEMANDAS_ROLES_SEED || {}) };
+  /** Incrementa a cada mudança de papéis/bloqueios — permite cache das listas derivadas. */
+  let version = 0;
   /** E-mails desabilitados (permanecem no mapa, sem operar). */
   let disabledMap = {};
   /** Removidos do sistema (impede o seed de reaparecer). */
@@ -99,6 +101,7 @@ window.DemandasRoles = (function () {
 
   function setRolesMap(map) {
     rolesMap = mergeSeed(map);
+    version++;
     return rolesMap;
   }
 
@@ -110,6 +113,7 @@ window.DemandasRoles = (function () {
     disabledMap = normalizeFlagMap(map);
     const adminEmail = normalizeEmail(window.DEMANDAS_ADMIN_EMAIL);
     if (adminEmail) delete disabledMap[adminEmail];
+    version++;
     return { ...disabledMap };
   }
 
@@ -360,6 +364,7 @@ window.DemandasRoles = (function () {
     normalizeRole,
     setRolesMap,
     getRolesMap,
+    getVersion: () => version,
     setDisabledMap,
     getDisabledMap,
     setPurgedMap,
