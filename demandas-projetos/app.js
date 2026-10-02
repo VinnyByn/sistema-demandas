@@ -4672,13 +4672,13 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
       const acao = ro
         ? ""
         : r.kind === ALERTA_KIND_CLICKUP_RETORNO
-          ? `<button type="button" class="alerta__acao" data-alerta-ciente="${escapeHtml(r.d.id)}" title="Marcar como ciente">Ciente</button>`
-          : `<button type="button" class="alerta__acao" data-alerta-snooze="${escapeHtml(r.d.id)}" data-kind="${escapeHtml(r.kind)}" title="Registrar e silenciar por alguns dias">Adiar</button>`;
+          ? `<button type="button" class="alerta__acao" data-alerta-ciente="${escapeHtml(r.d.id)}" title="Marcar como ciente" aria-label="Marcar ${escapeHtml(r.d.titulo)} como ciente"><span aria-hidden="true">✓</span> Ciente</button>`
+          : `<button type="button" class="alerta__acao" data-alerta-snooze="${escapeHtml(r.d.id)}" data-kind="${escapeHtml(r.kind)}" title="Registrar e silenciar por alguns dias" aria-label="Adiar alerta de ${escapeHtml(r.d.titulo)}"><span aria-hidden="true">⏰</span> Adiar</button>`;
       return (
         `<li class="alerta alerta--${r.severity}">` +
         `<button type="button" class="alerta__abrir" data-alerta-abrir="${escapeHtml(r.d.id)}" title="Abrir projeto">` +
         dias +
-        `<span class="alerta__txt"><span class="alerta__titulo">${escapeHtml(r.d.titulo)}</span>` +
+        `<span class="alerta__txt"><span class="alerta__titulo" title="${escapeHtml(r.d.titulo)}">${escapeHtml(r.d.titulo)}</span>` +
         `<span class="alerta__msg">${escapeHtml(r.curta || r.msg)}</span>` +
         (r.meta ? `<span class="alerta__meta">${escapeHtml(r.meta)}</span>` : "") +
         `</span></button>` +
@@ -4761,8 +4761,9 @@ function initNotifMenu() {
     e.stopPropagation();
     setNotifAberto(panel.hidden);
   });
+  // composedPath: as abas re-renderizam o painel, então o alvo do clique já pode ter saído do DOM.
   document.addEventListener("click", (e) => {
-    if (!panel.hidden && !menu.contains(e.target)) setNotifAberto(false);
+    if (!panel.hidden && !e.composedPath().includes(menu)) setNotifAberto(false);
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !panel.hidden) {
