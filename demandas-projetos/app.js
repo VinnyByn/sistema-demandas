@@ -5280,9 +5280,6 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
       `<button type="button" class="card-prio-btn" data-dir="1" aria-label="Descer na coluna"${canMoveDown ? "" : " disabled"}>▼</button>` +
       `</div>`;
 
-  const statusTxt = (d.statusAtual || "").trim();
-  const statusTxtHtml = statusTxt ? `<p class="card__status-atual">${escapeHtml(statusTxt)}</p>` : "";
-
   const prazo = cardPrazoInfo(dmCard);
   const prazoHtml = prazo
     ? `<div class="card__prazo card__prazo--${prazo.tom}" title="Prazo previsto: ${escapeHtml(formatDataCurta(dmCard.dataFimPrevista))}">` +
@@ -5398,7 +5395,6 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     </div>
     <h3 class="card__title"></h3>
     ${cardEditingByHtml(d)}
-    ${statusTxtHtml}
     ${prazoHtml}
     ${colunaAlertaHtml}
     <div class="card__pessoa">
@@ -7535,7 +7531,6 @@ function demSecaoLeituraHtml(key) {
     case "esteira": {
       const prev = demandaPreviewFromForm();
       const prazo = cardPrazoInfo(prev);
-      const statusAtual = lvVal("demStatusAtual");
       const dias = demandaInicioContagemAberto(prev) ? formatDiasAbertoLabel(demandaDiasAberto(prev)) : "";
       const prazoHtml = prazo
         ? `<div class="card__prazo card__prazo--${prazo.tom} seg-lv-prazo"><div class="card__prazo-bar"><span style="width:${prazo.pct}%"></span></div>` +
@@ -7544,8 +7539,7 @@ function demSecaoLeituraHtml(key) {
       return (
         `<div class="seg-lv-hero seg-lv-hero--linha"><span class="seg-lv-etapa">${escapeHtml(
           labelStatus(lvVal("demStatus"), editingLinhaEsteira),
-        )}</span>` +
-        `<p class="seg-lv-status">${statusAtual ? escapeHtml(statusAtual) : lvVazio("Sem status atual")}</p></div>` +
+        )}</span></div>` +
         prazoHtml +
         `<div class="seg-lv-grid">` +
         lvPar("Chegada", lvData(prev.dataChegada)) +
@@ -7715,7 +7709,6 @@ function demSecaoLeituraHtml(key) {
 function demSecaoTemPendencia(key) {
   if (key === "chegada") return !lvVal("demTitulo") || !lvVal("demDescricao") || !lvVal("demDataChegada");
   if (key === "atribuicao") return !lvVal("demCidade");
-  if (key === "esteira") return !lvVal("demStatusAtual");
   if (key === "atraso") return !readMotivosAtrasoFromDom({ forSave: true }).length;
   return false;
 }
@@ -7968,7 +7961,6 @@ function openDemandaModal(id) {
   if (selSegmento) selSegmento.value = dm?.segmentoB2c || "";
   syncDemCamposPorTipo();
   document.getElementById("demStatus").value = d?.status || cfg.inboxStatus;
-  document.getElementById("demStatusAtual").value = d?.statusAtual || "";
   renderMotivosAtrasoLista(dm?.motivosAtrasoItens || normalizeMotivosAtrasoItens(d));
   document.getElementById("demDescricao").value = d?.descricao || "";
   const elChamado = document.getElementById("demChamadoOcomon");
@@ -9206,7 +9198,8 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     dataFimPrevista: document.getElementById("demDataFimPrevista").value,
     dataFimAtualizada: document.getElementById("demDataFimAtualizada").value,
     dataTermino: document.getElementById("demDataTermino").value,
-    statusAtual: document.getElementById("demStatusAtual").value.trim(),
+    // "Status atual" saiu do formulário (a checklist mostra o andamento); mantém o texto legado salvo.
+    statusAtual: existing?.statusAtual || "",
     motivosAtrasoItens: motivosItensSalvar,
     motivosAtraso: formatMotivosAtrasoTexto(motivosItensSalvar),
     valorProjetoRealizado: document.getElementById("demValorProjetoRealizado")
@@ -9277,11 +9270,6 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     return;
   }
   payload.descricao = payload.descricao.trim();
-  if (!payload.statusAtual) {
-    toast("Informe o status atual do projeto");
-    document.getElementById("demStatusAtual")?.focus();
-    return;
-  }
   let ordem = normalizeOrdemEsteira(existing?.ordemEsteira);
   if (ordem == null || prevStatus !== newStatus) {
     ordem = ordemAoEntrarColuna(newStatus, payload.responsavel);
