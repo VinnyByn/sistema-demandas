@@ -6102,3 +6102,45 @@ html[data-theme="light"] .card__agora.is-wait { --tom: 100, 116, 139; }
 .comment-edit__input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
 .comment-edit__acoes { display: flex; align-items: center; justify-content: flex-end; gap: 0.4rem; flex-wrap: wrap; }
 .comment-edit__dica { margin-right: auto; font-size: 0.7rem; color: var(--muted); }
+
+/* ---------- Leitura do PDF de custo: revisão por campo ---------- */
+.pdf-rev__intro { margin: 0.6rem 0 0.4rem; font-size: 0.82rem; color: var(--muted); }
+.pdf-rev__intro strong { color: var(--text); }
+.pdf-rev { list-style: none; margin: 0 0 0.6rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.pdf-rev__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid #22c55e;
+  border-radius: 8px;
+  background: var(--surface);
+}
+.pdf-rev__item.is-sem-trecho { border-left-color: #f59e0b; }
+.pdf-rev__linha { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.84rem; }
+.pdf-rev__linha input { width: 1rem; height: 1rem; flex: none; accent-color: var(--accent); cursor: pointer; }
+.pdf-rev__rotulo { color: var(--muted); }
+.pdf-rev__valor { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
+.pdf-rev__trecho {
+  display: block;
+  margin-left: 1.5rem;
+  font-size: 0.74rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  quotes: "“" "”";
+}
+.pdf-rev__trecho::before { content: "PDF: " open-quote; font-family: inherit; }
+.pdf-rev__trecho::after { content: close-quote; }
+.pdf-rev__alerta { margin-left: 1.5rem; font-size: 0.74rem; font-weight: 600; color: #fbbf24; }
+.pdf-rev__faltando {
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.pdf-rev__faltando strong { color: var(--text); }
+html[data-theme="light"] .pdf-rev__alerta { color: #b45309; }

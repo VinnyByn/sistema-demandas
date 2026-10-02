@@ -8701,79 +8701,93 @@ function resetCustoFormAfterPdfRemove() {
   pdfCustoAppliedInSession = false;
 }
 
-function applyPdfCustoToForm(parsed) {
+/** Itens revisáveis do PDF (um por linha da revisão), na ordem em que aparecem. */
+function pdfItensRevisao(parsed) {
+  const v = parsed?.values || {};
+  const ev = parsed?.evidencias || {};
+  const tem = (k) => v[k] !== "" && v[k] != null;
+  const itens = [];
+  const add = (chave, rotulo, valorTxt, trecho) => itens.push({ chave, rotulo, valorTxt, trecho: trecho || "" });
+  if (tem("valorProjeto")) add("valorProjeto", "Valor do projeto (CAPEX)", `R$ ${pdfPreviewValor("valorProjeto", v.valorProjeto)}`, ev.valorProjeto);
+  if (tem("qtdNovasPortas")) add("qtdNovasPortas", "Portas estimadas (novas)", pdfPreviewValor("qtdNovasPortas", v.qtdNovasPortas), ev.qtdNovasPortas);
+  if (tem("qtdCasas")) add("qtdCasas", "Casas (HP)", pdfPreviewValor("qtdCasas", v.qtdCasas), ev.qtdCasas);
+  if (tem("qtdPortasAtual")) add("qtdPortasAtual", "Portas existentes (HC)", pdfPreviewValor("qtdPortasAtual", v.qtdPortasAtual), ev.qtdPortasAtual);
+  if (v.execucao) {
+    const custos = [
+      tem("custoRegional") ? `Regional R$ ${pdfPreviewValor("custoRegional", v.custoRegional)}` : "",
+      tem("custoTerceirizada") ? `Terceirizada R$ ${pdfPreviewValor("custoTerceirizada", v.custoTerceirizada)}` : "",
+    ].filter(Boolean);
+    add("execucao", "Execução", [v.execucao, ...custos].join(" · "), ev.execucao);
+  }
+  for (const c of parsed?.cabos || []) {
+    add(`cabo:${c.tipo}`, `Cabo ${c.tipo}`, `${pdfPreviewValor("qtdCasas", c.metragem)} m`, ev.cabos?.[c.tipo]);
+  }
+  return itens;
+}
+
+/** Campos que o PDF padrão costuma ter mas não foram encontrados (para preencher à mão). */
+function pdfCamposNaoEncontrados(parsed) {
+  const v = parsed?.values || {};
+  const falta = [];
+  if (v.valorProjeto === "" || v.valorProjeto == null) falta.push("Valor do projeto (CAPEX)");
+  if (v.qtdNovasPortas === "" || v.qtdNovasPortas == null) falta.push("Portas estimadas");
+  if (v.qtdCasas === "" || v.qtdCasas == null) falta.push("Casas (HP)");
+  if (v.qtdPortasAtual === "" || v.qtdPortasAtual == null) falta.push("Portas existentes (HC)");
+  if (!v.execucao) falta.push("Execução (mão de obra)");
+  if (!parsed?.cabos?.length) falta.push("Cabos do lançamento");
+  return falta;
+}
+
+/** Seleção da revisão: começa marcando só o que tem trecho do PDF que comprove o valor. */
+let pdfSelecao = new Set();
+
+function iniciarSelecaoPdf(parsed) {
+  pdfSelecao = new Set(pdfItensRevisao(parsed).filter((it) => it.trecho).map((it) => it.chave));
+}
+
+function applyPdfCustoToForm(parsed, selecao = pdfSelecao) {
   if (!parsed) return;
   const v = parsed.values || {};
-  const hasData = parsed.hasLevantamento || parsed.hasPortas || parsed.hasLancamento;
-  if (!hasData) {
-    toast("Nenhum dado reconhecido no PDF — veja o texto extraído abaixo");
+  const sel = (k) => selecao.has(k);
+  const cabosSel = (parsed.cabos || []).filter((c) => sel(`cabo:${c.tipo}`));
+  const portasSel = ["qtdNovasPortas", "qtdCasas", "qtdPortasAtual"].filter(sel);
+  if (!sel("valorProjeto") && !sel("execucao") && !portasSel.length && !cabosSel.length) {
+    toast("Marque ao menos um campo para aplicar");
     return;
   }
-
-  if (parsed.hasLevantamento || Object.keys(v).some((k) => v[k] !== "")) {
-    document.getElementById("demTemLevantamento").value = "sim";
-    toggleCustoFields();
+  // Só os campos marcados são alterados; o resto do formulário fica como está.
+  document.getElementById("demTemLevantamento").value = "sim";
+  toggleCustoFields();
+  if (sel("valorProjeto")) {
     setCustoInputVal("custoValorProjeto", v.valorProjeto);
     recalcCustoValores();
-    if (v.execucao) {
-      const selExec = document.getElementById("custoExecucao");
-      if (selExec) selExec.value = normalizeExecucaoCusto(v.execucao);
-    }
+  }
+  if (sel("execucao") && v.execucao) {
+    const selExec = document.getElementById("custoExecucao");
+    if (selExec) selExec.value = normalizeExecucaoCusto(v.execucao);
     setCustoInputVal("custoExecucaoRegional", v.custoRegional);
     setCustoInputVal("custoExecucaoTerceirizada", v.custoTerceirizada);
     toggleExecucaoCustoFields();
   }
-
-  if (parsed.hasPortas) {
+  if (portasSel.length) {
     document.getElementById("demTemPortas").value = "sim";
     togglePortasFields();
-    setCustoInputVal("custoQtdCasas", v.qtdCasas);
-    setCustoInputVal("custoQtdPortasAtual", v.qtdPortasAtual);
-    setCustoInputVal("custoQtdNovasPortas", v.qtdNovasPortas);
+    const ids = { qtdCasas: "custoQtdCasas", qtdPortasAtual: "custoQtdPortasAtual", qtdNovasPortas: "custoQtdNovasPortas" };
+    for (const k of portasSel) setCustoInputVal(ids[k], v[k]);
     recalcPenetracaoPortas();
     recalcValorPorPortaNova();
-  } else {
-    clearPortasCustoForm();
   }
-
-  if (parsed.hasLancamento) {
+  if (cabosSel.length) {
     document.getElementById("demTemLancamento").value = "sim";
-    if (parsed.cabos?.length) {
-      editingLancamentoCabos = parsed.cabos.map((c) => ({
-        id: uid(),
-        tipo: c.tipo,
-        metragem: c.metragem,
-      }));
-    } else if (!editingLancamentoCabos.length) {
-      editingLancamentoCabos = [{ id: uid(), tipo: TIPOS_CABO[0], metragem: "" }];
-    }
+    editingLancamentoCabos = cabosSel.map((c) => ({ id: uid(), tipo: c.tipo, metragem: c.metragem }));
     toggleLancamentoFields();
     renderLancamentoCabos();
-    if (v.totalMetragem !== "") {
-      setCustoInputVal("custoTotalMetragem", v.totalMetragem);
-    } else {
-      recalcTotalMetragem();
-    }
+    recalcTotalMetragem();
   }
-
   pdfCustoAppliedInSession = true;
-  toast("Dados do PDF aplicados — confira os campos e salve a demanda");
+  const n = (sel("valorProjeto") ? 1 : 0) + (sel("execucao") ? 1 : 0) + portasSel.length + cabosSel.length;
+  toast(`${n} campo(s) do PDF aplicado(s) — confira e salve o projeto`);
 }
-
-const PDF_CAMPO_LABEL = {
-  valorProjeto: "Valor do projeto",
-  valor5: "Valor 5%",
-  valorFinal: "Valor final",
-  qtdCasas: "Qtd. casas",
-  qtdPortasAtual: "Portas existentes",
-  qtdNovasPortas: "Novas portas",
-  penetracaoAtual: "Penetração atual",
-  novaPenetracao: "Nova penetração",
-  execucao: "Execução",
-  custoRegional: "MO Regional",
-  custoTerceirizada: "MO Classe L + F",
-  totalMetragem: "Metragem total",
-};
 
 function pdfPreviewValor(k, val) {
   if (k.startsWith("penetracao") || k === "novaPenetracao") {
@@ -8807,27 +8821,32 @@ function renderPdfLevantamentoPreview() {
 
   wrap.hidden = false;
   const parsed = lastPdfParseResult;
-  const fields = parsed
-    ? Object.entries(parsed.values || {})
-        .filter(([, val]) => val !== "")
-        .map(([k, val]) => {
-          const label = PDF_CAMPO_LABEL[k] || k;
-          return `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(pdfPreviewValor(k, val))}</li>`;
-        })
-        .join("")
-    : "";
-  const cabos = parsed?.cabos?.length
-    ? `<li><strong>Cabos:</strong> ${parsed.cabos
-        .map((c) => {
-          const m = formatBr().formatIntegerBr ? formatBr().formatIntegerBr(c.metragem) : c.metragem;
-          return escapeHtml(`${c.tipo} — ${m} m`);
-        })
-        .join(", ")}</li>`
-    : "";
+  const itens = parsed ? pdfItensRevisao(parsed) : [];
+  const faltando = parsed ? pdfCamposNaoEncontrados(parsed) : [];
   const warns = (parsed?.warnings || [])
     .map((w) => `<p class="pdf-custo-preview__warn">${escapeHtml(w)}</p>`)
     .join("");
-  const canApply = parsed && (parsed.hasLevantamento || parsed.hasPortas || parsed.hasLancamento);
+  const canApply = itens.length > 0;
+  const revisao = itens.length
+    ? `<p class="pdf-rev__intro">Confira o que foi lido. <strong>Só os campos marcados serão aplicados</strong> — desmarque o que estiver errado.</p>` +
+      `<ul class="pdf-rev">${itens
+        .map(
+          (it) =>
+            `<li class="pdf-rev__item${it.trecho ? "" : " is-sem-trecho"}">` +
+            `<label class="pdf-rev__linha"><input type="checkbox" data-pdf-sel="${escapeHtml(it.chave)}"${pdfSelecao.has(it.chave) ? " checked" : ""} />` +
+            `<span class="pdf-rev__rotulo">${escapeHtml(it.rotulo)}</span><strong class="pdf-rev__valor">${escapeHtml(it.valorTxt)}</strong></label>` +
+            (it.trecho
+              ? `<q class="pdf-rev__trecho" title="Trecho do PDF">${escapeHtml(it.trecho)}</q>`
+              : `<span class="pdf-rev__alerta">⚠ Não localizei a linha do PDF com este valor — confira antes de marcar.</span>`) +
+            `</li>`,
+        )
+        .join("")}</ul>`
+    : parsed
+      ? `<p class="muted small">Nenhum campo reconhecido no PDF.</p>`
+      : "";
+  const faltandoHtml = faltando.length
+    ? `<p class="pdf-rev__faltando"><strong>Não encontrados no PDF</strong> (preencha à mão se houver): ${escapeHtml(faltando.join(" · "))}</p>`
+    : "";
 
   const pdfLink = editingPdfLevantamento.dataUrl
     ? `<a class="btn btn--ghost btn--sm" href="${editingPdfLevantamento.dataUrl}" download="${escapeHtml(editingPdfLevantamento.name)}" target="_blank" rel="noopener">Abrir PDF</a>`
@@ -8840,12 +8859,23 @@ function renderPdfLevantamentoPreview() {
     `<button type="button" class="btn btn--ghost btn--sm" id="btnPdfRemove">Remover PDF</button>` +
     `</div>` +
     warns +
-    (fields || cabos
-      ? `<p class="muted small">Campos detectados:</p><ul class="pdf-custo-preview__list">${fields}${cabos}</ul>`
-      : `<p class="muted small">Nenhum campo detectado ainda.</p>`) +
+    revisao +
+    faltandoHtml +
     (canApply
-      ? `<button type="button" class="btn btn--primary btn--sm" id="btnPdfApply">Aplicar ao formulário de custo</button>`
+      ? `<button type="button" class="btn btn--primary btn--sm" id="btnPdfApply">Aplicar ${pdfSelecao.size} campo(s) marcado(s)</button>`
       : "");
+
+  wrap.querySelectorAll("[data-pdf-sel]").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (cb.checked) pdfSelecao.add(cb.dataset.pdfSel);
+      else pdfSelecao.delete(cb.dataset.pdfSel);
+      const btn = document.getElementById("btnPdfApply");
+      if (btn) {
+        btn.textContent = `Aplicar ${pdfSelecao.size} campo(s) marcado(s)`;
+        btn.disabled = pdfSelecao.size === 0;
+      }
+    });
+  });
 
   document.getElementById("btnPdfRemove")?.addEventListener("click", () => {
     editingPdfLevantamento = null;
@@ -8857,7 +8887,7 @@ function renderPdfLevantamentoPreview() {
     toast("PDF removido — campos de custo zerados (padrão: Não se aplica)");
   });
   document.getElementById("btnPdfApply")?.addEventListener("click", () => {
-    applyPdfCustoToForm(lastPdfParseResult);
+    applyPdfCustoToForm(lastPdfParseResult, pdfSelecao);
   });
 }
 
@@ -8879,6 +8909,7 @@ async function handleDemPdfUpload(file) {
   try {
     const extracted = await api.extractTextFromPdfFile(file);
     lastPdfParseResult = api.parseCustoText(extracted);
+    iniciarSelecaoPdf(lastPdfParseResult);
     const dataUrl = await new Promise((resolve, reject) => {
       const fr = new FileReader();
       fr.onload = () => resolve(fr.result);
@@ -8892,27 +8923,12 @@ async function handleDemPdfUpload(file) {
       uploadedAt: new Date().toISOString(),
     };
     renderPdfLevantamentoPreview();
-    const n = Object.keys(lastPdfParseResult.values || {}).filter((k) => lastPdfParseResult.values[k] !== "").length;
-    const nc = lastPdfParseResult.cabos?.length || 0;
-    const capex = lastPdfParseResult?.values?.valorProjeto;
-    const parts = [];
-    if (capex !== "" && capex != null) parts.push(`CAPEX: ${pdfPreviewValor("valorProjeto", capex)}`);
-    const pv = lastPdfParseResult?.values || {};
-    if (pv.qtdNovasPortas !== "") parts.push(`Portas est.: ${pv.qtdNovasPortas}`);
-    if (pv.qtdCasas !== "" || pv.qtdPortasAtual !== "") {
-      parts.push(`HP: ${pv.qtdCasas || "—"} / HC: ${pv.qtdPortasAtual || "—"}`);
-    }
-    if (pv.execucao) {
-      const mo = [];
-      if (pv.custoRegional !== "") mo.push(`reg.: ${pdfPreviewValor("custoRegional", pv.custoRegional)}`);
-      if (pv.custoTerceirizada !== "") mo.push(`terc.: ${pdfPreviewValor("custoTerceirizada", pv.custoTerceirizada)}`);
-      parts.push(`Exec.: ${pv.execucao}${mo.length ? ` (${mo.join("; ")})` : ""}`);
-    }
-    if (nc) parts.push(`${nc} cabo(s) em LANÇAMENTO DE CABOS`);
+    const itens = pdfItensRevisao(lastPdfParseResult);
+    const semTrecho = itens.filter((it) => !it.trecho).length;
     toast(
-      parts.length
-        ? `${parts.join(" · ")} — clique em Aplicar`
-        : "Poucos dados no PDF — confira CAPEX (pág. 1) e LANÇAMENTO DE CABOS (4.1.1)",
+      itens.length
+        ? `${itens.length} campo(s) lido(s) do PDF${semTrecho ? ` · ${semTrecho} para conferir` : ""} — revise e clique em Aplicar`
+        : "Nenhum campo reconhecido no PDF — preencha à mão",
     );
   } catch (e) {
     console.error(e);

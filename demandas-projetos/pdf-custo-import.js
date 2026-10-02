@@ -162,8 +162,9 @@
         }
       }
       const hasLabel = list.some((re) => re.test(lines[i]));
-      if (hasLabel && lines[i + 1]) {
-        const v = parseIntBr(lines[i + 1]);
+      const prox = lines[i + 1] || "";
+      if (hasLabel && /^\d{1,3}(?:\.\d{3})+$|^\d+$/.test(prox)) {
+        const v = parseIntBr(prox);
         if (v !== "") return v;
       }
     }
@@ -192,8 +193,7 @@
     let qtdNovasPortas = "";
     if (/portas\s*estimadas?/i.test(raw)) {
       qtdNovasPortas = extractIntFromLabel(raw, [
-        /portas\s*estimadas?\s*[:\-–]?\s*(\d+)/i,
-        /portas\s*estimadas?\s*[:\-–]?\s*([\d.,]+)/i,
+        /portas\s*estimadas?\s*[:\-–]?\s*(\d{1,3}(?:\.\d{3})+|\d+)(?![\d,])/i,
       ]);
     }
 
@@ -202,20 +202,17 @@
     if (/estudo\s+de\s+[áa]rea/i.test(raw)) {
       const searchEstudo = sliceEstudoAreaBlock(raw);
       qtdCasas = extractIntFromLabel(searchEstudo, [
-        /(?:linha\s*)?hp\s*[:\-–]?\s*(\d+)/i,
-        /\bhp\s*[:\-–]?\s*(\d+)/i,
-        /hp\s+(\d+)/i,
+        /\bhp\s*[:\-–]?\s*(\d{1,3}(?:\.\d{3})+|\d+)(?![\d,])/i,
       ]);
       qtdPortasAtual = extractIntFromLabel(searchEstudo, [
-        /\bhc\s*[:\-–]?\s*(\d+)/i,
-        /hc\s+(\d+)/i,
+        /\bhc\s*[:\-–]?\s*(\d{1,3}(?:\.\d{3})+|\d+)(?![\d,])/i,
       ]);
-      const hpHc = searchEstudo.match(/\bhp\s*[:\-–]?\s*(\d+)[\s\S]{0,80}?\bhc\s*[:\-–]?\s*(\d+)/i);
+      const hpHc = searchEstudo.match(/\bhp\s*[:\-–]?\s*(\d{1,3}(?:\.\d{3})+|\d+)[\s\S]{0,80}?\bhc\s*[:\-–]?\s*(\d{1,3}(?:\.\d{3})+|\d+)/i);
       if (hpHc) {
         if (qtdCasas === "") qtdCasas = parseIntBr(hpHc[1]);
         if (qtdPortasAtual === "") qtdPortasAtual = parseIntBr(hpHc[2]);
       }
-      const hcHp = searchEstudo.match(/\bhc\s*[:\-–]?\s*(\d+)[\s\S]{0,80}?\bhp\s*[:\-–]?\s*(\d+)/i);
+      const hcHp = searchEstudo.match(/\bhc\s*[:\-–]?\s*(\d{1,3}(?:\.\d{3})+|\d+)[\s\S]{0,80}?\bhp\s*[:\-–]?\s*(\d{1,3}(?:\.\d{3})+|\d+)/i);
       if (hcHp) {
         if (qtdPortasAtual === "") qtdPortasAtual = parseIntBr(hcHp[1]);
         if (qtdCasas === "") qtdCasas = parseIntBr(hcHp[2]);
@@ -572,7 +569,6 @@
     /lan[çc\u00e7]amento\s+de\s+cabos/i,
     /4\s*\.?\s*1\s*\.?\s*1\s+custo\s+de\s+lan[çc]amento/i,
     /custo\s+de\s+lan[çc]amento/i,
-    /4\s*\.?\s*1\s+detalhamento\s+de\s+materiais/i,
     /lan[çc]amento\s*(?:de\s*)?cabos?/i,
     /lan\s*[çc]?\s*amento\s*(?:de\s*)?cabos?/i,
     /lancamento\s+de\s+cabos/i,
@@ -606,21 +602,15 @@
     return block.slice(0, 8000);
   }
 
-  /** Janela ao redor da primeira especificação CFOA / "XX fibras" (fallback). */
-  function extractFibrasWindow(text) {
-    if (!text) return "";
-    const m = text.match(/cfoa\s+.+?\d{1,3}\s*fibras?|\d{1,3}\s*fibras?\b/i);
-    if (!m?.index) return "";
-    const start = Math.max(0, m.index - 400);
-    return text.slice(start, m.index + 5500);
-  }
-
   function pushCabo(cabos, seen, tipo, metragem) {
     if (!tipo || metragem === "" || metragem == null) return;
     if (seen.has(tipo)) return;
     seen.add(tipo);
     cabos.push({ tipo, metragem });
   }
+
+  /** Itens de material que citam "fibras" mas não são cabo lançado. */
+  const RE_ACESSORIO_FIBRA = /cord[ãa]o|caixa|emenda|cto\b|ceo\b|terminal|conector|splitter|\bdio\b|bandeja|pigtail|adaptador/i;
 
   /**
    * Tabela lançamento: CFOA … 12 FIBRAS NR → FO-12; também "06 fibras" simples.
@@ -637,6 +627,7 @@
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!/fibras?\b/i.test(line) && !/cfoa\b/i.test(line)) continue;
+      if (RE_ACESSORIO_FIBRA.test(line) && !/cfoa\b/i.test(line)) continue;
       const tipo = fibrasFromEspecificacao(line);
       if (!tipo) continue;
       let met = extractMetragemFromLinhaCabo(line);
@@ -723,32 +714,9 @@
       if (lancamento) source = "doc_lancamento";
     }
 
-    if (!lancamento && secao) {
-      lancamento = secao;
-      source = "secao4_inteira";
-    }
-
-    if (!lancamento) {
-      for (const p of pages.slice(1)) {
-        const w = extractFibrasWindow(p);
-        if (w.length > lancamento.length) lancamento = w;
-      }
-      if (!lancamento) {
-        const idx = findSecao4Start(norm);
-        const nearCustos = idx >= 0 ? norm.slice(idx) : norm;
-        lancamento = extractFibrasWindow(nearCustos) || extractFibrasWindow(norm);
-      }
-      if (lancamento) source = "janela_fibras";
-    }
-
-    let cabos = lancamento ? extractCabosLancamento(lancamento) : [];
-    if (!cabos.length && secao) cabos = extractCabosLancamento(secao);
-    if (!cabos.length) {
-      for (const p of pages) {
-        const c = extractCabosLancamento(extractFibrasWindow(p));
-        if (c.length > cabos.length) cabos = c;
-      }
-    }
+    // Antes havia buscas de reserva na seção 4 inteira e no documento todo ("XX fibras"): elas liam itens da
+    // lista de materiais (cordão óptico, caixa de emenda…) como cabos. Agora só o bloco de lançamento conta.
+    const cabos = lancamento ? extractCabosLancamento(lancamento) : [];
 
     return {
       cabos,
@@ -875,10 +843,10 @@
     const ln = String(line || "");
     if (!ln.trim()) return "";
     const valores = [];
-    const re = /R?\$?\s*([\d]{1,3}(?:\.[\d]{3})*(?:,[\d]{2})?|\d+(?:,\d{2})?)/gi;
+    const re = /R\$\s*([\d]{1,3}(?:\.[\d]{3})*(?:,[\d]{2})?|\d+(?:,\d{2})?)|([\d]{1,3}(?:\.[\d]{3})*,[\d]{2})(?![\d])/gi;
     let m;
     while ((m = re.exec(ln)) !== null) {
-      const v = parseMoneyBr(m[1]);
+      const v = parseMoneyBr(m[1] || m[2]);
       if (v !== "" && Number.isFinite(Number(v))) valores.push(Number(v));
     }
     if (!valores.length) return "";
@@ -962,21 +930,96 @@
     };
   }
 
+  /* ---------- Evidência: trecho do PDF de onde cada valor saiu ---------- */
+  const EVIDENCIA_ROTULOS = {
+    valorProjeto: [/capex/i, /valor\s+(?:do\s+)?projeto/i],
+    qtdNovasPortas: [/portas\s*estimad/i],
+    qtdCasas: [/\bhp\b/i],
+    qtdPortasAtual: [/\bhc\b/i],
+    custoRegional: [/m[ãa]o\s*de\s*obra\s+regional/i, /\bmob?\s+regional/i, /\bm\.?\s*o\.?\s*regional/i],
+    custoTerceirizada: [/m[ãa]o\s*de\s*obra\s+classe/i, /terceirizad/i],
+  };
+
+  function formatosNumero(n, dinheiro) {
+    const num = Number(n);
+    if (!Number.isFinite(num)) return [];
+    const inteiro = Math.trunc(num);
+    const milhar = inteiro.toLocaleString("pt-BR");
+    const out = new Set([milhar, String(inteiro)]);
+    if (dinheiro) {
+      const cent = num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      out.add(cent);
+      out.add(cent.replace(/\./g, ""));
+    }
+    return [...out].filter(Boolean);
+  }
+
+  function linhaTemNumero(linha, formatos) {
+    return formatos.some((f) => {
+      const esc = f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`(^|[^\\d.,])${esc}(?![\\d]|[.,]\\d)`).test(linha);
+    });
+  }
+
+  function cortarTrecho(s) {
+    const t = String(s || "").replace(/\s+/g, " ").trim();
+    return t.length > 160 ? `${t.slice(0, 157)}…` : t;
+  }
+
+  /** Primeira linha com o rótulo cujo valor aparece nela (ou nas 2 linhas seguintes). */
+  function acharEvidencia(linhas, rotulos, valor, dinheiro) {
+    const formatos = formatosNumero(valor, dinheiro);
+    for (let i = 0; i < linhas.length; i++) {
+      if (!rotulos.some((re) => re.test(linhas[i]))) continue;
+      for (let j = i; j <= Math.min(i + 2, linhas.length - 1); j++) {
+        if (linhaTemNumero(linhas[j], formatos)) {
+          return cortarTrecho(j === i ? linhas[i] : `${linhas[i]} … ${linhas[j]}`);
+        }
+      }
+    }
+    return "";
+  }
+
+  function evidenciasDosValores(texto, values, cabos) {
+    const linhas = normalizePdfText(texto)
+      .split(/[\n\f]+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const ev = {};
+    for (const [k, rotulos] of Object.entries(EVIDENCIA_ROTULOS)) {
+      if (values[k] === "" || values[k] == null) continue;
+      const dinheiro = k === "valorProjeto" || k.startsWith("custo");
+      let trecho = acharEvidencia(linhas, rotulos, values[k], dinheiro);
+      if (!trecho && k === "custoTerceirizada") {
+        // soma de MO Classe "L" + "F": mostra as linhas que entraram na soma
+        trecho = cortarTrecho(linhas.filter((l) => rotulos.some((re) => re.test(l)) && /\d,\d{2}/.test(l)).join(" | "));
+      }
+      ev[k] = trecho;
+    }
+    if (values.execucao) ev.execucao = [ev.custoRegional, ev.custoTerceirizada].filter(Boolean).join(" | ");
+    ev.cabos = {};
+    for (const c of cabos || []) {
+      const fibras = (c.tipo.match(/\d+/) || [""])[0];
+      const rotulos = fibras
+        ? [new RegExp(`\\b0*${Number(fibras)}\\s*fibras?`, "i")]
+        : [new RegExp(c.tipo.replace(/\s+/g, "\\s*"), "i")];
+      ev.cabos[c.tipo] = acharEvidencia(linhas, rotulos, c.metragem, false);
+    }
+    return ev;
+  }
+
   function parseCustoText(input) {
     const text = typeof input === "string" ? input : input?.text || "";
     const tableCabos = Array.isArray(input?.tableCabos) ? input.tableCabos : [];
     const normalized = normalizePdfText(text);
     const pages = splitPdfPages(text);
     const firstPage = pages[0] || normalized;
-    const flat = flatText(normalized);
     const warnings = [];
     const values = {};
 
     values.valorProjeto = extractValorProjetoFromPdf(pages, normalized);
     if (values.valorProjeto === "") {
-      warnings.push(
-        "CAPEX estimado não encontrado na 1ª página — confira o preview da página 1 (rótulo e valor em R$).",
-      );
+      warnings.push("CAPEX estimado não encontrado nas primeiras páginas.");
     }
 
     const portasP1 = extractPortasFromFirstPage(firstPage);
@@ -989,18 +1032,8 @@
     if (escopoExec.custoRegional !== "") values.custoRegional = escopoExec.custoRegional;
     if (escopoExec.custoTerceirizada !== "") values.custoTerceirizada = escopoExec.custoTerceirizada;
 
-    for (const [key, patterns] of Object.entries(PDF_CUSTO_PATTERNS)) {
-      if (key === "valorProjeto") continue;
-      if (PORTAS_KEYS.includes(key)) continue;
-      if (key === "custoRegional" || key === "custoTerceirizada") continue;
-      const raw = firstMatch(flat, patterns) || firstMatch(normalized, patterns);
-      if (!raw) continue;
-      if (key.startsWith("qtd") || key === "penetracaoAtual" || key === "novaPenetracao") {
-        values[key] = parseIntBr(raw);
-      } else if (key === "totalMetragem" || key.startsWith("valor") || key.startsWith("custo")) {
-        values[key] = parseMoneyBr(raw);
-      }
-    }
+    // 5%, valor final, penetrações e metragem total são calculados pelo sistema a partir dos campos acima —
+    // lê-los do texto só trazia números soltos (ex.: "5% 2027" virava "Valor 5% = 2.027").
 
     const lancamentoExtract = extractCabosFromSecaoCustos(normalized);
     const cabos = mergeCabosLists(tableCabos, lancamentoExtract.cabos);
@@ -1008,25 +1041,13 @@
     if (cabos.length) {
       const soma = sumMetragemCabos(cabos);
       if (soma !== "") values.totalMetragem = soma;
-    } else if (!lancamentoExtract.foundSecao4) {
-      warnings.push(
-        'Tópico "4. Custo" não localizado — o PDF padrão usa esse título (não "4. Custos"). Confira o preview.',
-      );
-    } else if (!lancamentoExtract.foundLancamentoTitle && !cabos.length) {
-      warnings.push(
-        'Tópico 4 encontrado, mas "LANÇAMENTO DE CABOS" / "4.1.1 Custo de Lançamento" não — confira o preview.',
-      );
-    } else if (lancamentoExtract.lancamento && !cabos.length) {
-      warnings.push(
-        'Lançamento localizado, mas nenhum cabo com metragem — confira linhas CFOA … XX FIBRAS NR no preview.',
-      );
     }
 
     const found = Object.keys(values).filter((k) => values[k] !== "").length;
 
     if (!found && !cabos.length) {
       warnings.push(
-        "Nenhum campo reconhecido automaticamente. Confira se o PDF tem texto selecionável (não é só imagem escaneada).",
+        "Nenhum campo reconhecido. Se o PDF for uma imagem escaneada (sem texto selecionável), a leitura automática não funciona.",
       );
     }
 
@@ -1034,6 +1055,7 @@
       values,
       cabos,
       warnings,
+      evidencias: evidenciasDosValores(text, values, cabos),
       textPreview: normalized.slice(0, 4000),
       textPreviewFirstPage: firstPage.slice(0, 2500),
       textPreviewLancamento: (lancamentoExtract.lancamento || lancamentoExtract.secao || "").slice(0, 3500),
