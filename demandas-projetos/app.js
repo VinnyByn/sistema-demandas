@@ -3350,7 +3350,7 @@ function demFormSnapshot() {
   form.querySelectorAll("input, select, textarea").forEach((el) => {
     if (el.type === "file" || el.type === "button") return;
     if (el.id && DEM_CAMPOS_FORA_DO_SNAPSHOT.has(el.id)) return;
-    if (el.closest(".checklist-item__edit")) return;
+    if (el.closest(".checklist-item__edit, .comment-edit")) return;
     campos.push(el.type === "checkbox" ? String(el.checked) : el.value);
   });
   let timeline = [];
@@ -3437,12 +3437,14 @@ function normalizeComentario(c) {
   const texto = String(c?.texto || "").trim();
   if (!texto) return null;
   const autor = String(c?.autor || "").trim() || "Equipe";
-  return {
+  const out = {
     id: c?.id || uid(),
     texto,
     autor,
     createdAt: c?.createdAt || new Date().toISOString(),
   };
+  if (c?.editadoEm) out.editadoEm = String(c.editadoEm);
+  return out;
 }
 
 function normalizeComentarios(list) {
@@ -5198,6 +5200,48 @@ function cardPrazoInfo(dm) {
   return { tom: restam <= 3 ? "alerta" : "ok", pct, texto };
 }
 
+/**
+ * "Status atual" do card, puxado da checklist: a atividade em andamento (ou, se nenhuma, a próxima a fazer),
+ * com início e fim previstos e a situação do prazo.
+ */
+function cardAtividadeAtualHtml(checklist) {
+  const pendentes = checklist.filter((it) => !it.done);
+  const emAndamento = pendentes.filter((it) => normalizeChecklistStatus(it) === "andamento");
+  const atual = emAndamento[0] || pendentes[0];
+  if (!atual) return "";
+  const executando = emAndamento.length > 0;
+  const sit = checklistItemSituacao(atual);
+  const prazo = checklistItemPrazo(atual);
+  const ini = atual.dateInicio ? formatDataCurta(atual.dateInicio).slice(0, 5) : "";
+  const fim = atual.date ? formatDataCurta(atual.date).slice(0, 5) : "";
+  const datas =
+    ini || fim
+      ? `<span class="card__agora-datas">${ini ? `<span>Início <b>${escapeHtml(ini)}</b></span>` : ""}${
+          fim ? `<span>Fim <b>${escapeHtml(fim)}</b></span>` : ""
+        }</span>`
+      : `<span class="card__agora-datas"><span>Sem datas previstas</span></span>`;
+  const extras = emAndamento.length > 1 ? ` <span class="card__agora-mais">+${emAndamento.length - 1}</span>` : "";
+  const quem = (atual.who || "").trim();
+  const titulo = [
+    `${executando ? "Em execução" : "Próxima atividade"}: ${atual.name}`,
+    quem ? `Responsável: ${quem}` : "",
+    atual.dateInicio ? `Início previsto: ${formatDataCurta(atual.dateInicio)}` : "",
+    atual.date ? `Fim previsto: ${formatDataCurta(atual.date)}` : "",
+    sit.texto,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return (
+    `<div class="card__agora is-${sit.tom}${executando ? " is-executando" : ""}" title="${escapeHtml(titulo)}">` +
+    `<span class="card__agora-label">${executando ? "▶ Em execução" : "Próxima atividade"}${extras}</span>` +
+    `<strong class="card__agora-nome">${escapeHtml(atual.name)}</strong>` +
+    `<span class="card__agora-meta">${datas}${
+      prazo.texto ? `<span class="card__agora-prazo">${escapeHtml(prazo.texto)}</span>` : ""
+    }</span>` +
+    `</div>`
+  );
+}
+
 function cardDetalheRow(label, valor) {
   return `<dt>${escapeHtml(label)}</dt><dd title="${escapeHtml(valor)}">${escapeHtml(valor)}</dd>`;
 }
@@ -5280,9 +5324,6 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
       `<button type="button" class="card-prio-btn" data-dir="1" aria-label="Descer na coluna"${canMoveDown ? "" : " disabled"}>▼</button>` +
       `</div>`;
 
-  const statusTxt = (d.statusAtual || "").trim();
-  const statusTxtHtml = statusTxt ? `<p class="card__status-atual">${escapeHtml(statusTxt)}</p>` : "";
-
   const prazo = cardPrazoInfo(dmCard);
   const prazoHtml = prazo
     ? `<div class="card__prazo card__prazo--${prazo.tom}" title="Prazo previsto: ${escapeHtml(formatDataCurta(dmCard.dataFimPrevista))}">` +
@@ -5341,7 +5382,6 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
 
   let solicitante = (d.solicitante || "").trim();
   if (solicitante && dmCard.setorSolicitanteB2b) solicitante += ` (${dmCard.setorSolicitanteB2b})`;
-  const pendente = checklist.find((it) => !it.done);
 
   // Progresso do checklist: um segmento por atividade, colorido pelo status, e a próxima atividade abaixo.
   let checklistHtml = "";
@@ -5357,10 +5397,7 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     if (completo) {
       proxHtml = `<p class="card__ck-prox is-completo">✓ Todas as atividades concluídas</p>`;
     } else {
-      const sitProx = checklistItemSituacao(pendente);
-      proxHtml =
-        `<p class="card__ck-prox is-${sitProx.tom}" title="${escapeHtml(`${pendente.name} · ${sitProx.texto}`)}">` +
-        `<span class="card__ck-prox-label">Próx. atividade:</span> ${escapeHtml(pendente.name)}</p>`;
+      proxHtml = cardAtividadeAtualHtml(checklist);
     }
     checklistHtml =
       `<div class="card__ck" aria-label="${escapeHtml(`Tarefas do projeto: ${feitas} de ${checklist.length} concluídas`)}">` +
@@ -5398,7 +5435,6 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     </div>
     <h3 class="card__title"></h3>
     ${cardEditingByHtml(d)}
-    ${statusTxtHtml}
     ${prazoHtml}
     ${colunaAlertaHtml}
     <div class="card__pessoa">
@@ -7173,6 +7209,16 @@ function comentarioTextoHtml(texto) {
   );
 }
 
+/** Comentário em edição no painel (id) — só um por vez. */
+let comentarioEditandoId = "";
+
+/** Pode editar: o próprio autor ou um administrador (nunca quem só visualiza). */
+function podeEditarComentario(c) {
+  if (isReadOnlyUser()) return false;
+  const eu = getLoggedInComentarioAutor();
+  return (eu && eu !== "Equipe" && c.autor === eu) || isAdminUser();
+}
+
 function renderComentariosList() {
   const list = document.getElementById("demComentariosList");
   const count = document.getElementById("demComentariosCount");
@@ -7182,11 +7228,13 @@ function renderComentariosList() {
   }
   if (!list) return;
   if (!editingComentarios.length) {
+    comentarioEditandoId = "";
     list.innerHTML =
       '<div class="comments-empty"><span class="comments-empty__ico" aria-hidden="true">💬</span>' +
       "<strong>Nenhum comentário ainda</strong><span>Registre atualizações, combinados e pendências do projeto.</span></div>";
     return;
   }
+  if (comentarioEditandoId && !editingComentarios.some((c) => c.id === comentarioEditandoId)) comentarioEditandoId = "";
   const eu = getLoggedInComentarioAutor();
   const podeExcluir = !isReadOnlyUser();
   const groups = groupComentariosPorDia(editingComentarios);
@@ -7197,26 +7245,81 @@ function renderComentariosList() {
         g.items
           .map((c) => {
             const meu = eu && eu !== "Equipe" && c.autor === eu;
+            const editando = c.id === comentarioEditandoId;
+            const editado = c.editadoEm
+              ? ' <span class="comment-editado" title="Editado em ' + escapeHtml(formatComentarioData(c.editadoEm)) + '">· editado</span>'
+              : "";
+            const corpo = editando
+              ? '<div class="comment-edit">' +
+                '<textarea class="comment-edit__input" data-cid="' + escapeHtml(c.id) + '" maxlength="4000" rows="3" aria-label="Editar comentário">' +
+                escapeHtml(c.texto) + "</textarea>" +
+                '<div class="comment-edit__acoes"><span class="comment-edit__dica">Ctrl+Enter salva · Esc cancela</span>' +
+                '<button type="button" class="btn btn--ghost btn--sm" data-comment-cancelar="' + escapeHtml(c.id) + '">Cancelar</button>' +
+                '<button type="button" class="btn btn--primary btn--sm" data-comment-salvar="' + escapeHtml(c.id) + '">Salvar</button></div></div>'
+              : '<p class="comment-text">' + comentarioTextoHtml(c.texto) + "</p>";
+            const acoes =
+              editando || (!podeExcluir && !podeEditarComentario(c))
+                ? ""
+                : '<div class="comment-acoes">' +
+                  (podeEditarComentario(c)
+                    ? '<button type="button" class="comment-acao comment-edit-btn" data-cid="' + escapeHtml(c.id) +
+                      '" title="Editar comentário" aria-label="Editar comentário">✎</button>'
+                    : "") +
+                  (podeExcluir
+                    ? '<button type="button" class="comment-acao comment-del" data-cid="' + escapeHtml(c.id) +
+                      '" title="Excluir comentário" aria-label="Excluir comentário">🗑</button>'
+                    : "") +
+                  "</div>";
             return (
-              '<article class="comment-row' + (meu ? " is-meu" : "") + '">' +
+              '<article class="comment-row' + (meu ? " is-meu" : "") + (editando ? " is-editando" : "") + '">' +
               '<div class="comment-avatar ' + comentarioAvatarClass(c.autor) + '" aria-hidden="true">' +
               escapeHtml(comentarioIniciais(c.autor)) + "</div>" +
               '<div class="comment-body"><div class="comment-head"><strong>' + escapeHtml(c.autor) +
               (meu ? ' <span class="comment-voce">você</span>' : "") +
               '</strong><time class="comment-time" datetime="' + escapeHtml(c.createdAt) + '" title="' +
               escapeHtml(formatComentarioData(c.createdAt)) + '">' + escapeHtml(formatComentarioRelativo(c.createdAt)) +
-              "</time></div>" +
-              '<p class="comment-text">' + comentarioTextoHtml(c.texto) + "</p></div>" +
-              (podeExcluir
-                ? '<button type="button" class="comment-del" data-cid="' + escapeHtml(c.id) +
-                  '" title="Excluir comentário" aria-label="Excluir comentário">🗑</button>'
-                : "") +
+              "</time>" + editado + "</div>" +
+              corpo + "</div>" +
+              acoes +
               "</article>"
             );
           })
           .join(""),
     )
     .join("");
+  list.querySelectorAll(".comment-edit-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      comentarioEditandoId = btn.dataset.cid;
+      renderComentariosList();
+    });
+  });
+  const ta = list.querySelector(".comment-edit__input");
+  if (ta) {
+    const ajustar = () => {
+      ta.style.height = "auto";
+      ta.style.height = `${Math.min(ta.scrollHeight, 260)}px`;
+    };
+    ajustar();
+    ta.addEventListener("input", ajustar);
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        cancelarEdicaoComentario();
+      } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        salvarEdicaoComentario(ta.dataset.cid, ta.value);
+      }
+    });
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    });
+  }
+  list.querySelector("[data-comment-cancelar]")?.addEventListener("click", cancelarEdicaoComentario);
+  list.querySelector("[data-comment-salvar]")?.addEventListener("click", (e) => {
+    salvarEdicaoComentario(e.currentTarget.dataset.commentSalvar, ta?.value ?? "");
+  });
   list.querySelectorAll(".comment-del").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const cid = btn.dataset.cid;
@@ -7235,6 +7338,32 @@ function renderComentariosList() {
       toast("Comentário excluído");
     });
   });
+}
+
+function cancelarEdicaoComentario() {
+  comentarioEditandoId = "";
+  renderComentariosList();
+}
+
+function salvarEdicaoComentario(cid, texto) {
+  const c = editingComentarios.find((x) => x.id === cid);
+  if (!c || !podeEditarComentario(c)) return;
+  const novo = String(texto || "").trim();
+  if (!novo) {
+    toast("O comentário não pode ficar vazio — use 🗑 para excluir");
+    return;
+  }
+  comentarioEditandoId = "";
+  if (novo === c.texto) {
+    renderComentariosList();
+    return;
+  }
+  editingComentarios = editingComentarios.map((x) =>
+    x.id === cid ? { ...x, texto: novo, editadoEm: new Date().toISOString() } : x,
+  );
+  persistComentariosDemandaAberta();
+  renderComentariosList();
+  toast("Comentário editado");
 }
 
 /** Campo de novo comentário: cresce com o texto e só habilita o envio com conteúdo. */
@@ -7535,7 +7664,6 @@ function demSecaoLeituraHtml(key) {
     case "esteira": {
       const prev = demandaPreviewFromForm();
       const prazo = cardPrazoInfo(prev);
-      const statusAtual = lvVal("demStatusAtual");
       const dias = demandaInicioContagemAberto(prev) ? formatDiasAbertoLabel(demandaDiasAberto(prev)) : "";
       const prazoHtml = prazo
         ? `<div class="card__prazo card__prazo--${prazo.tom} seg-lv-prazo"><div class="card__prazo-bar"><span style="width:${prazo.pct}%"></span></div>` +
@@ -7544,8 +7672,7 @@ function demSecaoLeituraHtml(key) {
       return (
         `<div class="seg-lv-hero seg-lv-hero--linha"><span class="seg-lv-etapa">${escapeHtml(
           labelStatus(lvVal("demStatus"), editingLinhaEsteira),
-        )}</span>` +
-        `<p class="seg-lv-status">${statusAtual ? escapeHtml(statusAtual) : lvVazio("Sem status atual")}</p></div>` +
+        )}</span></div>` +
         prazoHtml +
         `<div class="seg-lv-grid">` +
         lvPar("Chegada", lvData(prev.dataChegada)) +
@@ -7715,7 +7842,6 @@ function demSecaoLeituraHtml(key) {
 function demSecaoTemPendencia(key) {
   if (key === "chegada") return !lvVal("demTitulo") || !lvVal("demDescricao") || !lvVal("demDataChegada");
   if (key === "atribuicao") return !lvVal("demCidade");
-  if (key === "esteira") return !lvVal("demStatusAtual");
   if (key === "atraso") return !readMotivosAtrasoFromDom({ forSave: true }).length;
   return false;
 }
@@ -7913,6 +8039,7 @@ function initDemNavegacao() {
 initDemNavegacao();
 
 function openDemandaModal(id) {
+  comentarioEditandoId = "";
   if (!id && isReadOnlyUser()) {
     toast("Seu perfil (Visibilidade) e somente leitura");
     return;
@@ -7968,7 +8095,6 @@ function openDemandaModal(id) {
   if (selSegmento) selSegmento.value = dm?.segmentoB2c || "";
   syncDemCamposPorTipo();
   document.getElementById("demStatus").value = d?.status || cfg.inboxStatus;
-  document.getElementById("demStatusAtual").value = d?.statusAtual || "";
   renderMotivosAtrasoLista(dm?.motivosAtrasoItens || normalizeMotivosAtrasoItens(d));
   document.getElementById("demDescricao").value = d?.descricao || "";
   const elChamado = document.getElementById("demChamadoOcomon");
@@ -9206,7 +9332,8 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     dataFimPrevista: document.getElementById("demDataFimPrevista").value,
     dataFimAtualizada: document.getElementById("demDataFimAtualizada").value,
     dataTermino: document.getElementById("demDataTermino").value,
-    statusAtual: document.getElementById("demStatusAtual").value.trim(),
+    // "Status atual" saiu do formulário (a checklist mostra o andamento); mantém o texto legado salvo.
+    statusAtual: existing?.statusAtual || "",
     motivosAtrasoItens: motivosItensSalvar,
     motivosAtraso: formatMotivosAtrasoTexto(motivosItensSalvar),
     valorProjetoRealizado: document.getElementById("demValorProjetoRealizado")
@@ -9277,11 +9404,6 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     return;
   }
   payload.descricao = payload.descricao.trim();
-  if (!payload.statusAtual) {
-    toast("Informe o status atual do projeto");
-    document.getElementById("demStatusAtual")?.focus();
-    return;
-  }
   let ordem = normalizeOrdemEsteira(existing?.ordemEsteira);
   if (ordem == null || prevStatus !== newStatus) {
     ordem = ordemAoEntrarColuna(newStatus, payload.responsavel);
