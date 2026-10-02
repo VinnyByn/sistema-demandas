@@ -219,7 +219,7 @@ function updateEsteiraModoHints() {
       op.innerHTML = "Todas as colunas visíveis, inclusive finalizados.";
     } else {
       op.innerHTML =
-        "Demandas em andamento. Conclusão e Reprovado ficam em <strong>Colunas → Finalizados</strong>.";
+        "Demandas em andamento. Novas demandas sem projetista entram na primeira coluna com o selo <strong>Não atribuído</strong>.";
     }
   }
   if (b2b) {
@@ -230,7 +230,7 @@ function updateEsteiraModoHints() {
       b2b.innerHTML = "Todas as colunas B2B visíveis, inclusive Projeto Final.";
     } else {
       b2b.innerHTML =
-        "Fluxo comercial em andamento. Projeto Final fica em <strong>Colunas → Finalizados</strong>.";
+        "Fluxo comercial em andamento. Projetos sem projetista entram na primeira coluna com o selo <strong>Não atribuído</strong>.";
     }
   }
   const sel = document.getElementById("filterEsteiraModo");
@@ -467,16 +467,97 @@ function setorBadgeHtml(setor) {
   return `<span class="dash-setor ${cls}">${escapeHtml(setor)}</span>`;
 }
 
-function columnHeadHtml(status, linha, count) {
+/** Contadores de atenção de uma coluna (atrasados, vencendo, parados). */
+function columnIndicadores(list = []) {
+  const ind = { atrasados: 0, vencendo: 0, parados: 0 };
+  for (const d of list) {
+    if (isAtrasoAtivo(d)) ind.atrasados++;
+    else if (demandaPrazoProximo(d)) ind.vencendo++;
+    if (demandaParadaNaColuna(d)) ind.parados++;
+  }
+  return ind;
+}
+
+function columnHeadHtml(status, linha, count, list = null) {
   const title = escapeHtml(labelStatus(status, linha));
   const setor = setorForStatusDemanda(status, linha);
   const setorHtml = setor ? `<span class="column__setor">${setorBadgeHtml(setor)}</span>` : "";
+  let indHtml = "";
+  if (list && list.length) {
+    const ind = columnIndicadores(list);
+    indHtml =
+      (ind.atrasados ? `<span class="column__ind column__ind--bad" title="${ind.atrasados} atrasado(s)">${ind.atrasados} atrasado${ind.atrasados > 1 ? "s" : ""}</span>` : "") +
+      (ind.vencendo ? `<span class="column__ind column__ind--warn" title="${ind.vencendo} vence(m) em até 3 dias">${ind.vencendo} vencendo</span>` : "") +
+      (ind.parados ? `<span class="column__ind column__ind--coluna" title="${ind.parados} parado(s) há ${ALERTA_DIAS_MESMA_COLUNA}+ dias nesta coluna">${ind.parados} parado${ind.parados > 1 ? "s" : ""}</span>` : "");
+  }
   return (
     `<div class="column__head">` +
-    `<div class="column__title" title="${title}">${title}</div>` +
-    `<div class="column__head-meta">${setorHtml}<span class="column__count">${count}</span></div>` +
+    `<div class="column__head-top"><div class="column__title" title="${title}">${title}</div>` +
+    `<span class="column__count${count ? "" : " is-zero"}" title="${count} projeto(s)">${count}</span></div>` +
+    `<div class="column__head-meta">${setorHtml}${indHtml ? `<span class="column__inds">${indHtml}</span>` : ""}</div>` +
     `</div>`
   );
+}
+
+function columnVazioHtml() {
+  const filtrado = esteiraFiltrosAtivosCount() > 0;
+  return (
+    `<div class="column__vazio">` +
+    `<span>${filtrado ? "Nenhum projeto com estes filtros" : "Nenhum projeto"}</span>` +
+    (isReadOnlyUser() ? "" : `<small>Arraste um card para cá</small>`) +
+    `</div>`
+  );
+}
+
+/** Navegação rápida entre as colunas da esteira (chips acima do board). */
+function renderEsteiraNav(boardEl, cols, byCol, linha) {
+  if (!boardEl?.parentElement) return;
+  let nav = boardEl.previousElementSibling;
+  if (!nav?.classList.contains("esteira-nav")) {
+    nav = document.createElement("nav");
+    nav.className = "esteira-nav";
+    nav.setAttribute("aria-label", "Ir para a coluna");
+    boardEl.parentElement.insertBefore(nav, boardEl);
+    nav.addEventListener("click", (e) => {
+      const chip = e.target.closest("[data-nav-status]");
+      if (!chip) return;
+      const col = boardEl.querySelector(`.column[data-status="${CSS.escape(chip.dataset.navStatus)}"]`);
+      if (!col) return;
+      const alvo = col.offsetLeft - boardEl.offsetLeft - 8;
+      boardEl.scrollTo({ left: Math.max(0, alvo), behavior: "smooth" });
+      col.classList.remove("is-destacada");
+      void col.offsetWidth;
+      col.classList.add("is-destacada");
+    });
+    boardEl.addEventListener("scroll", () => syncEsteiraNavVisiveis(boardEl), { passive: true });
+    window.addEventListener("resize", () => syncEsteiraNavVisiveis(boardEl), { passive: true });
+  }
+  nav.hidden = cols.length < 2;
+  nav.innerHTML = cols
+    .map((key) => {
+      const list = byCol[key] || [];
+      const ind = columnIndicadores(list);
+      const alerta = ind.atrasados ? " tem-atraso" : "";
+      return (
+        `<button type="button" class="esteira-nav__chip${list.length ? "" : " is-vazia"}${alerta}" data-nav-status="${escapeHtml(key)}"` +
+        ` title="${escapeHtml(labelStatus(key, linha))}: ${list.length} projeto(s)${ind.atrasados ? ` · ${ind.atrasados} atrasado(s)` : ""}">` +
+        `<span>${escapeHtml(labelStatus(key, linha))}</span><b>${list.length}</b></button>`
+      );
+    })
+    .join("");
+  requestAnimationFrame(() => syncEsteiraNavVisiveis(boardEl));
+}
+
+function syncEsteiraNavVisiveis(boardEl) {
+  const nav = boardEl?.previousElementSibling;
+  if (!nav?.classList.contains("esteira-nav")) return;
+  const box = boardEl.getBoundingClientRect();
+  nav.querySelectorAll("[data-nav-status]").forEach((chip) => {
+    const col = boardEl.querySelector(`.column[data-status="${CSS.escape(chip.dataset.navStatus)}"]`);
+    const r = col?.getBoundingClientRect();
+    const visivel = r && r.right > box.left + 40 && r.left < box.right - 40;
+    chip.classList.toggle("is-visivel", Boolean(visivel));
+  });
 }
 
 function sortProjetistasNomes(list) {
@@ -1286,8 +1367,111 @@ function initEsteiraFilters() {
     };
     inpBusca.addEventListener("input", trigger);
     inpBusca.addEventListener("search", trigger);
+    inpBusca.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && inpBusca.value) {
+        e.preventDefault();
+        inpBusca.value = "";
+        renderBoard();
+      }
+    });
   }
+  document.getElementById("esteiraModoSeg")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-modo]");
+    const sel = document.getElementById("filterEsteiraModo");
+    if (!btn || !sel || sel.value === btn.dataset.modo) return;
+    sel.value = btn.dataset.modo;
+    sel.dispatchEvent(new Event("change"));
+  });
+  document.getElementById("btnLimparFiltros")?.addEventListener("click", limparFiltrosEsteira);
+  document.getElementById("esteiraStatusLine")?.addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-rapido]");
+    if (!chip) return;
+    esteiraFiltroRapido = esteiraFiltroRapido === chip.dataset.rapido ? "" : chip.dataset.rapido;
+    renderBoard();
+  });
+  // "/" foca a busca (fora de campos e modais).
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+    const alvo = e.target;
+    if (alvo instanceof Element && alvo.closest("input, textarea, select, [contenteditable='true']")) return;
+    if (document.querySelector("dialog[open]")) return;
+    const panel = document.getElementById("panelEsteira");
+    if (!inpBusca || !panel?.classList.contains("is-visible")) return;
+    e.preventDefault();
+    inpBusca.focus();
+    inpBusca.select();
+  });
 }
+
+/** Filtro rápido da esteira (chips do resumo): atrasados, vencendo, sem projetista, parados. */
+let esteiraFiltroRapido = "";
+
+const ESTEIRA_FILTROS_IDS = ["filterProjetista", "filterTipo", "filterRegional", "filterCidade"];
+
+function esteiraFiltrosAtivosCount() {
+  let n = ESTEIRA_FILTROS_IDS.filter((id) => document.getElementById(id)?.value).length;
+  if ((document.getElementById("filterBusca")?.value || "").trim()) n++;
+  if (esteiraFiltroRapido) n++;
+  return n;
+}
+
+function syncEsteiraFiltrosUi() {
+  ESTEIRA_FILTROS_IDS.forEach((id) => {
+    const sel = document.getElementById(id);
+    sel?.closest(".filtro-chip")?.classList.toggle("is-ativo", Boolean(sel.value));
+  });
+  const busca = document.getElementById("filterBusca");
+  busca?.closest(".esteira-busca")?.classList.toggle("is-ativo", Boolean((busca.value || "").trim()));
+  const n = esteiraFiltrosAtivosCount();
+  const btn = document.getElementById("btnLimparFiltros");
+  if (btn) {
+    btn.hidden = n === 0;
+    btn.textContent = n > 1 ? `✕ Limpar filtros (${n})` : "✕ Limpar filtro";
+  }
+  const modo = document.getElementById("filterEsteiraModo")?.value || ESTEIRA_MODO_ATIVOS;
+  document.querySelectorAll("#esteiraModoSeg [data-modo]").forEach((b) => {
+    const on = b.dataset.modo === modo;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-checked", on ? "true" : "false");
+  });
+}
+
+function limparFiltrosEsteira() {
+  ESTEIRA_FILTROS_IDS.forEach((id) => {
+    const sel = document.getElementById(id);
+    if (sel) sel.value = "";
+  });
+  fillFilterCidadeSelect("");
+  const busca = document.getElementById("filterBusca");
+  if (busca) busca.value = "";
+  esteiraFiltroRapido = "";
+  renderBoard();
+}
+
+function demandaPrazoProximo(d) {
+  if (isDemandaEncerrada(d) || isAtrasoAtivo(d) || !d.dataFimPrevista) return false;
+  const restam = diasEntreDatasISO(todayISODate(), d.dataFimPrevista);
+  return restam != null && restam >= 0 && restam <= 3;
+}
+
+function demandaParadaNaColuna(d) {
+  if (isDemandaEncerrada(d) || !normalizeResponsavel(d.responsavel)) return false;
+  const dias = diasNaColunaAtual(d);
+  return dias != null && dias >= ALERTA_DIAS_MESMA_COLUNA;
+}
+
+const ESTEIRA_FILTROS_RAPIDOS = {
+  atrasados: { label: "atrasado(s)", tom: "bad", test: (d) => isAtrasoAtivo(d) },
+  vencendo: { label: "vence(m) em até 3 dias", tom: "warn", test: demandaPrazoProximo },
+  sem_projetista: { label: "sem projetista", tom: "bad", test: (d) => !normalizeResponsavel(d.responsavel) },
+  parados: {
+    get label() {
+      return `parado(s) há ${ALERTA_DIAS_MESMA_COLUNA}+ dias na coluna`;
+    },
+    tom: "coluna",
+    test: demandaParadaNaColuna,
+  },
+};
 
 function normalizeBuscaText(s) {
   return String(s || "")
@@ -1305,6 +1489,7 @@ function readEsteiraFilters() {
     cidade: document.getElementById("filterCidade")?.value || "",
     busca: normalizeBuscaText(document.getElementById("filterBusca")?.value || ""),
   };
+  if (esteiraFiltroRapido && ESTEIRA_FILTROS_RAPIDOS[esteiraFiltroRapido]) base.rapido = esteiraFiltroRapido;
   if (activeEsteiraCanal === LINHA_ESTEIRA_B2B) {
     return { ...base, produto: selVal };
   }
@@ -1312,6 +1497,7 @@ function readEsteiraFilters() {
 }
 
 function demandaMatchesEsteiraFilters(d, f) {
+  if (f.rapido && !ESTEIRA_FILTROS_RAPIDOS[f.rapido]?.test(d)) return false;
   if (f.produto) {
     if (normalizeProdutoB2b(d.produtoB2b) !== f.produto) return false;
   } else if (f.tipo && normalizeTipo(d.tipo) !== f.tipo) return false;
@@ -1992,8 +2178,6 @@ function refreshPresenceBadgesOnly() {
   const boardRoots = [
     document.getElementById("boardEsteira"),
     document.getElementById("boardEsteiraB2b"),
-    document.getElementById("boardPendente"),
-    document.getElementById("boardPendenteB2b"),
   ].filter(Boolean);
   const byId = Object.fromEntries((state.demandas || []).map((d) => [d.id, d]));
   for (const root of boardRoots) {
@@ -4214,8 +4398,9 @@ initEsteiraBoardDragScroll();
 /* ---------- Board (fila geral + esteira unificada) ---------- */
 const BOARD_ATRIBUIDOS = "*";
 
-function filteredDemandasForEsteira(linha = activeEsteiraCanal) {
+function filteredDemandasForEsteira(linha = activeEsteiraCanal, { rapido = true } = {}) {
   const f = readEsteiraFilters();
+  if (!rapido) delete f.rapido;
   const tombstones = demandaDeleteTombstones();
   return state.demandas
     .filter((d) => !tombstones.has(d.id))
@@ -4226,9 +4411,8 @@ function filteredDemandasForEsteira(linha = activeEsteiraCanal) {
 
 function demandasForBoard(boardResponsavel, linha = activeEsteiraCanal) {
   const list = filteredDemandasForEsteira(linha);
-  if (boardResponsavel === BOARD_ATRIBUIDOS) {
-    return list.filter((d) => normalizeResponsavel(d.responsavel) !== "");
-  }
+  // Esteira única: demandas sem projetista ficam na coluna do seu status (com o selo "Não atribuído").
+  if (boardResponsavel === BOARD_ATRIBUIDOS) return list;
   const alvo = normalizeResponsavel(boardResponsavel);
   if (alvo === "") return list.filter((d) => normalizeResponsavel(d.responsavel) === "");
   return list.filter((d) => d.responsavel === alvo);
@@ -4340,20 +4524,6 @@ function handleDemandaDrop(dem, newStatus, boardResponsavel) {
   toast("Demanda atualizada");
 }
 
-/** Fila sem projetista: uma única caixa; soltar aqui só remove o direcionamento (mantém o status). */
-function handleInboxDrop(dem) {
-  if (!requireWriteAccess()) return;
-  if (!dem) return;
-  if (normalizeResponsavel(dem.responsavel) === "") return;
-  const now = new Date().toISOString();
-  dem.responsavel = "";
-  dem.updatedAt = now;
-  invalidateAlertaSnoozeIfStale(dem);
-  saveState({ demanda: dem });
-  renderBoard();
-  toast("Demanda devolvida à fila geral");
-}
-
 function diasDesdeChegadaDemanda(d) {
   const dm = migrateDemanda(d);
   const iso = dm.dataChegada || (dm.createdAt || "").slice(0, 10);
@@ -4434,6 +4604,7 @@ function buildInboxAlertasRows(list, linha) {
         d,
         dias: 0,
         msg: "Retornou da Operação (concluída)",
+        curta: "Retornou da Operação",
         meta: cu?.status ? `ClickUp: ${cu.status}` : "ClickUp",
       });
     }
@@ -4460,7 +4631,8 @@ function buildInboxAlertasRows(list, linha) {
         d,
         dias: diasFila ?? 0,
         msg: extra.length ? `${msg} · ${extra.join(" · ")}` : msg,
-        meta: `Chegada: ${formatDataISO(d.dataChegada || d.createdAt?.slice(0, 10))}`,
+        curta: ["Sem projetista", ...extra].join(" · "),
+        meta: `Chegou em ${formatDataISO(d.dataChegada || d.createdAt?.slice(0, 10))}`,
       });
       continue;
     }
@@ -4475,6 +4647,7 @@ function buildInboxAlertasRows(list, linha) {
         d,
         dias: diasCol,
         msg: `${diasCol} dia(s) em «${fase}»`,
+        curta: `Parado em ${fase}`,
         meta: formatProjetistasDemanda(d) ? `Projetista: ${formatProjetistasDemanda(d)}` : "",
       });
     }
@@ -4489,43 +4662,77 @@ function buildInboxAlertasRows(list, linha) {
   });
 }
 
-function renderInboxAlertas(linha = activeEsteiraCanal) {
-  const el =
-    document.getElementById(linha === LINHA_ESTEIRA_B2B ? "esteiraInboxAlertasB2b" : "esteiraInboxAlertas");
-  if (!el) return;
-  const list = filteredDemandasForEsteira(linha);
-  const rows = buildInboxAlertasRows(list, linha);
+/** Aba ativa do painel de alertas ("" = todos). */
+let alertasFiltroKind = "";
 
-  if (!list.length) {
-    el.innerHTML =
-      '<div class="inbox-alertas inbox-alertas--empty">' +
-      '<h4 class="inbox-alertas__title">Alertas</h4>' +
-      '<p class="muted small">Nenhuma demanda nesta esteira.</p></div>';
-    return;
-  }
+const ALERTAS_ABAS = [
+  { kind: ALERTA_KIND_SEM_ATRIB, label: "Sem projetista", tom: "bad" },
+  { kind: ALERTA_KIND_COLUNA, label: "Parados", tom: "coluna" },
+  { kind: ALERTA_KIND_CLICKUP_RETORNO, label: "Retornos", tom: "ok" },
+];
+
+function renderInboxAlertas(linha = activeEsteiraCanal) {
+  const el = document.getElementById("esteiraInboxAlertas");
+  if (!el) return;
+  const list = filteredDemandasForEsteira(linha, { rapido: false });
+  const rows = buildInboxAlertasRows(list, linha);
+  syncNotifBadge(rows);
+  const canal = linha === LINHA_ESTEIRA_B2B ? "Esteira B2B" : "Esteira Projetos";
+  const head = (extra = "") =>
+    `<div class="inbox-alertas__head"><h4 class="inbox-alertas__title">Alertas${extra}</h4>` +
+    `<span class="inbox-alertas__canal">${canal}${esteiraFiltrosAtivosCount() ? " · com filtros" : ""}</span>` +
+    `<span class="inbox-alertas__ajuda" tabindex="0" title="Vermelho: sem projetista. Laranja: ${ALERTA_DIAS_MESMA_COLUNA}+ dias na mesma coluna. Verde: retornou da Operação.&#10;Adiar registra um comentário e silencia o alerta por alguns dias. Ciente tira o retorno da lista." aria-label="Como funcionam os alertas">?</span></div>`;
 
   if (!rows.length) {
     el.innerHTML =
-      '<div class="inbox-alertas">' +
-      '<h4 class="inbox-alertas__title">Alertas <span class="inbox-alertas__ok">Tudo ok</span></h4>' +
-      `<p class="muted small">${list.length} demanda(s) — nenhum alerta no momento.</p></div>`;
+      `<div class="inbox-alertas inbox-alertas--vazio">${head()}` +
+      `<div class="inbox-alertas__tudo-ok"><span class="inbox-alertas__ok-ico" aria-hidden="true">✓</span>` +
+      `<strong>Tudo em dia</strong><span class="muted small">${
+        list.length
+          ? `${list.length} demanda(s) sem alertas no momento.`
+          : esteiraFiltrosAtivosCount()
+            ? "Nenhuma demanda com estes filtros."
+            : "Nenhuma demanda nesta esteira."
+      }</span></div></div>`;
     return;
   }
 
+  const contagem = Object.fromEntries(ALERTAS_ABAS.map((a) => [a.kind, rows.filter((r) => r.kind === a.kind).length]));
+  if (alertasFiltroKind && !contagem[alertasFiltroKind]) alertasFiltroKind = "";
+  const visiveis = alertasFiltroKind ? rows.filter((r) => r.kind === alertasFiltroKind) : rows;
   const temVermelho = rows.some((r) => r.severity === "bad");
-  const items = rows
+  const abas =
+    `<div class="inbox-alertas__abas" role="tablist" aria-label="Filtrar alertas">` +
+    `<button type="button" role="tab" class="alerta-aba${alertasFiltroKind ? "" : " is-active"}" data-alerta-aba="" aria-selected="${!alertasFiltroKind}">Todos <b>${rows.length}</b></button>` +
+    ALERTAS_ABAS.filter((a) => contagem[a.kind])
+      .map(
+        (a) =>
+          `<button type="button" role="tab" class="alerta-aba alerta-aba--${a.tom}${alertasFiltroKind === a.kind ? " is-active" : ""}" data-alerta-aba="${a.kind}" aria-selected="${alertasFiltroKind === a.kind}">` +
+          `<i aria-hidden="true"></i>${escapeHtml(a.label)} <b>${contagem[a.kind]}</b></button>`,
+      )
+      .join("") +
+    `</div>`;
+
+  const ro = isReadOnlyUser();
+  const items = visiveis
     .map((r) => {
-      const acao =
+      const dias =
         r.kind === ALERTA_KIND_CLICKUP_RETORNO
-          ? `<button type="button" class="inbox-alertas__adiar inbox-alertas__item--${r.severity}" data-alerta-ciente="${escapeHtml(r.d.id)}"${isReadOnlyUser() ? " hidden" : ""}>Ciente</button>`
-          : `<button type="button" class="inbox-alertas__adiar inbox-alertas__item--${r.severity}" data-alerta-snooze="${escapeHtml(r.d.id)}" data-kind="${escapeHtml(r.kind)}"${isReadOnlyUser() ? " hidden" : ""}>Adiar</button>`;
+          ? `<span class="alerta__dias alerta__dias--ico" aria-hidden="true">✓</span>`
+          : `<span class="alerta__dias" title="${escapeHtml(r.msg)}"><b>${r.dias}</b><small>${r.dias === 1 ? "dia" : "dias"}</small></span>`;
+      const acao = ro
+        ? ""
+        : r.kind === ALERTA_KIND_CLICKUP_RETORNO
+          ? `<button type="button" class="alerta__acao" data-alerta-ciente="${escapeHtml(r.d.id)}" title="Marcar como ciente">Ciente</button>`
+          : `<button type="button" class="alerta__acao" data-alerta-snooze="${escapeHtml(r.d.id)}" data-kind="${escapeHtml(r.kind)}" title="Registrar e silenciar por alguns dias">Adiar</button>`;
       return (
-        `<li class="inbox-alertas__row">` +
-        `<button type="button" class="inbox-alertas__item inbox-alertas__item--${r.severity}" data-alerta-abrir="${escapeHtml(r.d.id)}">` +
-        `<span class="inbox-alertas__item-titulo">${escapeHtml(r.d.titulo)}</span>` +
-        `<span class="inbox-alertas__item-msg">${escapeHtml(r.msg)}</span>` +
-        (r.meta ? `<span class="inbox-alertas__item-meta">${escapeHtml(r.meta)}</span>` : "") +
-        `</button>` +
+        `<li class="alerta alerta--${r.severity}">` +
+        `<button type="button" class="alerta__abrir" data-alerta-abrir="${escapeHtml(r.d.id)}" title="Abrir projeto">` +
+        dias +
+        `<span class="alerta__txt"><span class="alerta__titulo">${escapeHtml(r.d.titulo)}</span>` +
+        `<span class="alerta__msg">${escapeHtml(r.curta || r.msg)}</span>` +
+        (r.meta ? `<span class="alerta__meta">${escapeHtml(r.meta)}</span>` : "") +
+        `</span></button>` +
         acao +
         `</li>`
       );
@@ -4534,23 +4741,89 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
 
   el.innerHTML =
     '<div class="inbox-alertas">' +
-    `<h4 class="inbox-alertas__title">Alertas <span class="inbox-alertas__count${temVermelho ? " inbox-alertas__count--bad" : ""}">${rows.length}</span></h4>` +
-    '<p class="muted small">Clique no alerta para abrir. <strong>Adiar</strong> registra e silencia. <strong>Ciente</strong> tira o retorno da Operação. <strong>Vermelho</strong>: sem projetista. <strong>Laranja</strong>: mais de 6 dias na mesma coluna. <strong>Verde</strong>: retornou da Operação.</p>' +
+    head(` <span class="inbox-alertas__count${temVermelho ? " inbox-alertas__count--bad" : ""}">${rows.length}</span>`) +
+    abas +
     `<ul class="inbox-alertas__list">${items}</ul></div>`;
 
+  el.querySelectorAll("[data-alerta-aba]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      alertasFiltroKind = btn.dataset.alertaAba;
+      renderInboxAlertas(linha);
+    });
+  });
   el.querySelectorAll("[data-alerta-abrir]").forEach((btn) => {
-    btn.addEventListener("click", () => openDemandaModal(btn.dataset.alertaAbrir));
+    btn.addEventListener("click", () => {
+      setNotifAberto(false);
+      openDemandaModal(btn.dataset.alertaAbrir);
+    });
   });
   el.querySelectorAll("[data-alerta-snooze]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const row = rows.find((r) => r.d.id === btn.dataset.alertaSnooze && r.kind === btn.dataset.kind);
-      if (row) openAlertaSnoozeModal(row);
+      if (!row) return;
+      setNotifAberto(false);
+      openAlertaSnoozeModal(row);
     });
   });
   el.querySelectorAll("[data-alerta-ciente]").forEach((btn) => {
     btn.addEventListener("click", () => marcarClickupRetornoCiente(btn.dataset.alertaCiente));
   });
 }
+
+/* ---------- Sininho de alertas (topo) ---------- */
+let notifUltimaContagem = null;
+
+function syncNotifBadge(rows) {
+  const badge = document.getElementById("notifBadge");
+  const btn = document.getElementById("btnNotif");
+  if (!badge || !btn) return;
+  const n = rows.length;
+  const temVermelho = rows.some((r) => r.severity === "bad");
+  badge.hidden = n === 0;
+  badge.textContent = n > 99 ? "99+" : String(n);
+  badge.classList.toggle("notif__badge--bad", temVermelho);
+  btn.classList.toggle("tem-alertas", n > 0);
+  btn.title = n ? `${n} alerta(s)` : "Nenhum alerta";
+  btn.setAttribute("aria-label", btn.title);
+  if (notifUltimaContagem != null && n > notifUltimaContagem) {
+    btn.classList.remove("is-novo");
+    void btn.offsetWidth;
+    btn.classList.add("is-novo");
+  }
+  notifUltimaContagem = n;
+}
+
+function setNotifAberto(aberto) {
+  const panel = document.getElementById("notifPanel");
+  const btn = document.getElementById("btnNotif");
+  if (!panel || !btn) return;
+  panel.hidden = !aberto;
+  btn.setAttribute("aria-expanded", aberto ? "true" : "false");
+  btn.classList.toggle("is-open", aberto);
+  if (aberto) renderInboxAlertas(activeEsteiraCanal);
+}
+
+function initNotifMenu() {
+  const menu = document.getElementById("notifMenu");
+  const btn = document.getElementById("btnNotif");
+  const panel = document.getElementById("notifPanel");
+  if (!menu || !btn || !panel) return;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setNotifAberto(panel.hidden);
+  });
+  document.addEventListener("click", (e) => {
+    if (!panel.hidden && !menu.contains(e.target)) setNotifAberto(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !panel.hidden) {
+      setNotifAberto(false);
+      btn.focus();
+    }
+  });
+}
+
+initNotifMenu();
 
 let alertaSnoozeCtx = null;
 
@@ -4726,33 +4999,6 @@ function buildCardMoveFlagsMap(list) {
   return flags;
 }
 
-function renderPendenteBoard(boardEl, linha = activeEsteiraCanal) {
-  const cfg = getEsteiraConfig(linha);
-  const list = demandasForBoard("", linha).sort(compareDemandaEsteiraOrdem);
-  const moveFlags = buildCardMoveFlagsMap(list);
-  const restoreScroll = preserveBoardScroll(boardEl);
-  boardEl.innerHTML = "";
-  const col = document.createElement("div");
-  col.className = "column column--inbox";
-  col.dataset.status = cfg.inboxStatus;
-  col.innerHTML = columnHeadHtml(cfg.inboxStatus, linha, list.length) + `<div class="column__body"></div>`;
-  const body = col.querySelector(".column__body");
-  col.addEventListener("dragover", (e) => { e.preventDefault(); col.classList.add("drag-over"); });
-  col.addEventListener("dragleave", () => col.classList.remove("drag-over"));
-  col.addEventListener("drop", (e) => {
-    e.preventDefault();
-    col.classList.remove("drag-over");
-    const id = e.dataTransfer.getData("text/plain");
-    const dem = state.demandas.find((x) => x.id === id);
-    handleInboxDrop(dem);
-  });
-  list.forEach((d) => {
-    body.appendChild(renderCard(d, moveFlags[d.id] || { canMoveUp: false, canMoveDown: false }));
-  });
-  boardEl.appendChild(col);
-  restoreScroll();
-}
-
 function renderBoardInto(boardEl, boardResponsavel, linha = activeEsteiraCanal) {
   const cfg = getEsteiraConfig(linha);
   const cols = visibleEsteiraStatusKeys(linha);
@@ -4772,6 +5018,7 @@ function renderBoardInto(boardEl, boardResponsavel, linha = activeEsteiraCanal) 
     empty.className = "muted esteira-empty-modo";
     empty.textContent = "Nenhuma coluna neste modo.";
     boardEl.appendChild(empty);
+    renderEsteiraNav(boardEl, [], byCol, linha);
     restoreScroll();
     return;
   }
@@ -4780,9 +5027,16 @@ function renderBoardInto(boardEl, boardResponsavel, linha = activeEsteiraCanal) 
     const col = document.createElement("div");
     col.className = "column" + (statusFinalizadosKeys(linha).includes(key) ? " column--finalizado" : "");
     col.dataset.status = key;
-    const list = (byCol[key] || []).slice().sort(compareDemandaEsteiraOrdem);
+    // Sem projetista primeiro (novas demandas chamam atenção), depois a ordem normal da coluna.
+    const list = (byCol[key] || [])
+      .slice()
+      .sort(
+        (a, b) =>
+          Number(Boolean(normalizeResponsavel(a.responsavel))) - Number(Boolean(normalizeResponsavel(b.responsavel))) ||
+          compareDemandaEsteiraOrdem(a, b),
+      );
     const moveFlags = buildCardMoveFlagsMap(list);
-    col.innerHTML = columnHeadHtml(key, linha, list.length) + `<div class="column__body"></div>`;
+    col.innerHTML = columnHeadHtml(key, linha, list.length, list) + `<div class="column__body"></div>`;
     const body = col.querySelector(".column__body");
     col.addEventListener("dragover", (e) => { e.preventDefault(); col.classList.add("drag-over"); });
     col.addEventListener("dragleave", () => col.classList.remove("drag-over"));
@@ -4798,9 +5052,11 @@ function renderBoardInto(boardEl, boardResponsavel, linha = activeEsteiraCanal) 
       cardFrag.appendChild(renderCard(d, moveFlags[d.id] || { canMoveUp: false, canMoveDown: false }));
     });
     body.appendChild(cardFrag);
+    if (!list.length) body.innerHTML = columnVazioHtml();
     frag.appendChild(col);
   }
   boardEl.appendChild(frag);
+  renderEsteiraNav(boardEl, cols, byCol, linha);
   restoreScroll();
 }
 
@@ -4812,32 +5068,9 @@ function renderBoard() {
   const viewB2b = document.getElementById("esteiraViewB2b");
   if (viewOp) viewOp.hidden = linha !== LINHA_ESTEIRA_OPERACIONAL;
   if (viewB2b) viewB2b.hidden = linha !== LINHA_ESTEIRA_B2B;
-  const hideInbox = esteiraModoColunas === ESTEIRA_MODO_FINALIZADOS;
-  if (linha === LINHA_ESTEIRA_B2B) {
-    const pendenteBlock = document.querySelector("#esteiraViewB2b .esteira-block--pendente");
-    const pendente = document.getElementById("boardPendenteB2b");
-    const esteira = document.getElementById("boardEsteiraB2b");
-    if (pendenteBlock) pendenteBlock.hidden = hideInbox;
-    if (!hideInbox && pendente) renderPendenteBoard(pendente, linha);
-    if (!hideInbox) renderInboxAlertas(linha);
-    else {
-      const alertas = document.getElementById("esteiraInboxAlertasB2b");
-      if (alertas) alertas.innerHTML = "";
-    }
-    if (esteira) renderBoardInto(esteira, BOARD_ATRIBUIDOS, linha);
-  } else {
-    const pendenteBlock = document.querySelector("#esteiraViewOperacional .esteira-block--pendente");
-    const pendente = document.getElementById("boardPendente");
-    const esteira = document.getElementById("boardEsteira");
-    if (pendenteBlock) pendenteBlock.hidden = hideInbox;
-    if (!hideInbox && pendente) renderPendenteBoard(pendente, linha);
-    if (!hideInbox) renderInboxAlertas(linha);
-    else {
-      const alertas = document.getElementById("esteiraInboxAlertas");
-      if (alertas) alertas.innerHTML = "";
-    }
-    if (esteira) renderBoardInto(esteira, BOARD_ATRIBUIDOS, linha);
-  }
+  const esteira = document.getElementById(linha === LINHA_ESTEIRA_B2B ? "boardEsteiraB2b" : "boardEsteira");
+  if (esteira) renderBoardInto(esteira, BOARD_ATRIBUIDOS, linha);
+  renderInboxAlertas(linha);
   updateEsteiraStatusLine();
 }
 
@@ -15433,27 +15666,49 @@ async function bootstrap() {
 
 function updateEsteiraStatusLine() {
   const el = document.getElementById("esteiraStatusLine");
+  syncEsteiraFiltrosUi();
   if (!el) return;
   const n = state.demandas.length;
+  if (n === 0) {
+    el.innerHTML = `<p class="esteira-resumo__vazio">Nenhuma demanda carregada. Verifique o status de sincronização no topo ou importe os dados.</p>`;
+    return;
+  }
   const linha = activeEsteiraCanal;
-  const list = filteredDemandasForEsteira(linha);
-  const filtradas = list.length;
+  const base = filteredDemandasForEsteira(linha, { rapido: false });
   const finals = new Set(statusFinalizadosKeys(linha));
-  const nFin = list.filter((d) => finals.has(d.status) && normalizeResponsavel(d.responsavel)).length;
-  const label = linha === LINHA_ESTEIRA_B2B ? "esteira B2B" : "Esteira Projetos";
   const modo = esteiraModoColunas;
-  const modoTxt =
-    modo === ESTEIRA_MODO_FINALIZADOS
-      ? " · modo finalizados"
-      : modo === ESTEIRA_MODO_TODOS
-        ? " · todas as colunas"
-        : nFin
-          ? ` · ${nFin} finalizada(s) ocultas`
-          : " · em andamento";
-  el.textContent =
-    n === 0
-      ? "Nenhuma demanda carregada. Verifique o badge de sync no topo ou importe/migre os dados."
-      : `${filtradas} demanda(s) na ${label}${modoTxt} · ${n} no total`;
+  const visiveis = base.filter((d) => {
+    const fin = finals.has(d.status);
+    if (modo === ESTEIRA_MODO_FINALIZADOS) return fin;
+    if (modo === ESTEIRA_MODO_TODOS) return true;
+    return !fin;
+  });
+  const nFinOcultos = modo === ESTEIRA_MODO_ATIVOS ? base.length - visiveis.length : 0;
+  const mostrando = esteiraFiltroRapido
+    ? visiveis.filter((d) => ESTEIRA_FILTROS_RAPIDOS[esteiraFiltroRapido]?.test(d)).length
+    : visiveis.length;
+  const chips = Object.entries(ESTEIRA_FILTROS_RAPIDOS)
+    .map(([key, cfg]) => {
+      const qtd = visiveis.filter(cfg.test).length;
+      const ativo = esteiraFiltroRapido === key;
+      if (!qtd && !ativo) return "";
+      return (
+        `<button type="button" class="resumo-chip resumo-chip--${cfg.tom}${ativo ? " is-ativo" : ""}" data-rapido="${key}" aria-pressed="${ativo}"` +
+        ` title="${ativo ? "Clique para mostrar todos" : "Clique para filtrar"}">` +
+        `<b>${qtd}</b> ${escapeHtml(cfg.label)}${ativo ? ' <span aria-hidden="true">✕</span>' : ""}</button>`
+      );
+    })
+    .join("");
+  const total =
+    `<span class="esteira-resumo__total"><b>${mostrando}</b> ${mostrando === 1 ? "projeto" : "projetos"}` +
+    (esteiraFiltroRapido || mostrando !== visiveis.length ? ` <span class="muted">de ${visiveis.length}</span>` : "") +
+    (nFinOcultos ? ` <span class="muted">· ${nFinOcultos} finalizado(s) oculto(s)</span>` : "") +
+    `</span>`;
+  el.innerHTML = total + (chips
+      ? `<span class="esteira-resumo__chips">${chips}</span>`
+      : visiveis.length
+        ? `<span class="esteira-resumo__ok">✓ Nenhum atraso ou pendência</span>`
+        : "");
 }
 
 (function syncPublicLink() {
