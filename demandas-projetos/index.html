@@ -127,6 +127,15 @@
       </button>
       <h2 class="topbar__title" id="topbarTitle">Esteira Projetos</h2>
       <div class="topbar__actions">
+        <div class="notif" id="notifMenu">
+          <button type="button" class="notif__btn" id="btnNotif" aria-expanded="false" aria-haspopup="dialog" aria-controls="notifPanel" title="Alertas">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span class="notif__badge" id="notifBadge" hidden>0</span>
+          </button>
+          <div class="notif__panel" id="notifPanel" role="dialog" aria-label="Alertas" hidden>
+            <div class="esteira-inbox-alertas" id="esteiraInboxAlertas" aria-live="polite"></div>
+          </div>
+        </div>
         <div class="user-menu" id="userMenu">
           <button type="button" class="user-menu__toggle" id="btnUserMenu" aria-expanded="false" aria-haspopup="menu" aria-controls="userMenuPanel" title="Minha conta">
             <span class="user-menu__avatar" id="userMenuAvatar" aria-hidden="true">?</span>
@@ -199,14 +208,6 @@
         </div>
         <div class="esteiras">
           <div class="esteira-view" id="esteiraViewOperacional">
-            <div class="esteira-block esteira-block--pendente esteira-block--projetos">
-              <h3 class="esteira-title">Novas demandas — sem direcionamento</h3>
-              <p class="muted small esteira-sub">Demandas com projetista <strong>não atribuído</strong>. Abra o card e escolha o responsável; ela passará para a esteira abaixo.</p>
-              <div class="esteira-inbox-layout esteira-inbox-layout--projetos">
-                <div class="board board--pendente board--projetos" id="boardPendente"></div>
-                <aside class="esteira-inbox-alertas esteira-inbox-alertas--projetos" id="esteiraInboxAlertas" aria-live="polite"></aside>
-              </div>
-            </div>
             <div class="esteira-block esteira-block--projetos">
               <h3 class="esteira-title">Esteira Projetos</h3>
               <p class="muted small esteira-sub" id="esteiraSubOperacional">Demandas em andamento. Conclusão e Reprovado ficam em <strong>Colunas → Finalizados</strong>.</p>
@@ -214,14 +215,6 @@
             </div>
           </div>
           <div class="esteira-view" id="esteiraViewB2b" hidden>
-            <div class="esteira-block esteira-block--pendente esteira-block--b2b">
-              <h3 class="esteira-title">Pré-vendas — sem direcionamento</h3>
-              <p class="muted small esteira-sub">Projetos B2B sem projetista. Atribua um responsável para entrar na esteira B2B.</p>
-              <div class="esteira-inbox-layout esteira-inbox-layout--b2b">
-                <div class="board board--pendente board--b2b" id="boardPendenteB2b"></div>
-                <aside class="esteira-inbox-alertas esteira-inbox-alertas--b2b" id="esteiraInboxAlertasB2b" aria-live="polite"></aside>
-              </div>
-            </div>
             <div class="esteira-block esteira-block--b2b">
               <h3 class="esteira-title">Esteira B2B</h3>
               <p class="muted small esteira-sub" id="esteiraSubB2b">Fluxo comercial em andamento. Projeto Final fica em <strong>Colunas → Finalizados</strong>.</p>

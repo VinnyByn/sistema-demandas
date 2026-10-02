@@ -5955,3 +5955,73 @@ html[data-theme="light"] .esteira-nav__chip.is-visivel { background: #eff6ff; }
 .esteira-toolbar__resumo .esteira-resumo { flex: 1 1 auto; }
 .esteira-toolbar__resumo .filters__limpar { height: 1.9rem; }
 .esteira-toolbar .filters .filtro-chip select { max-width: 10.5rem; }
+
+/* ---------- Sininho de alertas ---------- */
+.notif { position: relative; }
+.notif__btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.notif__btn svg { width: 1.2rem; height: 1.2rem; }
+.notif__btn:hover, .notif__btn.is-open { color: var(--text); border-color: var(--accent); }
+.notif__btn.is-open { background: rgba(59, 130, 246, 0.14); }
+.notif__btn.tem-alertas { color: var(--text); }
+.notif__btn.is-novo svg { animation: notif-balanco 0.9s ease; transform-origin: 50% 10%; }
+@keyframes notif-balanco {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(16deg); }
+  40% { transform: rotate(-14deg); }
+  60% { transform: rotate(8deg); }
+  80% { transform: rotate(-4deg); }
+}
+.notif__badge {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.35rem;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.3rem;
+  border: 2px solid var(--bg, #0c1116);
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #1c1917;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 0.9rem;
+  text-align: center;
+  box-sizing: border-box;
+}
+.notif__badge[hidden] { display: none; }
+.notif__badge--bad { background: #ef4444; color: #fff; }
+.notif__panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 210;
+  width: min(440px, calc(100vw - 1.5rem));
+  border-radius: var(--radius);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+.notif__panel[hidden] { display: none; }
+.notif__panel .inbox-alertas {
+  max-height: min(600px, calc(100vh - 6rem));
+  min-height: 0;
+  border-color: var(--border);
+}
+.notif__panel .inbox-alertas .inbox-alertas__list { grid-template-columns: 1fr; }
+.inbox-alertas__canal { margin-left: auto; margin-right: 0.4rem; font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+@media (max-width: 640px) {
+  .notif { position: static; }
+  .notif__panel { position: fixed; top: 3.6rem; left: 0.75rem; right: 0.75rem; width: auto; }
+}
+html[data-theme="light"] .notif__panel { box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18); }
+html[data-theme="light"] .notif__badge { border-color: #fff; }

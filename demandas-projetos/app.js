@@ -219,7 +219,7 @@ function updateEsteiraModoHints() {
       op.innerHTML = "Todas as colunas visíveis, inclusive finalizados.";
     } else {
       op.innerHTML =
-        "Demandas em andamento. Conclusão e Reprovado ficam em <strong>Colunas → Finalizados</strong>.";
+        "Demandas em andamento. Novas demandas sem projetista entram na primeira coluna com o selo <strong>Não atribuído</strong>.";
     }
   }
   if (b2b) {
@@ -230,7 +230,7 @@ function updateEsteiraModoHints() {
       b2b.innerHTML = "Todas as colunas B2B visíveis, inclusive Projeto Final.";
     } else {
       b2b.innerHTML =
-        "Fluxo comercial em andamento. Projeto Final fica em <strong>Colunas → Finalizados</strong>.";
+        "Fluxo comercial em andamento. Projetos sem projetista entram na primeira coluna com o selo <strong>Não atribuído</strong>.";
     }
   }
   const sel = document.getElementById("filterEsteiraModo");
@@ -2178,8 +2178,6 @@ function refreshPresenceBadgesOnly() {
   const boardRoots = [
     document.getElementById("boardEsteira"),
     document.getElementById("boardEsteiraB2b"),
-    document.getElementById("boardPendente"),
-    document.getElementById("boardPendenteB2b"),
   ].filter(Boolean);
   const byId = Object.fromEntries((state.demandas || []).map((d) => [d.id, d]));
   for (const root of boardRoots) {
@@ -4413,9 +4411,8 @@ function filteredDemandasForEsteira(linha = activeEsteiraCanal, { rapido = true 
 
 function demandasForBoard(boardResponsavel, linha = activeEsteiraCanal) {
   const list = filteredDemandasForEsteira(linha);
-  if (boardResponsavel === BOARD_ATRIBUIDOS) {
-    return list.filter((d) => normalizeResponsavel(d.responsavel) !== "");
-  }
+  // Esteira única: demandas sem projetista ficam na coluna do seu status (com o selo "Não atribuído").
+  if (boardResponsavel === BOARD_ATRIBUIDOS) return list;
   const alvo = normalizeResponsavel(boardResponsavel);
   if (alvo === "") return list.filter((d) => normalizeResponsavel(d.responsavel) === "");
   return list.filter((d) => d.responsavel === alvo);
@@ -4525,20 +4522,6 @@ function handleDemandaDrop(dem, newStatus, boardResponsavel) {
   saveState({ demanda: dem });
   renderBoard();
   toast("Demanda atualizada");
-}
-
-/** Fila sem projetista: uma única caixa; soltar aqui só remove o direcionamento (mantém o status). */
-function handleInboxDrop(dem) {
-  if (!requireWriteAccess()) return;
-  if (!dem) return;
-  if (normalizeResponsavel(dem.responsavel) === "") return;
-  const now = new Date().toISOString();
-  dem.responsavel = "";
-  dem.updatedAt = now;
-  invalidateAlertaSnoozeIfStale(dem);
-  saveState({ demanda: dem });
-  renderBoard();
-  toast("Demanda devolvida à fila geral");
 }
 
 function diasDesdeChegadaDemanda(d) {
@@ -4689,13 +4672,15 @@ const ALERTAS_ABAS = [
 ];
 
 function renderInboxAlertas(linha = activeEsteiraCanal) {
-  const el =
-    document.getElementById(linha === LINHA_ESTEIRA_B2B ? "esteiraInboxAlertasB2b" : "esteiraInboxAlertas");
+  const el = document.getElementById("esteiraInboxAlertas");
   if (!el) return;
   const list = filteredDemandasForEsteira(linha, { rapido: false });
   const rows = buildInboxAlertasRows(list, linha);
+  syncNotifBadge(rows);
+  const canal = linha === LINHA_ESTEIRA_B2B ? "Esteira B2B" : "Esteira Projetos";
   const head = (extra = "") =>
     `<div class="inbox-alertas__head"><h4 class="inbox-alertas__title">Alertas${extra}</h4>` +
+    `<span class="inbox-alertas__canal">${canal}${esteiraFiltrosAtivosCount() ? " · com filtros" : ""}</span>` +
     `<span class="inbox-alertas__ajuda" tabindex="0" title="Vermelho: sem projetista. Laranja: ${ALERTA_DIAS_MESMA_COLUNA}+ dias na mesma coluna. Verde: retornou da Operação.&#10;Adiar registra um comentário e silencia o alerta por alguns dias. Ciente tira o retorno da lista." aria-label="Como funcionam os alertas">?</span></div>`;
 
   if (!rows.length) {
@@ -4767,18 +4752,78 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
     });
   });
   el.querySelectorAll("[data-alerta-abrir]").forEach((btn) => {
-    btn.addEventListener("click", () => openDemandaModal(btn.dataset.alertaAbrir));
+    btn.addEventListener("click", () => {
+      setNotifAberto(false);
+      openDemandaModal(btn.dataset.alertaAbrir);
+    });
   });
   el.querySelectorAll("[data-alerta-snooze]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const row = rows.find((r) => r.d.id === btn.dataset.alertaSnooze && r.kind === btn.dataset.kind);
-      if (row) openAlertaSnoozeModal(row);
+      if (!row) return;
+      setNotifAberto(false);
+      openAlertaSnoozeModal(row);
     });
   });
   el.querySelectorAll("[data-alerta-ciente]").forEach((btn) => {
     btn.addEventListener("click", () => marcarClickupRetornoCiente(btn.dataset.alertaCiente));
   });
 }
+
+/* ---------- Sininho de alertas (topo) ---------- */
+let notifUltimaContagem = null;
+
+function syncNotifBadge(rows) {
+  const badge = document.getElementById("notifBadge");
+  const btn = document.getElementById("btnNotif");
+  if (!badge || !btn) return;
+  const n = rows.length;
+  const temVermelho = rows.some((r) => r.severity === "bad");
+  badge.hidden = n === 0;
+  badge.textContent = n > 99 ? "99+" : String(n);
+  badge.classList.toggle("notif__badge--bad", temVermelho);
+  btn.classList.toggle("tem-alertas", n > 0);
+  btn.title = n ? `${n} alerta(s)` : "Nenhum alerta";
+  btn.setAttribute("aria-label", btn.title);
+  if (notifUltimaContagem != null && n > notifUltimaContagem) {
+    btn.classList.remove("is-novo");
+    void btn.offsetWidth;
+    btn.classList.add("is-novo");
+  }
+  notifUltimaContagem = n;
+}
+
+function setNotifAberto(aberto) {
+  const panel = document.getElementById("notifPanel");
+  const btn = document.getElementById("btnNotif");
+  if (!panel || !btn) return;
+  panel.hidden = !aberto;
+  btn.setAttribute("aria-expanded", aberto ? "true" : "false");
+  btn.classList.toggle("is-open", aberto);
+  if (aberto) renderInboxAlertas(activeEsteiraCanal);
+}
+
+function initNotifMenu() {
+  const menu = document.getElementById("notifMenu");
+  const btn = document.getElementById("btnNotif");
+  const panel = document.getElementById("notifPanel");
+  if (!menu || !btn || !panel) return;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setNotifAberto(panel.hidden);
+  });
+  document.addEventListener("click", (e) => {
+    if (!panel.hidden && !menu.contains(e.target)) setNotifAberto(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !panel.hidden) {
+      setNotifAberto(false);
+      btn.focus();
+    }
+  });
+}
+
+initNotifMenu();
 
 let alertaSnoozeCtx = null;
 
@@ -4954,34 +4999,6 @@ function buildCardMoveFlagsMap(list) {
   return flags;
 }
 
-function renderPendenteBoard(boardEl, linha = activeEsteiraCanal) {
-  const cfg = getEsteiraConfig(linha);
-  const list = demandasForBoard("", linha).sort(compareDemandaEsteiraOrdem);
-  const moveFlags = buildCardMoveFlagsMap(list);
-  const restoreScroll = preserveBoardScroll(boardEl);
-  boardEl.innerHTML = "";
-  const col = document.createElement("div");
-  col.className = "column column--inbox";
-  col.dataset.status = cfg.inboxStatus;
-  col.innerHTML = columnHeadHtml(cfg.inboxStatus, linha, list.length, list) + `<div class="column__body"></div>`;
-  const body = col.querySelector(".column__body");
-  col.addEventListener("dragover", (e) => { e.preventDefault(); col.classList.add("drag-over"); });
-  col.addEventListener("dragleave", () => col.classList.remove("drag-over"));
-  col.addEventListener("drop", (e) => {
-    e.preventDefault();
-    col.classList.remove("drag-over");
-    const id = e.dataTransfer.getData("text/plain");
-    const dem = state.demandas.find((x) => x.id === id);
-    handleInboxDrop(dem);
-  });
-  list.forEach((d) => {
-    body.appendChild(renderCard(d, moveFlags[d.id] || { canMoveUp: false, canMoveDown: false }));
-  });
-  if (!list.length) body.innerHTML = columnVazioHtml();
-  boardEl.appendChild(col);
-  restoreScroll();
-}
-
 function renderBoardInto(boardEl, boardResponsavel, linha = activeEsteiraCanal) {
   const cfg = getEsteiraConfig(linha);
   const cols = visibleEsteiraStatusKeys(linha);
@@ -5010,7 +5027,14 @@ function renderBoardInto(boardEl, boardResponsavel, linha = activeEsteiraCanal) 
     const col = document.createElement("div");
     col.className = "column" + (statusFinalizadosKeys(linha).includes(key) ? " column--finalizado" : "");
     col.dataset.status = key;
-    const list = (byCol[key] || []).slice().sort(compareDemandaEsteiraOrdem);
+    // Sem projetista primeiro (novas demandas chamam atenção), depois a ordem normal da coluna.
+    const list = (byCol[key] || [])
+      .slice()
+      .sort(
+        (a, b) =>
+          Number(Boolean(normalizeResponsavel(a.responsavel))) - Number(Boolean(normalizeResponsavel(b.responsavel))) ||
+          compareDemandaEsteiraOrdem(a, b),
+      );
     const moveFlags = buildCardMoveFlagsMap(list);
     col.innerHTML = columnHeadHtml(key, linha, list.length, list) + `<div class="column__body"></div>`;
     const body = col.querySelector(".column__body");
@@ -5044,32 +5068,9 @@ function renderBoard() {
   const viewB2b = document.getElementById("esteiraViewB2b");
   if (viewOp) viewOp.hidden = linha !== LINHA_ESTEIRA_OPERACIONAL;
   if (viewB2b) viewB2b.hidden = linha !== LINHA_ESTEIRA_B2B;
-  const hideInbox = esteiraModoColunas === ESTEIRA_MODO_FINALIZADOS;
-  if (linha === LINHA_ESTEIRA_B2B) {
-    const pendenteBlock = document.querySelector("#esteiraViewB2b .esteira-block--pendente");
-    const pendente = document.getElementById("boardPendenteB2b");
-    const esteira = document.getElementById("boardEsteiraB2b");
-    if (pendenteBlock) pendenteBlock.hidden = hideInbox;
-    if (!hideInbox && pendente) renderPendenteBoard(pendente, linha);
-    if (!hideInbox) renderInboxAlertas(linha);
-    else {
-      const alertas = document.getElementById("esteiraInboxAlertasB2b");
-      if (alertas) alertas.innerHTML = "";
-    }
-    if (esteira) renderBoardInto(esteira, BOARD_ATRIBUIDOS, linha);
-  } else {
-    const pendenteBlock = document.querySelector("#esteiraViewOperacional .esteira-block--pendente");
-    const pendente = document.getElementById("boardPendente");
-    const esteira = document.getElementById("boardEsteira");
-    if (pendenteBlock) pendenteBlock.hidden = hideInbox;
-    if (!hideInbox && pendente) renderPendenteBoard(pendente, linha);
-    if (!hideInbox) renderInboxAlertas(linha);
-    else {
-      const alertas = document.getElementById("esteiraInboxAlertas");
-      if (alertas) alertas.innerHTML = "";
-    }
-    if (esteira) renderBoardInto(esteira, BOARD_ATRIBUIDOS, linha);
-  }
+  const esteira = document.getElementById(linha === LINHA_ESTEIRA_B2B ? "boardEsteiraB2b" : "boardEsteira");
+  if (esteira) renderBoardInto(esteira, BOARD_ATRIBUIDOS, linha);
+  renderInboxAlertas(linha);
   updateEsteiraStatusLine();
 }
 
@@ -15677,7 +15678,7 @@ function updateEsteiraStatusLine() {
   const finals = new Set(statusFinalizadosKeys(linha));
   const modo = esteiraModoColunas;
   const visiveis = base.filter((d) => {
-    const fin = finals.has(d.status) && normalizeResponsavel(d.responsavel);
+    const fin = finals.has(d.status);
     if (modo === ESTEIRA_MODO_FINALIZADOS) return fin;
     if (modo === ESTEIRA_MODO_TODOS) return true;
     return !fin;
