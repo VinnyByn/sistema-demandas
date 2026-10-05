@@ -10668,7 +10668,7 @@ function renderDashTipoPorGrupo(
     .map((tipo) => ({
       label: tipo,
       data: groupKeys.map((k) => matrix[k][tipo] || 0),
-      backgroundColor: TIPO_CHART_COLORS[tipo] || "#94a3b8",
+      backgroundColor: tipoChartCor(tipo),
       borderWidth: 0,
     }))
     .filter((ds) => ds.data.some((n) => n > 0));
@@ -10728,7 +10728,7 @@ function renderDashTipoValorPorGrupo(
     .map((tipo) => ({
       label: tipo,
       data: groupKeys.map((k) => matrix[k][tipo] || 0),
-      backgroundColor: TIPO_CHART_COLORS[tipo] || "#94a3b8",
+      backgroundColor: tipoChartCor(tipo),
       borderWidth: 0,
     }))
     .filter((ds) => ds.data.some((n) => n > 0));
@@ -11485,6 +11485,98 @@ function kpiMediasIndicadoresHtml(m, { includePortas = true } = {}) {
   return html;
 }
 
+/** Tipo aberto na visão individual de "Por tipo" ("" = visão geral). */
+let dashTipoSelecionado = "";
+
+const TIPOS_SEM_PORTAS = ["SWAP", "Backbone", "Licenciamento", "Mapeamento"];
+
+function dashTipoCor(tipo) {
+  return tipoChartCor(tipo);
+}
+
+/** Lista de barras horizontais (uma série, cor do tipo) com rótulo, barra e valor. */
+function dashTipoBarrasHtml(itens, cor, total) {
+  if (!itens.length) return `<p class="muted small">Sem dados.</p>`;
+  const max = Math.max(...itens.map((it) => it.n), 1);
+  return (
+    `<ul class="dash-tipo-barras" style="--tipo:${cor}">` +
+    itens
+      .map((it) => {
+        const pct = total ? Math.round((it.n / total) * 1000) / 10 : 0;
+        return (
+          `<li class="dash-tipo-barras__item" title="${escapeHtml(`${it.label}: ${it.n} projeto(s) · ${formatPct(pct)}`)}">` +
+          `<span class="dash-tipo-barras__rotulo">${escapeHtml(it.label)}</span>` +
+          `<span class="dash-tipo-barras__trilho"><span class="dash-tipo-barras__barra" style="width:${((it.n / max) * 100).toFixed(1)}%"></span></span>` +
+          `<span class="dash-tipo-barras__valor">${it.n}<small>${formatPct(pct)}</small></span>` +
+          `</li>`
+        );
+      })
+      .join("") +
+    `</ul>`
+  );
+}
+
+function renderKpiGeralPorTipoDetalhe(tipo, doTipo, list) {
+  const cor = dashTipoCor(tipo);
+  const g = countDemandas(doTipo);
+  const r = calcResumoIndicadoresDashboard(doTipo);
+  const m = calcMediasIndicadoresGeral(doTipo, DASH_BASE_CONCLUSAO);
+  const rTodos = calcResumoIndicadoresDashboard(list);
+  const pctConcl = g.total ? Math.round((r.concluido.n / g.total) * 1000) / 10 : 0;
+  const pctProjetos = list.length ? Math.round((g.total / list.length) * 1000) / 10 : 0;
+  const pctValor = rTodos.concluido.valor ? Math.round((r.concluido.valor / rTodos.concluido.valor) * 1000) / 10 : 0;
+  const atrasados = doTipo.filter(isAtrasoAtivo).length;
+  const showPortas = !TIPOS_SEM_PORTAS.includes(tipo);
+  const fase = (x) => (x.n ? `${x.n} · ${formatBRL(x.valor)}` : "—");
+
+  const tiles = [
+    kpiCard("Projetos", String(g.total), "ok", `${formatPct(pctProjetos)} de todos os projetos`),
+    kpiCard(
+      "Na conclusão",
+      `${r.concluido.n} · ${formatPct(pctConcl)}`,
+      "ok",
+      `<span class="dash-tipo-progresso" style="--pct:${pctConcl}%;--tipo:${cor}" aria-hidden="true"></span>`,
+    ),
+    kpiCard("Valor concluído", r.concluido.valor ? formatBRL(r.concluido.valor) : "—", "ok", r.concluido.valor ? `${formatPct(pctValor)} do valor concluído total` : ""),
+    kpiCard("Em execução", fase(r.execucao), "ok", "quantidade · valor final"),
+    kpiCard("Em aprovação", fase(r.aprovacao), "ok", "quantidade · valor final"),
+    kpiCard("Média por projeto", m.mediaGastos > 0 ? formatBRL(m.mediaGastos) : "—", "ok", "concluídos"),
+    showPortas ? kpiCard("Portas novas", m.portasTotal ? formatQtd(m.portasTotal) : "—", "ok", "concluídos") : "",
+    kpiCard("Metragem", m.metragemTotal ? formatMetros(m.metragemTotal) : "—", "ok", "concluídos"),
+    kpiCard("Em atraso", String(atrasados), atrasados ? "bad" : "ok", atrasados ? "prazo previsto vencido" : "nenhum projeto atrasado"),
+  ].join("");
+
+  const cfg = getEsteiraConfig(LINHA_ESTEIRA_OPERACIONAL);
+  const etapas = [...cfg.statusOrder, ...(cfg.statusExtra || [])]
+    .map(([k, label]) => ({ label, n: doTipo.filter((d) => migrateDemanda(d).status === k).length }))
+    .filter((it) => it.n > 0);
+  const porPj = new Map();
+  for (const d of doTipo) {
+    const nome = normalizeResponsavel(d.responsavel) || "Não atribuído";
+    porPj.set(nome, (porPj.get(nome) || 0) + 1);
+  }
+  const projetistas = [...porPj]
+    .map(([label, n]) => ({ label, n }))
+    .sort((a, b) => b.n - a.n || a.label.localeCompare(b.label, "pt-BR"));
+
+  return (
+    `<div class="dash-tipo-det" style="--tipo:${cor}">` +
+    `<div class="dash-tipo-det__head">` +
+    `<button type="button" class="btn btn--ghost btn--sm" data-dash-tipo="">← Visão geral</button>` +
+    `<h4 class="dash-tipo-det__titulo"><i aria-hidden="true"></i>${escapeHtml(tipo)}</h4>` +
+    `<span class="muted small">${g.total} projeto(s) · ${formatPct(pctProjetos)} do total</span>` +
+    `</div>` +
+    (g.total
+      ? `<div class="kpi-grid kpi-grid--6 dash-tipo-det__kpis">${tiles}</div>` +
+        `<div class="dash-tipo-det__cols">` +
+        `<section><h5 class="dash-tipo-det__sub">Por etapa da esteira</h5>${dashTipoBarrasHtml(etapas, cor, g.total)}</section>` +
+        `<section><h5 class="dash-tipo-det__sub">Por projetista</h5>${dashTipoBarrasHtml(projetistas, cor, g.total)}</section>` +
+        `</div>`
+      : `<p class="muted">Nenhum projeto deste tipo no período/filtros atuais.</p>`) +
+    `</div>`
+  );
+}
+
 function renderKpiGeralPorTipo(list = demandasDashOperacionalList()) {
   const el = document.getElementById("kpiGeralPorTipo");
   if (!el) return;
@@ -11497,11 +11589,13 @@ function renderKpiGeralPorTipo(list = demandasDashOperacionalList()) {
     const pct = g.total ? (r.concluido.n / g.total) * 100 : 0;
     const nTxt = (n, v) =>
       n ? `<span class="dash-tipos__n">${n}</span> ${formatBRL(v)}` : "—";
+    const nomeHtml = total
+      ? `<span class="dash-tipos__nome">${escapeHtml(nome)}</span>`
+      : `<button type="button" class="dash-tipos__nome dash-tipos__abrir" data-dash-tipo="${escapeHtml(nome)}" title="Ver indicadores de ${escapeHtml(nome)}">` +
+        `<i style="background:${cor}" aria-hidden="true"></i>${escapeHtml(nome)}<span class="dash-tipos__seta" aria-hidden="true">›</span></button>`;
     return (
       `<tr class="${total ? "dash-tipos__total" : ""}">` +
-      `<th scope="row"><span class="dash-tipos__nome">` +
-      (cor ? `<i style="background:${cor}" aria-hidden="true"></i>` : "") +
-      `${escapeHtml(nome)}</span></th>` +
+      `<th scope="row">${nomeHtml}</th>` +
       cel(String(g.total), !g.total) +
       `<td class="num"><span class="dash-tipos__pct"><span class="dash-tipos__pct-bar" style="--pct:${pct.toFixed(1)}%"></span>` +
       `${r.concluido.n} · ${formatPct(Math.round(pct * 10) / 10)}</span></td>` +
@@ -11521,22 +11615,46 @@ function renderKpiGeralPorTipo(list = demandasDashOperacionalList()) {
       return { tipo, doTipo, n: doTipo.length };
     })
     .sort((a, b) => b.n - a.n || a.tipo.localeCompare(b.tipo, "pt-BR"));
-  el.innerHTML =
-    `<div class="dashboard-table-wrap dash-tipos-wrap"><table class="dash-table dash-tipos" aria-label="Indicadores por tipo de projeto">` +
-    `<thead><tr><th scope="col">Tipo</th><th scope="col" class="num">Projetos</th>` +
-    `<th scope="col" class="num">Na conclusão</th><th scope="col" class="num">Valor concluído</th>` +
-    `<th scope="col" class="num">Em execução</th><th scope="col" class="num">Em aprovação</th>` +
-    `<th scope="col" class="num">Média / projeto</th><th scope="col" class="num">Portas novas</th>` +
-    `<th scope="col" class="num">Metragem</th></tr></thead><tbody>` +
+  if (dashTipoSelecionado && !tipos.includes(dashTipoSelecionado)) dashTipoSelecionado = "";
+
+  const nav =
+    `<div class="dash-tipos-nav" role="tablist" aria-label="Escolher tipo">` +
+    `<button type="button" role="tab" class="dash-tipos-nav__btn${dashTipoSelecionado ? "" : " is-active"}" data-dash-tipo="" aria-selected="${!dashTipoSelecionado}">Visão geral</button>` +
     rows
-      .map(({ tipo, doTipo }) =>
-        linha(tipo, TIPO_CHART_COLORS[tipo] || "#94a3b8", doTipo, {
-          showPortas: !["SWAP", "Backbone", "Licenciamento", "Mapeamento"].includes(tipo),
-        }),
+      .map(
+        ({ tipo, n }) =>
+          `<button type="button" role="tab" class="dash-tipos-nav__btn${dashTipoSelecionado === tipo ? " is-active" : ""}${n ? "" : " is-vazio"}" data-dash-tipo="${escapeHtml(tipo)}" aria-selected="${dashTipoSelecionado === tipo}">` +
+          `<i style="background:${dashTipoCor(tipo)}" aria-hidden="true"></i>${escapeHtml(tipo)} <b>${n}</b></button>`,
       )
       .join("") +
-    `</tbody><tfoot>${linha("Total", "", list, { total: true })}</tfoot></table></div>` +
-    `<p class="muted small dash-tipos__nota">Valores, portas, metragem e média consideram a coluna <strong>Conclusão</strong>, como nos indicadores acima. Em execução e em aprovação mostram quantidade e valor final.</p>`;
+    `</div>`;
+
+  let corpo;
+  if (dashTipoSelecionado) {
+    const sel = rows.find((r) => r.tipo === dashTipoSelecionado);
+    corpo = renderKpiGeralPorTipoDetalhe(dashTipoSelecionado, sel?.doTipo || [], list);
+  } else {
+    corpo =
+      `<div class="dashboard-table-wrap dash-tipos-wrap"><table class="dash-table dash-tipos" aria-label="Indicadores por tipo de projeto">` +
+      `<thead><tr><th scope="col">Tipo</th><th scope="col" class="num">Projetos</th>` +
+      `<th scope="col" class="num">Na conclusão</th><th scope="col" class="num">Valor concluído</th>` +
+      `<th scope="col" class="num">Em execução</th><th scope="col" class="num">Em aprovação</th>` +
+      `<th scope="col" class="num">Média / projeto</th><th scope="col" class="num">Portas novas</th>` +
+      `<th scope="col" class="num">Metragem</th></tr></thead><tbody>` +
+      rows
+        .map(({ tipo, doTipo }) => linha(tipo, dashTipoCor(tipo), doTipo, { showPortas: !TIPOS_SEM_PORTAS.includes(tipo) }))
+        .join("") +
+      `</tbody><tfoot>${linha("Total", "", list, { total: true })}</tfoot></table></div>` +
+      `<p class="muted small dash-tipos__nota">Clique no nome de um tipo para ver os indicadores só dele. Valores, portas, metragem e média consideram a coluna <strong>Conclusão</strong>; em execução e em aprovação mostram quantidade e valor final.</p>`;
+  }
+  el.innerHTML = nav + corpo;
+  el.querySelectorAll("[data-dash-tipo]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      dashTipoSelecionado = btn.dataset.dashTipo;
+      renderKpiGeralPorTipo(list);
+      el.querySelector(dashTipoSelecionado ? ".dash-tipo-det__head button" : `.dash-tipos-nav__btn.is-active`)?.focus({ preventScroll: true });
+    });
+  });
 }
 
 function labelSolicitante(raw) {
@@ -12476,7 +12594,7 @@ function renderDashGeoDetailCharts(list, kind, key) {
     .map((tipo) => ({
       tipo,
       n: list.filter((d) => normalizeTipo(d.tipo) === tipo).length,
-      color: TIPO_CHART_COLORS[tipo] || "#94a3b8",
+      color: tipoChartCor(tipo),
     }))
     .filter((it) => it.n > 0)
     .sort((a, b) => b.n - a.n);
@@ -12855,7 +12973,7 @@ function renderDashPjDrill(nome, baseList) {
     .map((tipo) => ({
       tipo,
       n: list.filter((d) => normalizeTipo(d.tipo) === tipo).length,
-      color: TIPO_CHART_COLORS[tipo] || "#94a3b8",
+      color: tipoChartCor(tipo),
     }))
     .filter((it) => it.n > 0)
     .sort((a, b) => b.n - a.n);
@@ -13062,17 +13180,26 @@ function countByStatus(baseList = demandasDashOperacionalList()) {
   return Object.values(counts).filter((v) => v.n > 0);
 }
 
-const TIPO_CHART_COLORS = {
-  B2C: "#6366f1",
-  B2B: "#a855f7",
-  SWAP: "#f59e0b",
-  Backbone: "#0ea5e9",
-  Licenciamento: "#10b981",
-  Mapeamento: "#ec4899",
-  "Migração": "#14b8a6",
-  "Diária": "#a855f7",
+/**
+ * Cores dos tipos de projeto — paleta categórica validada (daltonismo e tema claro/escuro), em ordem fixa:
+ * [claro, escuro]. Antes Migração e Licenciamento tinham verdes quase idênticos.
+ */
+const TIPO_CHART_CORES = {
+  B2C: ["#2a78d6", "#3987e5"],
+  Backbone: ["#eb6834", "#d95926"],
+  Licenciamento: ["#1baf7a", "#199e70"],
+  SWAP: ["#eda100", "#c98500"],
+  Mapeamento: ["#e87ba4", "#d55181"],
+  "Migração": ["#008300", "#008300"],
+  B2B: ["#4a3aa7", "#9085e9"],
+  "Diária": ["#e34948", "#e66767"],
 };
 
+function tipoChartCor(tipo) {
+  const par = TIPO_CHART_CORES[tipo];
+  if (!par) return "#94a3b8";
+  return document.documentElement.getAttribute("data-theme") === "light" ? par[0] : par[1];
+}
 const STATUS_CHART_COLORS = {
   novo: "#6366f1",
   analise: "#14b8a6",
@@ -13244,7 +13371,7 @@ function renderDashProjetistaTipoStatusCharts(baseList) {
     .map((tipo) => ({
       label: tipo,
       data: PROJETISTAS.map((nome) => tipoMatrix[nome]?.[tipo] || 0),
-      backgroundColor: TIPO_CHART_COLORS[tipo] || "#94a3b8",
+      backgroundColor: tipoChartCor(tipo),
       borderWidth: 0,
     }));
   makeDashChartProjetistaStacked("chartProjetistaTipo", PROJETISTAS, tipoDatasets);
@@ -13311,7 +13438,7 @@ function renderDashTipoProjetosCharts(baseListQtd = demandasDashOperacionalList(
   const listValor = baseListValor ?? filterDemandasModoDash(baseListQtd, mode);
   const rows = statsTipoGraficoEsteira(baseListQtd, listValor, mode);
   const labels = rows.map((r) => r.label);
-  const colors = labels.map((l) => TIPO_CHART_COLORS[l] || "#94a3b8");
+  const colors = labels.map((l) => tipoChartCor(l));
 
   makeDashChartMetricBar(
     "chartTipoQtd",
