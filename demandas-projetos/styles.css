@@ -6172,3 +6172,99 @@ html[data-theme="light"] .pdf-rev__alerta { color: #b45309; }
   -webkit-box-orient: vertical;
   overflow-wrap: anywhere;
 }
+
+/* ---------- Dashboard · Por tipo: visão geral + individual ---------- */
+.dash-tipos-nav { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 0.75rem; }
+.dash-tipos-nav__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.32rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.dash-tipos-nav__btn i { width: 0.6rem; height: 0.6rem; border-radius: 3px; flex: none; }
+.dash-tipos-nav__btn b { color: var(--text); font-variant-numeric: tabular-nums; }
+.dash-tipos-nav__btn:hover { color: var(--text); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.dash-tipos-nav__btn.is-active { color: var(--text); border-color: var(--accent); background: rgba(59, 130, 246, 0.14); }
+.dash-tipos-nav__btn.is-vazio { opacity: 0.55; }
+.dash-tipos-nav__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* nome do tipo clicável na tabela */
+.dash-tipos__abrir {
+  padding: 0.2rem 0.45rem 0.2rem 0.3rem;
+  margin: -0.2rem -0.45rem -0.2rem -0.3rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dash-tipos__abrir:hover, .dash-tipos__abrir:focus-visible { background: rgba(59, 130, 246, 0.14); color: var(--accent); outline: none; }
+.dash-tipos__abrir i { width: 0.75rem; height: 0.75rem; }
+.dash-tipos__seta { opacity: 0; margin-left: 0.1rem; transition: opacity 0.15s, transform 0.15s; }
+.dash-tipos tbody tr:hover .dash-tipos__seta, .dash-tipos__abrir:focus-visible .dash-tipos__seta { opacity: 1; transform: translateX(2px); }
+.dash-tipos { min-width: 0; }
+.dash-tipos th, .dash-tipos td { padding: 0.5rem 0.5rem; }
+
+/* visão individual */
+.dash-tipo-det { display: flex; flex-direction: column; gap: 0.9rem; }
+.dash-tipo-det__head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; }
+.dash-tipo-det__titulo { display: inline-flex; align-items: center; gap: 0.5rem; margin: 0; font-size: 1.1rem; }
+.dash-tipo-det__titulo i { width: 0.85rem; height: 0.85rem; border-radius: 4px; background: var(--tipo); }
+.dash-tipo-det__kpis { margin: 0; }
+.dash-tipo-progresso {
+  display: block;
+  height: 6px;
+  margin-top: 0.15rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22c55e var(--pct), rgba(148, 163, 184, 0.25) var(--pct));
+}
+.dash-tipo-det__cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 1rem; }
+.dash-tipo-det__cols section {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.dash-tipo-det__sub {
+  margin: 0 0 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.dash-tipo-barras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.dash-tipo-barras__item {
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr) 4.6rem;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.12rem 0.25rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+.dash-tipo-barras__item:hover { background: rgba(148, 163, 184, 0.1); }
+.dash-tipo-barras__rotulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.dash-tipo-barras__trilho { height: 10px; border-radius: 0 4px 4px 0; background: rgba(148, 163, 184, 0.12); overflow: hidden; }
+.dash-tipo-barras__barra { display: block; height: 100%; min-width: 3px; border-radius: 0 4px 4px 0; background: var(--tipo); }
+.dash-tipo-barras__valor { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.dash-tipo-barras__valor small { margin-left: 0.3rem; font-weight: 500; color: var(--muted); font-size: 0.72rem; }
+@media (max-width: 560px) {
+  .dash-tipo-barras__item { grid-template-columns: minmax(5.5rem, 8rem) minmax(0, 1fr) 4.2rem; }
+}
+.dash-tipos thead th { white-space: normal; line-height: 1.25; vertical-align: bottom; }
+.dash-tipos th, .dash-tipos td { padding: 0.5rem 0.4rem; }
+.dash-tipos th:first-child, .dash-tipos td:first-child { padding-left: 0.7rem; }
+.dash-tipos th:last-child, .dash-tipos td:last-child { padding-right: 0.7rem; }
+.dash-tipos__pct-bar { width: 2rem; }
