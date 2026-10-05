@@ -10836,8 +10836,11 @@ function renderDashSegmentoB2cValorPorGrupo(
     .map((seg) => ({
       label: seg,
       data: rowKeys.map((k) => matrix[k][seg] || 0),
-      backgroundColor: SEGMENTO_B2C_CHART_COLORS[seg] || "#64748b",
-      borderWidth: 0,
+      backgroundColor: segmentoB2cCor(seg),
+      // 2px de respiro na cor da superfície entre os segmentos empilhados
+      borderColor: dashSuperficieCor(),
+      borderWidth: { left: 1, right: 1, top: 0, bottom: 0 },
+      borderSkipped: false,
     }))
     .filter((ds) => ds.data.some((n) => n > 0));
   makeDashChartProjetistaStacked(
@@ -10926,8 +10929,11 @@ function renderDashSegmentoB2cPorGrupo(canvasId, tableId, tableRowHeader, demand
     .map((seg) => ({
       label: seg,
       data: rowKeys.map((k) => matrix[k][seg] || 0),
-      backgroundColor: SEGMENTO_B2C_CHART_COLORS[seg] || "#64748b",
-      borderWidth: 0,
+      backgroundColor: segmentoB2cCor(seg),
+      // 2px de respiro na cor da superfície entre os segmentos empilhados
+      borderColor: dashSuperficieCor(),
+      borderWidth: { left: 1, right: 1, top: 0, bottom: 0 },
+      borderSkipped: false,
     }))
     .filter((ds) => ds.data.some((n) => n > 0));
   makeDashChartProjetistaStacked(
@@ -10947,19 +10953,9 @@ function renderDashSegmentoB2cPorGrupo(canvasId, tableId, tableRowHeader, demand
   );
 }
 
-const B2C_GEO_CHART_IDS = [
-  "chartB2cGastoCidade",
-  "chartB2cGastoRegional",
-  "chartB2cPortasCidade",
-  "chartB2cPortasRegional",
-];
+const B2C_GEO_CHART_IDS = ["chartB2cGeo"];
 
-const B2C_SEGMENTO_CHART_IDS = [
-  "chartB2cSegProjetos",
-  "chartB2cSegGastos",
-  "chartB2cSegPortas",
-  "chartB2cSegMetragem",
-];
+const B2C_SEGMENTO_CHART_IDS = [];
 
 function destroyDashB2cSegmentoCharts() {
   B2C_SEGMENTO_CHART_IDS.forEach((id) => {
@@ -10978,12 +10974,7 @@ function destroyDashB2cExtraCharts() {
       delete dashCharts[id];
     }
   });
-  [
-    "tableB2cGastoCidade",
-    "tableB2cGastoRegional",
-    "tableB2cPortasCidade",
-    "tableB2cPortasRegional",
-  ].forEach((id) => {
+  ["tableB2cGeo"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = "";
   });
@@ -11060,46 +11051,6 @@ function renderB2cGeoMetricPanel(canvasId, tableId, rowHeader, rows, opts) {
   }
 
   renderB2cGeoMetricTable(tableId, rowHeader, rows, opts);
-}
-
-function renderDashB2cGeoDetalhamento(demandas, rowsCidade, rowsRegional) {
-  const nReg = Math.max(rowsRegional.length, 1);
-  renderDashSegmentoB2cInvestPorGrupo(
-    "chartB2cGastoRegional",
-    "tableB2cGastoRegional",
-    "Regional",
-    demandas,
-    rowsRegional,
-    demandaRegionaisLabels,
-    nReg,
-  );
-  renderDashSegmentoB2cPortasPorGrupo(
-    "chartB2cPortasRegional",
-    "tableB2cPortasRegional",
-    "Regional",
-    demandas,
-    rowsRegional,
-    demandaRegionaisLabels,
-    nReg,
-  );
-  renderDashSegmentoB2cInvestPorGrupo(
-    "chartB2cGastoCidade",
-    "tableB2cGastoCidade",
-    "Cidade",
-    demandas,
-    rowsCidade,
-    demandaCidadesLabels,
-    12,
-  );
-  renderDashSegmentoB2cPortasPorGrupo(
-    "chartB2cPortasCidade",
-    "tableB2cPortasCidade",
-    "Cidade",
-    demandas,
-    rowsCidade,
-    demandaCidadesLabels,
-    12,
-  );
 }
 
 function renderGeoMetricDetalhamento(
@@ -11258,131 +11209,6 @@ function withB2cSegmentoPcts(rows) {
 
 function formatPctShare(pct) {
   return pct == null ? "—" : formatPct(pct);
-}
-
-function renderDashB2cSegmentoCharts(list) {
-  const rows = buildB2cMetricasPorSegmento(list).filter((r) => SEGMENTOS_B2C.includes(r.segmento));
-  const labels = rows.map((r) => r.segmento);
-  const colors = rows.map((r) => SEGMENTO_B2C_CHART_COLORS[r.segmento] || "#94a3b8");
-  if (!labels.length) {
-    destroyDashB2cSegmentoCharts();
-    return;
-  }
-  const onBarClick = (seg) => openDashGeoProjetosLista("segmento", seg);
-  const interact = { showPct: true, onBarClick, horizontal: true };
-  makeDashChartMetricBar("chartB2cSegProjetos", labels, rows.map((r) => r.projetos), {
-    colors,
-    datasetLabel: "Projetos",
-    formatValue: (v) => formatQtd(v),
-    stepSize: 1,
-    ...interact,
-  });
-  makeDashChartMoneyBar(
-    "chartB2cSegGastos",
-    labels,
-    rows.map((r) => r.investimento),
-    colors,
-    { datasetLabel: "Gastos (R$)", ...interact },
-  );
-  makeDashChartMetricBar("chartB2cSegPortas", labels, rows.map((r) => r.portas), {
-    colors,
-    datasetLabel: "Portas",
-    formatValue: (v) => formatQtd(v),
-    ...interact,
-  });
-  makeDashChartMetricBar("chartB2cSegMetragem", labels, rows.map((r) => r.metragem), {
-    colors,
-    datasetLabel: "Metragem",
-    formatValue: (v) => formatMetros(v),
-    ...interact,
-  });
-}
-
-function renderKpiB2cSegmentos(list) {
-  const el = document.getElementById("kpiB2cSegmentos");
-  if (!el) return;
-  const { rows, totais } = withB2cSegmentoPcts(buildB2cMetricasPorSegmento(list));
-  const core = rows.filter((r) => SEGMENTOS_B2C.includes(r.segmento));
-  let html = "";
-  for (const r of core) {
-    const color = SEGMENTO_B2C_CHART_COLORS[r.segmento] || "#94a3b8";
-    html +=
-      `<div class="kpi dash-tipo-card" style="border-left-color:${color}">` +
-      `<div class="kpi__label dash-tipo-card__nome"><span>${escapeHtml(r.segmento)}</span>` +
-      `<span class="dash-tipo-card__meta">${formatPctShare(r.pctProjetos)} dos projetos</span></div>` +
-      `<div class="dash-pj-grid kpi-grid">` +
-      kpiCard("Projetos", `${r.projetos} · ${formatPctShare(r.pctProjetos)}`, r.projetos ? "ok" : "warn") +
-      kpiCard(
-        "Gastos",
-        `${r.investimento > 0 ? formatBRL(r.investimento) : "—"} · ${formatPctShare(r.pctInvestimento)}`,
-        r.investimento ? "ok" : "warn",
-      ) +
-      kpiCard(
-        "Portas",
-        `${r.portas > 0 ? formatQtd(r.portas) : "—"} · ${formatPctShare(r.pctPortas)}`,
-        r.portas ? "ok" : "warn",
-      ) +
-      kpiCard(
-        "Metragem",
-        `${r.metragem > 0 ? formatMetros(r.metragem) : "—"} · ${formatPctShare(r.pctMetragem)}`,
-        r.metragem ? "ok" : "warn",
-      ) +
-      `</div></div>`;
-  }
-  html +=
-    `<div class="kpi dash-tipo-card" style="border-left-color:#94a3b8">` +
-    `<div class="kpi__label dash-tipo-card__nome"><span>Total B2C</span>` +
-    `<span class="dash-tipo-card__meta">${totais.projetos} projeto(s)</span></div>` +
-    `<div class="dash-pj-grid kpi-grid">` +
-    kpiCard("Projetos", String(totais.projetos), totais.projetos ? "ok" : "warn") +
-    kpiCard("Gastos", totais.investimento > 0 ? formatBRL(totais.investimento) : "—", totais.investimento ? "ok" : "warn") +
-    kpiCard("Portas", totais.portas > 0 ? formatQtd(totais.portas) : "—", totais.portas ? "ok" : "warn") +
-    kpiCard("Metragem", totais.metragem > 0 ? formatMetros(totais.metragem) : "—", totais.metragem ? "ok" : "warn") +
-    `</div></div>`;
-  el.innerHTML = html;
-}
-
-function renderDashB2cMetricasSegmento(list) {
-  const rawRows = buildB2cMetricasPorSegmento(list);
-  const { rows, totais } = withB2cSegmentoPcts(rawRows);
-
-  const tableEl = document.getElementById("dashB2cMetricSegmentoTable");
-  if (!tableEl) return;
-  if (!rows.length) {
-    tableEl.innerHTML = '<p class="muted small">Nenhuma métrica por segmento.</p>';
-    return;
-  }
-
-  let body = "";
-  for (const r of rows) {
-    body +=
-      "<tr><td><strong>" +
-      escapeHtml(r.segmento) +
-      "</strong></td>" +
-      `<td class="dash-pj-matrix__num">${r.projetos}</td>` +
-      `<td class="dash-pj-matrix__num">${formatPctShare(r.pctProjetos)}</td>` +
-      `<td class="dash-pj-matrix__num">${r.investimento > 0 ? formatBRL(r.investimento) : "—"}</td>` +
-      `<td class="dash-pj-matrix__num">${formatPctShare(r.pctInvestimento)}</td>` +
-      `<td class="dash-pj-matrix__num">${r.portas > 0 ? formatQtd(r.portas) : "—"}</td>` +
-      `<td class="dash-pj-matrix__num">${formatPctShare(r.pctPortas)}</td>` +
-      `<td class="dash-pj-matrix__num">${r.metragem > 0 ? formatMetros(r.metragem) : "—"}</td>` +
-      `<td class="dash-pj-matrix__num">${formatPctShare(r.pctMetragem)}</td></tr>`;
-  }
-  tableEl.innerHTML =
-    '<table class="dash-table dash-table--pj-matrix dash-table--b2c-seg"><thead><tr>' +
-    "<th>Segmento</th><th>Projetos</th><th>%</th><th>Gastos</th><th>%</th><th>Portas</th><th>%</th><th>Metragem</th><th>%</th>" +
-    "</tr></thead><tbody>" +
-    body +
-    '</tbody><tfoot><tr><td><strong>Total</strong></td>' +
-    `<td class="dash-pj-matrix__num"><strong>${totais.projetos}</strong></td>` +
-    `<td class="dash-pj-matrix__num"><strong>${totais.projetos ? "100%" : "—"}</strong></td>` +
-    `<td class="dash-pj-matrix__num"><strong>${totais.investimento > 0 ? formatBRL(totais.investimento) : "—"}</strong></td>` +
-    `<td class="dash-pj-matrix__num"><strong>${totais.investimento > 0 ? "100%" : "—"}</strong></td>` +
-    `<td class="dash-pj-matrix__num"><strong>${totais.portas > 0 ? formatQtd(totais.portas) : "—"}</strong></td>` +
-    `<td class="dash-pj-matrix__num"><strong>${totais.portas > 0 ? "100%" : "—"}</strong></td>` +
-    `<td class="dash-pj-matrix__num"><strong>${totais.metragem > 0 ? formatMetros(totais.metragem) : "—"}</strong></td>` +
-    `<td class="dash-pj-matrix__num"><strong>${totais.metragem > 0 ? "100%" : "—"}</strong></td>` +
-    "</tr></tfoot></table>";
 }
 
 function demandaPortasNovas(d) {
@@ -13461,12 +13287,22 @@ function renderDashTipoProjetosCharts(baseListQtd = demandasDashOperacionalList(
 
 }
 
-const SEGMENTO_B2C_CHART_COLORS = {
-  MDU: "#22c55e",
-  TCR: "#3b82f6",
-  TCT: "#f59e0b",
-  [B2C_SEGMENTO_SEM]: "#64748b",
+/** Cores dos segmentos B2C — 3 primeiros slots da paleta categórica validada ([claro, escuro]). */
+const SEGMENTO_B2C_CORES = {
+  MDU: ["#2a78d6", "#3987e5"],
+  TCR: ["#eb6834", "#d95926"],
+  TCT: ["#1baf7a", "#199e70"],
 };
+
+function dashSuperficieCor() {
+  return getComputedStyle(document.documentElement).getPropertyValue("--surface").trim() || "#151b24";
+}
+
+function segmentoB2cCor(seg) {
+  const par = SEGMENTO_B2C_CORES[seg];
+  if (!par) return "#8b95a5";
+  return document.documentElement.getAttribute("data-theme") === "light" ? par[0] : par[1];
+}
 
 const B2B_PRODUTO_SEM = "Sem produto";
 
@@ -14799,68 +14635,167 @@ function countByStatusForList(list, linha = LINHA_ESTEIRA_OPERACIONAL) {
   return Object.values(counts).filter((v) => v.n > 0);
 }
 
+/** Estado do gráfico "Onde está o B2C". */
+let dashB2cGeoMetrica = "gastos";
+let dashB2cGeoNivel = "regional";
+
+function dashB2cBarraShare(pct, cor) {
+  const w = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+  return (
+    `<span class="dash-b2c-share" aria-hidden="true"><span style="width:${w}%;background:${cor}"></span></span>` +
+    `<span class="dash-b2c-share__pct">${formatPctShare(pct)}</span>`
+  );
+}
+
+function renderDashB2cResumo(list, listModo) {
+  const el = document.getElementById("dashB2cResumo");
+  if (!el) return;
+  const g = countDemandas(list);
+  const atrasados = list.filter(isAtrasoAtivo).length;
+  const semPj = list.filter((d) => normalizeResponsavel(d.responsavel) === "").length;
+  const rowsRegional = buildStatsPorRegional(list);
+  const rowsCidade = buildStatsPorCidade(list);
+  const valor = sumValorDashboard(listModo);
+  const portas = sumPortasDashboard(listModo);
+  const metragem = sumMetragemDashboard(listModo);
+  const base = labelValorDashModo();
+  el.innerHTML =
+    `<div class="dash-b2c-resumo">` +
+    `<section class="dash-b2c-resumo__grupo">` +
+    `<h4 class="dash-b2c-resumo__titulo">Andamento <span>todos os ${list.length} projeto(s) B2C</span></h4>` +
+    `<div class="kpi-grid dash-b2c-resumo__kpis">` +
+    kpiCard("Projetos B2C", String(g.total), "ok", `${g.ativas} ativo(s) · ${g.concluidas} concluído(s)${g.pausadas ? ` · ${g.pausadas} pausado(s)` : ""}`) +
+    kpiCard("Em atraso", String(atrasados), atrasados ? "bad" : "ok", atrasados ? "prazo previsto vencido" : "nenhum atrasado") +
+    kpiCard("Sem projetista", String(semPj), semPj ? "warn" : "ok", semPj ? "aguardando atribuição" : "todos atribuídos") +
+    kpiCard("Cobertura", `${rowsCidade.length} cidade(s)`, "ok", `em ${rowsRegional.length} regional(is)`) +
+    `</div></section>` +
+    `<section class="dash-b2c-resumo__grupo">` +
+    `<h4 class="dash-b2c-resumo__titulo">Resultado <span>base: ${escapeHtml(base)} · ${listModo.length} projeto(s)</span></h4>` +
+    `<div class="kpi-grid dash-b2c-resumo__kpis">` +
+    kpiCard("Gastos", valor ? formatBRL(valor) : "—", valor ? "ok" : "warn") +
+    kpiCard("Portas novas", portas ? formatQtd(portas) : "—", portas ? "ok" : "warn") +
+    kpiCard("Metragem", metragem ? formatMetros(metragem) : "—", metragem ? "ok" : "warn") +
+    kpiCard("R$ por porta", portas && valor ? formatBRL(valor / portas) : "—", portas && valor ? "ok" : "warn", "gastos ÷ portas novas") +
+    `</div></section>` +
+    `</div>`;
+}
+
+function renderDashB2cSegmentos(listModo) {
+  const el = document.getElementById("dashB2cSegmentos");
+  if (!el) return;
+  const { rows, totais } = withB2cSegmentoPcts(buildB2cMetricasPorSegmento(listModo));
+  if (!listModo.length) {
+    el.innerHTML = `<p class="muted small">Nenhum B2C na base de indicadores selecionada no topo (${escapeHtml(labelValorDashModo())}).</p>`;
+    return;
+  }
+  const celula = (valorTxt, pct, cor, vazio) =>
+    `<td class="num${vazio ? " is-vazio" : ""}"><span class="dash-b2c-cel"><span class="dash-b2c-cel__valor">${valorTxt}</span>` +
+    `<span class="dash-b2c-cel__share">${dashB2cBarraShare(pct, cor)}</span></span></td>`;
+  const rporta = (r) => (r.portas > 0 && r.investimento > 0 ? formatBRL(r.investimento / r.portas) : "—");
+  const body = rows
+    .map((r) => {
+      const cor = segmentoB2cCor(r.segmento);
+      return (
+        `<tr>` +
+        `<th scope="row"><button type="button" class="dash-tipos__nome dash-tipos__abrir" data-b2c-seg="${escapeHtml(r.segmento)}" title="Ver projetos ${escapeHtml(r.segmento)}">` +
+        `<i style="background:${cor}" aria-hidden="true"></i>${escapeHtml(r.segmento)}<span class="dash-tipos__seta" aria-hidden="true">›</span></button></th>` +
+        celula(String(r.projetos), r.pctProjetos, cor, !r.projetos) +
+        celula(r.investimento > 0 ? formatBRL(r.investimento) : "—", r.pctInvestimento, cor, !r.investimento) +
+        celula(r.portas > 0 ? formatQtd(r.portas) : "—", r.pctPortas, cor, !r.portas) +
+        celula(r.metragem > 0 ? formatMetros(r.metragem) : "—", r.pctMetragem, cor, !r.metragem) +
+        `<td class="num${r.portas > 0 && r.investimento > 0 ? "" : " is-vazio"}">${rporta(r)}</td>` +
+        `</tr>`
+      );
+    })
+    .join("");
+  el.innerHTML =
+    `<div class="dashboard-table-wrap dash-tipos-wrap"><table class="dash-table dash-tipos dash-b2c-seg" aria-label="Indicadores B2C por segmento">` +
+    `<thead><tr><th scope="col">Segmento</th><th scope="col" class="num">Projetos</th><th scope="col" class="num">Gastos</th>` +
+    `<th scope="col" class="num">Portas novas</th><th scope="col" class="num">Metragem</th><th scope="col" class="num">R$ por porta</th></tr></thead>` +
+    `<tbody>${body}</tbody>` +
+    `<tfoot><tr><th scope="row">Total</th><td class="num">${totais.projetos}</td>` +
+    `<td class="num">${totais.investimento > 0 ? formatBRL(totais.investimento) : "—"}</td>` +
+    `<td class="num">${totais.portas > 0 ? formatQtd(totais.portas) : "—"}</td>` +
+    `<td class="num">${totais.metragem > 0 ? formatMetros(totais.metragem) : "—"}</td>` +
+    `<td class="num">${totais.portas > 0 && totais.investimento > 0 ? formatBRL(totais.investimento / totais.portas) : "—"}</td></tr></tfoot>` +
+    `</table></div>` +
+    `<p class="muted small dash-tipos__nota">Base: <strong>${escapeHtml(labelValorDashModo())}</strong> (escolhida no topo). A barra mostra a participação do segmento em cada coluna. Clique no segmento para ver os projetos.</p>`;
+  el.querySelectorAll("[data-b2c-seg]").forEach((btn) => {
+    btn.addEventListener("click", () => openDashGeoProjetosLista("segmento", btn.dataset.b2cSeg));
+  });
+}
+
+function renderDashB2cGeo(listModo) {
+  const sub = document.getElementById("dashB2cGeoSub");
+  const wrap = document.querySelector(".dash-b2c-geo__chart");
+  [["dashB2cGeoMetrica", dashB2cGeoMetrica], ["dashB2cGeoNivel", dashB2cGeoNivel]].forEach(([id, atual]) => {
+    document.querySelectorAll(`#${id} [data-valor]`).forEach((b) => {
+      const on = b.dataset.valor === atual;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-checked", on ? "true" : "false");
+    });
+  });
+  const porCidade = dashB2cGeoNivel === "cidade";
+  const rows = porCidade ? buildStatsPorCidade(listModo) : buildStatsPorRegional(listModo);
+  const keyFn = porCidade ? demandaCidadesLabels : demandaRegionaisLabels;
+  const topN = porCidade ? 12 : Math.max(rows.length, 1);
+  const nomeMetrica = { gastos: "Gastos", portas: "Portas novas", projetos: "Projetos" }[dashB2cGeoMetrica];
+  if (sub) {
+    sub.textContent =
+      `${nomeMetrica} ${porCidade ? "por cidade (até 12 maiores)" : "por regional"}, divididos por segmento · base: ${labelValorDashModo()}.`;
+  }
+  const nLinhas = Math.min(rows.length, topN);
+  if (wrap) wrap.style.height = `${Math.max(180, nLinhas * 34 + 70)}px`;
+  if (dashB2cGeoMetrica === "gastos") {
+    renderDashSegmentoB2cInvestPorGrupo("chartB2cGeo", "tableB2cGeo", porCidade ? "Cidade" : "Regional", listModo, rows, keyFn, topN);
+  } else if (dashB2cGeoMetrica === "portas") {
+    renderDashSegmentoB2cPortasPorGrupo("chartB2cGeo", "tableB2cGeo", porCidade ? "Cidade" : "Regional", listModo, rows, keyFn, topN);
+  } else {
+    renderDashSegmentoB2cPorGrupo(
+      "chartB2cGeo",
+      "tableB2cGeo",
+      porCidade ? "Cidade" : "Regional",
+      listModo,
+      [...rows].sort((a, b) => b.projetos - a.projetos || a.cidade.localeCompare(b.cidade, "pt-BR")),
+      keyFn,
+      topN,
+    );
+  }
+}
+
+function initDashB2cGeoControles() {
+  [["dashB2cGeoMetrica", (v) => (dashB2cGeoMetrica = v)], ["dashB2cGeoNivel", (v) => (dashB2cGeoNivel = v)]].forEach(([id, set]) => {
+    document.getElementById(id)?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-valor]");
+      if (!btn) return;
+      set(btn.dataset.valor);
+      renderDashB2cGeo(filterDemandasModoDash(demandasB2cDashboardList()));
+    });
+  });
+}
+
+initDashB2cGeoControles();
+
 function renderDashIndicadoresB2c() {
   const list = demandasB2cDashboardList();
   const listModo = filterDemandasModoDash(list);
-  const g = countDemandas(list);
-  const semDir = list.filter((d) => normalizeResponsavel(d.responsavel) === "").length;
-  const valorModoLabel = labelValorDashModo();
-  const valor = sumValorDashboard(list);
-  const portas = sumPortasDashboard(list);
-  const metragem = sumMetragemDashboard(list);
-  const rowsCidade = buildStatsPorCidade(listModo);
-  const rowsRegional = buildStatsPorRegional(listModo);
-
-  const kpiEl = document.getElementById("kpiB2c");
-  if (kpiEl) {
-    kpiEl.innerHTML =
-      kpiCard("Total B2C", g.total, "ok") +
-      kpiCard("Regionais", rowsRegional.length, "ok") +
-      kpiCard("Cidades", rowsCidade.length, "ok") +
-      kpiCard(valorModoLabel, formatBRL(valor), valor ? "ok" : "warn") +
-      kpiCard("Portas novas", formatQtd(portas), portas ? "ok" : "warn") +
-      kpiCard("Metragem lanç.", formatMetros(metragem), metragem ? "ok" : "warn") +
-      kpiCard("Não atribuídas", semDir, semDir ? "warn" : "ok") +
-      kpiCard("Ativas", g.ativas, "ok") +
-      kpiCard("Pausadas", g.pausadas, g.pausadas ? "warn" : "ok") +
-      kpiCard("Concluídas", g.concluidas, "ok") +
-      kpiCard("Em atraso", g.atraso, g.atraso ? "bad" : "ok");
-  }
-
-  const countEl = document.getElementById("dashB2cCount");
-  if (countEl) {
-    const totalOp = demandasDashOperacionalList().length;
-    countEl.textContent =
-      list.length === 0
-        ? "Nenhum projeto tipo B2C na Esteira Projetos."
-        : `${list.length} projeto(s) B2C · ${rowsRegional.length} regional(is) · ${rowsCidade.length} cidade(s) · ${totalOp} na Esteira Projetos (sem B2B).`;
-  }
-
   if (!list.length) {
     destroyDashB2cExtraCharts();
-    const segKpi = document.getElementById("kpiB2cSegmentos");
-    if (segKpi) segKpi.innerHTML = "";
-    const segTable = document.getElementById("dashB2cMetricSegmentoTable");
-    if (segTable) segTable.innerHTML = '<p class="muted small">Nenhum projeto B2C.</p>';
+    const r = document.getElementById("dashB2cResumo");
+    if (r) r.innerHTML = '<p class="muted small">Nenhum projeto tipo B2C na Esteira Projetos.</p>';
+    const sg = document.getElementById("dashB2cSegmentos");
+    if (sg) sg.innerHTML = "";
     return;
   }
-
+  renderDashB2cResumo(list, listModo);
+  renderDashB2cSegmentos(listModo);
   if (!listModo.length) {
     destroyDashB2cExtraCharts();
-    const segKpi = document.getElementById("kpiB2cSegmentos");
-    if (segKpi) segKpi.innerHTML = "";
-    const segTable = document.getElementById("dashB2cMetricSegmentoTable");
-    if (segTable) {
-      segTable.innerHTML =
-        '<p class="muted small">Nenhum B2C na base de indicadores selecionada no topo.</p>';
-    }
+    const sub = document.getElementById("dashB2cGeoSub");
+    if (sub) sub.textContent = "Nenhum B2C na base de indicadores selecionada no topo.";
     return;
   }
-
-  renderDashB2cSegmentoCharts(listModo);
-  renderKpiB2cSegmentos(listModo);
-  renderDashB2cMetricasSegmento(listModo);
-  renderDashB2cGeoDetalhamento(listModo, rowsCidade, rowsRegional);
+  renderDashB2cGeo(listModo);
 }
 
 function collectAnosDemandasB2b(demandas = demandasB2bDashboardList()) {

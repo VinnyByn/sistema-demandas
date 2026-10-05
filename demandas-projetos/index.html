@@ -582,94 +582,37 @@
             <span class="dash-block__chevron" aria-hidden="true"></span>
           </button>
           <div class="dash-block__body" id="dashBlockIndicadoresB2c">
-            <p class="muted small dash-block__hint">Projetos tipo <strong>B2C</strong> na Esteira Projetos. Segmento: <strong>MDU</strong>, <strong>TCR</strong> ou <strong>TCT</strong>. Valor, portas e metragem conforme a <strong>base de indicadores</strong> no topo.</p>
-            <p class="muted small" id="dashB2cCount" aria-live="polite"></p>
+            <p class="muted small dash-block__hint">Projetos tipo <strong>B2C</strong> na Esteira Projetos, separados por segmento: <strong>MDU</strong>, <strong>TCR</strong> e <strong>TCT</strong>.</p>
+            <div id="dashB2cResumo"></div>
 
-            <h3 class="dash-subhead">Por segmento (MDU / TCR / TCT)</h3>
-            <p class="muted small dash-block__hint">Passe o mouse na barra para ver o valor e a <strong>%</strong>. Clique para abrir os projetos daquele tipo.</p>
-            <div class="dashboard-charts dashboard-charts--cols2" id="dashB2cSegmentoCharts">
-              <div class="chart-card">
-                <h4>Projetos</h4>
-                <p class="muted small chart-card__sub">Quantidade por tipo de projeto B2C.</p>
-                <div class="chart-wrap"><canvas id="chartB2cSegProjetos"></canvas></div>
-              </div>
-              <div class="chart-card">
-                <h4>Gastos</h4>
-                <p class="muted small chart-card__sub">Conforme a base de indicadores no topo.</p>
-                <div class="chart-wrap"><canvas id="chartB2cSegGastos"></canvas></div>
-              </div>
-              <div class="chart-card">
-                <h4>Portas</h4>
-                <p class="muted small chart-card__sub">Portas novas por tipo de projeto.</p>
-                <div class="chart-wrap"><canvas id="chartB2cSegPortas"></canvas></div>
-              </div>
-              <div class="chart-card">
-                <h4>Metragem</h4>
-                <p class="muted small chart-card__sub">Metragem de lançamento por tipo de projeto.</p>
-                <div class="chart-wrap"><canvas id="chartB2cSegMetragem"></canvas></div>
-              </div>
-            </div>
-            <div class="kpi-grid kpi-grid--split" id="kpiB2cSegmentos"></div>
-            <div class="dashboard-table-wrap" id="dashB2cMetricSegmentoTable"></div>
-
-            <h3 class="dash-subhead">Operação B2C</h3>
-            <div class="kpi-grid" id="kpiB2c"></div>
+            <h3 class="dash-subhead">Por segmento</h3>
+            <div id="dashB2cSegmentos"></div>
 
             <h3 class="dash-subhead">Onde está o B2C</h3>
-            <p class="muted small dash-block__hint">Gastos e portas por <strong>regional</strong> e <strong>cidade</strong>, empilhados por <strong>MDU / TCR / TCT</strong>. Clique em <strong>Tabela</strong> para o detalhe numérico.</p>
-            <div class="dashboard-charts dashboard-charts--cols2">
-              <div class="chart-card">
-                <h4>Gastos por regional</h4>
-                <p class="muted small chart-card__sub">Onde o investimento está concentrado.</p>
-                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cGastoRegional"></canvas></div>
-                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-gasto-regional">
-                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cGastoRegional">
-                    <span>Tabela</span>
-                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
-                  </button>
-                  <div class="dash-chart-table__body" id="tableB2cGastoRegional"></div>
+            <div class="chart-card dash-b2c-geo">
+              <div class="dash-b2c-geo__toolbar">
+                <div class="dash-seg" role="radiogroup" aria-label="Métrica" id="dashB2cGeoMetrica">
+                  <button type="button" role="radio" data-valor="gastos">Gastos</button>
+                  <button type="button" role="radio" data-valor="portas">Portas</button>
+                  <button type="button" role="radio" data-valor="projetos">Projetos</button>
+                </div>
+                <div class="dash-seg" role="radiogroup" aria-label="Agrupar por" id="dashB2cGeoNivel">
+                  <button type="button" role="radio" data-valor="regional">Por regional</button>
+                  <button type="button" role="radio" data-valor="cidade">Por cidade</button>
                 </div>
               </div>
-              <div class="chart-card">
-                <h4>Portas por regional</h4>
-                <p class="muted small chart-card__sub">Onde a rede está crescendo.</p>
-                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cPortasRegional"></canvas></div>
-                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-portas-regional">
-                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cPortasRegional">
-                    <span>Tabela</span>
-                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
-                  </button>
-                  <div class="dash-chart-table__body" id="tableB2cPortasRegional"></div>
-                </div>
-              </div>
-              <div class="chart-card">
-                <h4>Gastos por cidade</h4>
-                <p class="muted small chart-card__sub">Até 12 cidades com maior gasto.</p>
-                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cGastoCidade"></canvas></div>
-                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-gasto-cidade">
-                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cGastoCidade">
-                    <span>Tabela</span>
-                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
-                  </button>
-                  <div class="dash-chart-table__body" id="tableB2cGastoCidade"></div>
-                </div>
-              </div>
-              <div class="chart-card">
-                <h4>Portas por cidade</h4>
-                <p class="muted small chart-card__sub">Até 12 cidades com mais portas novas.</p>
-                <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2cPortasCidade"></canvas></div>
-                <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-portas-cidade">
-                  <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cPortasCidade">
-                    <span>Tabela</span>
-                    <span class="dash-chart-table__chevron" aria-hidden="true"></span>
-                  </button>
-                  <div class="dash-chart-table__body" id="tableB2cPortasCidade"></div>
-                </div>
+              <p class="muted small chart-card__sub" id="dashB2cGeoSub"></p>
+              <div class="chart-wrap dash-b2c-geo__chart"><canvas id="chartB2cGeo"></canvas></div>
+              <div class="dash-chart-table is-collapsed" data-dash-chart-table="b2c-geo">
+                <button type="button" class="dash-chart-table__toggle" aria-expanded="false" aria-controls="tableB2cGeo">
+                  <span>Tabela</span>
+                  <span class="dash-chart-table__chevron" aria-hidden="true"></span>
+                </button>
+                <div class="dash-chart-table__body" id="tableB2cGeo"></div>
               </div>
             </div>
           </div>
         </section>
-
         <section class="dash-block" data-dash-block="indicadores-b2b">
           <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockIndicadoresB2b">
             <span>Indicadores B2B</span>
