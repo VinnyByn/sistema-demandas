@@ -3916,6 +3916,8 @@ function normalizeChecklistItem(it) {
     who: String(it.who || it.responsavel || "").trim(),
     dateInicio: String(it.dateInicio || it.inicio || "").trim(),
     date: String(it.date || it.dateFim || "").trim(),
+    // Data real em que a atividade foi concluída (para comparar com o término previsto).
+    dateConclusao: status === "concluida" ? isoDatePart(it.dateConclusao || "") || "" : "",
     status,
     done: status === "concluida",
   };
@@ -6246,6 +6248,9 @@ function readChecklistEtapaDraft(ids) {
     who: (document.getElementById(ids.who)?.value || "").trim(),
     dateInicio: (document.getElementById(ids.dateInicio)?.value || "").trim(),
     date: (document.getElementById(ids.date)?.value || "").trim(),
+    ...(ids.dateConclusao && document.getElementById(ids.dateConclusao)
+      ? { dateConclusao: (document.getElementById(ids.dateConclusao).value || "").trim() }
+      : {}),
   };
 }
 
@@ -6268,9 +6273,15 @@ function applyChecklistItemPatch(id, patch) {
   const p = { ...patch };
   if (p.status && CHECKLIST_STATUS_LABEL[p.status]) p.done = p.status === "concluida";
   else if (typeof p.done === "boolean") p.status = p.done ? "concluida" : "afazer";
-  editingChecklist = normalizeChecklist(editingChecklist).map((row) =>
-    row.id === id ? { ...row, ...p } : row,
-  );
+  editingChecklist = normalizeChecklist(editingChecklist).map((row) => {
+    if (row.id !== id) return row;
+    const next = { ...row, ...p };
+    // Ao concluir, registra a data real (hoje) se ainda não houver; ao reabrir, limpa.
+    if (p.done === true && !row.done && !p.dateConclusao) next.dateConclusao = todayISODate();
+    if (p.done === false) next.dateConclusao = "";
+    if (!next.done) next.dateConclusao = "";
+    return next;
+  });
 }
 
 function persistOpenChecklistEdit() {
@@ -6281,6 +6292,7 @@ function persistOpenChecklistEdit() {
     who: "demChecklistEditWho",
     dateInicio: "demChecklistEditInicio",
     date: "demChecklistEditFim",
+    dateConclusao: "demChecklistEditConclusao",
   });
   if (!draft.name) return;
   applyChecklistItemPatch(editingChecklistItemId, draft);
@@ -6358,6 +6370,7 @@ function saveChecklistItemEdit(id) {
     who: "demChecklistEditWho",
     dateInicio: "demChecklistEditInicio",
     date: "demChecklistEditFim",
+    dateConclusao: "demChecklistEditConclusao",
   });
   if (!validateChecklistEtapa(draft, "demChecklistEditInicio")) return;
   applyChecklistItemPatch(id, draft);
@@ -6384,7 +6397,14 @@ function checklistItemPrazo(it) {
   let end = checklistGanttItemEnd(it);
   if (start && end && start > end) [start, end] = [end, start];
   const hoje = todayISODate();
-  if (it.done) return { atrasada: false, texto: "" };
+  if (it.done) {
+    const concl = it.dateConclusao || "";
+    if (concl && end && concl > end) {
+      const n = diasEntreDatasISO(end, concl);
+      return { atrasada: false, diasAtrasoConclusao: n, texto: `Concluída com ${n === 1 ? "1 dia" : `${n} dias`} de atraso` };
+    }
+    return { atrasada: false, texto: concl ? `Concluída em ${formatDataCurta(concl).slice(0, 5)}` : "" };
+  }
   if (end && hoje > end) {
     const n = diasEntreDatasISO(end, hoje);
     return { atrasada: true, texto: `Atrasada ${n === 1 ? "1 dia" : `${n} dias`}` };
@@ -6406,7 +6426,11 @@ function checklistItemPrazo(it) {
  */
 function checklistItemSituacao(it) {
   const status = normalizeChecklistStatus(it);
-  if (status === "concluida") return { tom: "done", texto: "Concluída" };
+  if (status === "concluida") {
+    const prazoC = checklistItemPrazo(it);
+    if (prazoC.diasAtrasoConclusao) return { tom: "done-late", texto: prazoC.texto };
+    return { tom: "done", texto: prazoC.texto && it.date && it.dateConclusao ? "Concluída no prazo" : "Concluída" };
+  }
   const prazo = checklistItemPrazo(it);
   if (prazo.atrasada) return { tom: "late", texto: prazo.texto };
   const base = CHECKLIST_STATUS_LABEL[status];
@@ -6623,7 +6647,15 @@ function renderChecklistEditor() {
         type: "date",
         value: it.date,
       });
-      [nameField.input, whoField.input, startField.input, endField.input].forEach((input) => {
+      const conclField = it.done
+        ? createChecklistField({
+            id: "demChecklistEditConclusao",
+            label: "Concluída em",
+            type: "date",
+            value: it.dateConclusao || "",
+          })
+        : null;
+      [nameField.input, whoField.input, startField.input, endField.input, conclField?.input].filter(Boolean).forEach((input) => {
         input.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -6659,7 +6691,7 @@ function renderChecklistEditor() {
       save.addEventListener("click", () => saveChecklistItemEdit(it.id));
       foot.append(rm, dica, cancel, save);
 
-      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, descField.wrap, foot);
+      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, ...(conclField ? [conclField.wrap] : []), descField.wrap, foot);
       li.append(icone, edit);
     } else {
       const body = document.createElement("div");
@@ -6713,7 +6745,11 @@ function renderChecklistEditor() {
       // Prazo (texto) + status (seletor) à direita.
       const prazo = checklistItemPrazo(it);
       const prazoEl = document.createElement("span");
-      prazoEl.className = "ck-prazo" + (prazo.atrasada ? " is-atrasada" : "") + (!prazo.texto ? " is-vazio" : "");
+      prazoEl.className =
+        "ck-prazo" +
+        (prazo.atrasada ? " is-atrasada" : "") +
+        (prazo.diasAtrasoConclusao ? " is-concl-atraso" : "") +
+        (!prazo.texto ? " is-vazio" : "");
       prazoEl.textContent = prazo.texto;
 
       const sel = document.createElement("select");
@@ -6782,6 +6818,7 @@ function checklistGanttTone(it) {
 
 function checklistGanttToneLabel(tone) {
   if (tone === "done") return "Concluída";
+  if (tone === "done-late") return "Concluída com atraso";
   if (tone === "late") return "Passou da data final";
   if (tone === "active") return "Em andamento";
   return "A fazer";
@@ -6793,8 +6830,9 @@ function checklistGanttRange(items) {
   for (const it of items) {
     const start = checklistGanttItemStart(it);
     const end = checklistGanttItemEnd(it);
+    const concl = it.done ? isoDatePart(it.dateConclusao || "") : "";
     const a = start || end;
-    const b = end || start;
+    const b = [end || start, concl].filter(Boolean).sort().pop() || "";
     if (a && (!min || a < min)) min = a;
     if (b && (!max || b > max)) max = b;
   }
@@ -6906,7 +6944,7 @@ function editarChecklistItemPeloGantt(id) {
 }
 
 function renderChecklistGanttToolbar(host, items) {
-  const conta = { done: 0, active: 0, late: 0, wait: 0 };
+  const conta = { done: 0, "done-late": 0, active: 0, late: 0, wait: 0 };
   for (const it of items) conta[checklistItemSituacao(it).tom] += 1;
   const bar = document.createElement("div");
   bar.className = "checklist-gantt__toolbar";
@@ -6914,6 +6952,7 @@ function renderChecklistGanttToolbar(host, items) {
   legenda.className = "checklist-gantt__legenda";
   [
     ["done", "Concluída"],
+    ["done-late", "Concluída com atraso"],
     ["active", "Em andamento"],
     ["late", "Atrasada"],
     ["wait", "A fazer"],
@@ -7115,7 +7154,7 @@ function renderChecklistGantt() {
       const i1 = days.indexOf(end);
       if (i0 >= 0 && i1 >= 0) {
         const bar = document.createElement("div");
-        bar.className = "checklist-gantt__bar is-" + tone;
+        bar.className = "checklist-gantt__bar is-" + (tone === "done-late" ? "done" : tone);
         bar.style.left = `${(i0 / days.length) * 100}%`;
         bar.style.width = `${((i1 - i0 + 1) / days.length) * 100}%`;
         bar.title = `${it.name} · ${it.who || "—"} · ${checklistGanttToneLabel(tone)} · Início ${formatDataCurta(start)} · Término ${formatDataCurta(end)}`;
@@ -7135,6 +7174,37 @@ function renderChecklistGantt() {
         mark.style.left = `${((idx + 0.5) / days.length) * 100}%`;
         mark.title = `${it.name} · ${checklistGanttToneLabel(tone)} · ${end ? "Término" : "Início"} ${formatDataCurta(pin)}`;
         track.appendChild(mark);
+      }
+    }
+    // Concluída depois do previsto: trecho vermelho do término previsto até a conclusão real.
+    const concl = it.done ? isoDatePart(it.dateConclusao || "") : "";
+    if (concl && end && concl > end) {
+      const iA = days.indexOf(addDaysISO(end, 1));
+      const iB = days.indexOf(concl);
+      if (iA >= 0 && iB >= iA) {
+        const atraso = document.createElement("div");
+        atraso.className = "checklist-gantt__bar checklist-gantt__atraso";
+        atraso.style.left = `${(iA / days.length) * 100}%`;
+        atraso.style.width = `${((iB - iA + 1) / days.length) * 100}%`;
+        const n = diasEntreDatasISO(end, concl);
+        atraso.title = `${it.name} · previsto até ${formatDataCurta(end)} · concluída em ${formatDataCurta(concl)} (${n} dia(s) de atraso)`;
+        if ((iB - iA + 1) * colPx >= 34) {
+          atraso.textContent = `+${n}d`;
+          atraso.classList.add("has-txt");
+        }
+        track.appendChild(atraso);
+      }
+    }
+    if (concl) {
+      const iC = days.indexOf(concl);
+      if (iC >= 0) {
+        const ok = document.createElement("span");
+        ok.className = "checklist-gantt__concl" + (end && concl > end ? " is-atraso" : "");
+        ok.style.left = `${((iC + 0.5) / days.length) * 100}%`;
+        ok.textContent = "✓";
+        ok.title = `Concluída em ${formatDataCurta(concl)}`;
+        ok.setAttribute("aria-hidden", "true");
+        track.appendChild(ok);
       }
     }
     row.append(label, track);
