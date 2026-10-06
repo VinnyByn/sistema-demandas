@@ -1417,23 +1417,37 @@
     </div>
   </dialog>
 
-  <dialog class="modal" id="modalMetasEtapa" aria-labelledby="modalMetasEtapaTitulo">
+  <dialog class="modal metas-modal" id="modalMetasEtapa" aria-labelledby="modalMetasEtapaTitulo">
     <div class="modal__inner">
-      <div class="modal__head">
-        <h2 id="modalMetasEtapaTitulo">Metas por etapa</h2>
+      <div class="modal__head metas-modal__head">
+        <span class="metas-modal__ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>
+        </span>
+        <div class="metas-modal__titulo">
+          <h2 id="modalMetasEtapaTitulo">Metas por etapa</h2>
+          <p>Quantos dias um projeto pode ficar em cada etapa antes de virar <strong>parado</strong> no card, na coluna e no sino.</p>
+        </div>
         <button type="button" class="icon-btn" id="modalMetasEtapaClose" aria-label="Fechar">×</button>
       </div>
-      <div class="modal__body">
-        <p class="muted small metas-etapa__ajuda">Quantos dias um projeto pode ficar em cada etapa. Ao passar da meta ele aparece como <strong>parado</strong> no card, no cabeçalho da coluna e no sino de alertas.
-          Em branco usa o padrão de 6 dias; <strong>0</strong> desliga a meta da etapa.</p>
-        <p class="metas-etapa__aviso" id="metasEtapaAviso" hidden>Só administradores podem alterar as metas.</p>
-        <div class="metas-etapa" id="metasEtapaCorpo"></div>
+      <div class="modal__body metas-modal__body">
+        <p class="metas-etapa__aviso" id="metasEtapaAviso" hidden>Só administradores podem alterar as metas — aqui você vê as metas em uso.</p>
+        <div class="metas-modal__barra">
+          <div class="dash-seg metas-modal__abas" role="tablist" aria-label="Esteira" id="metasEtapaAbas"></div>
+          <div class="metas-todas" id="metasTodas">
+            <span>Todas as etapas</span>
+            <input type="number" min="0" max="365" step="1" inputmode="numeric" id="metasTodasValor" placeholder="dias" aria-label="Dias para aplicar em todas as etapas" />
+            <button type="button" class="btn btn--ghost btn--sm" id="btnMetasTodas">Aplicar</button>
+          </div>
+        </div>
+        <div class="metas-resumo" id="metasEtapaResumo" aria-live="polite"></div>
+        <ol class="metas-lista" id="metasEtapaCorpo"></ol>
+        <p class="metas-legenda"><span class="meta-tag">padrão</span> usa 6 dias · <span class="meta-tag meta-tag--custom">própria</span> meta definida para a etapa · <span class="meta-tag meta-tag--off">sem meta</span> 0 dias, nunca alerta</p>
       </div>
       <div class="modal__foot">
-        <button type="button" class="btn btn--ghost" id="btnPadraoMetasEtapa">Voltar ao padrão</button>
+        <button type="button" class="btn btn--ghost" id="btnPadraoMetasEtapa" title="Volta todas as etapas desta esteira para o padrão">Restaurar padrão</button>
         <span style="flex:1"></span>
         <button type="button" class="btn btn--ghost" id="btnCancelarMetasEtapa">Cancelar</button>
-        <button type="button" class="btn btn--primary" id="btnSalvarMetasEtapa">Salvar metas</button>
+        <button type="button" class="btn btn--primary" id="btnSalvarMetasEtapa" disabled>Salvar metas</button>
       </div>
     </div>
   </dialog>

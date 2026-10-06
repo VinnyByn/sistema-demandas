@@ -10111,35 +10111,160 @@ function etapasComMeta(linha) {
   return [...cfg.statusOrder, ...cfg.statusExtra].filter(([k]) => !fin.has(k));
 }
 
+/** Rascunho do modal de metas: { linha: { status: "" (padrão) | número } }. */
+let metasDraft = null;
+let metasOriginal = null;
+let metasAba = LINHA_ESTEIRA_OPERACIONAL;
+
+const METAS_ABAS = [
+  [LINHA_ESTEIRA_OPERACIONAL, "Esteira Projetos"],
+  [LINHA_ESTEIRA_B2B, "Esteira B2B"],
+];
+
+function metaValorBruto(v) {
+  if (v === undefined || v === null || v === "") return "";
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 0 ? Math.min(365, n) : "";
+}
+
+/** Meta efetiva de um valor do rascunho (null = sem meta). */
+function metaEfetivaDoRascunho(v) {
+  if (v === "") return ALERTA_DIAS_MESMA_COLUNA;
+  return v === 0 ? null : v;
+}
+
+function metasAlteracoes() {
+  let n = 0;
+  for (const [linha] of METAS_ABAS) {
+    for (const [k] of etapasComMeta(linha)) if (metasDraft[linha][k] !== metasOriginal[linha][k]) n++;
+  }
+  return n;
+}
+
+/** Projetos ativos (não arquivados) de cada etapa e quantos passariam da meta do rascunho. */
+function metasContagemEtapas(linha) {
+  const out = {};
+  for (const d of state.demandas || []) {
+    if (d.arquivadoEm || inferLinhaEsteira(d) !== linha) continue;
+    const o = (out[d.status] ||= { total: 0, acima: 0 });
+    o.total++;
+    const meta = metaEfetivaDoRascunho(metasDraft[linha][d.status] ?? "");
+    if (meta == null || !normalizeResponsavel(d.responsavel)) continue;
+    const dias = diasNaColunaAtual(d);
+    if (dias != null && dias >= meta) o.acima++;
+  }
+  return out;
+}
+
 function abrirMetasEtapaModal() {
   const dlg = document.getElementById("modalMetasEtapa");
   if (!dlg) return;
-  const admin = isAdminUser();
-  const blocos = [
-    [LINHA_ESTEIRA_OPERACIONAL, "Esteira Projetos"],
-    [LINHA_ESTEIRA_B2B, "Esteira B2B"],
-  ];
-  document.getElementById("metasEtapaCorpo").innerHTML = blocos
-    .map(([linha, nome]) => {
-      const linhas = etapasComMeta(linha)
-        .map(([k, label]) => {
-          const v = state.metasEtapa?.[linha]?.[k];
-          const valor = v === undefined || v === null || v === "" ? "" : String(Math.max(0, Math.round(Number(v)) || 0));
-          return (
-            `<label class="metas-etapa__linha"><span>${escapeHtml(label)}</span>` +
-            `<span class="metas-etapa__campo"><input type="number" min="0" max="365" step="1" inputmode="numeric" ` +
-            `data-meta-linha="${escapeHtml(linha)}" data-meta-status="${escapeHtml(k)}" value="${escapeHtml(valor)}" ` +
-            `placeholder="${ALERTA_DIAS_MESMA_COLUNA}"${admin ? "" : " disabled"} aria-label="Meta em dias para ${escapeHtml(label)}" /> dias</span></label>`
-          );
-        })
-        .join("");
-      return `<section class="metas-etapa__bloco"><h3>${escapeHtml(nome)}</h3>${linhas}</section>`;
-    })
-    .join("");
-  document.getElementById("btnSalvarMetasEtapa").hidden = !admin;
-  document.getElementById("btnPadraoMetasEtapa").hidden = !admin;
-  document.getElementById("metasEtapaAviso").hidden = admin;
+  metasOriginal = {};
+  for (const [linha] of METAS_ABAS) {
+    metasOriginal[linha] = {};
+    for (const [k] of etapasComMeta(linha)) metasOriginal[linha][k] = metaValorBruto(state.metasEtapa?.[linha]?.[k]);
+  }
+  metasDraft = JSON.parse(JSON.stringify(metasOriginal));
+  metasAba = activeEsteiraCanal === LINHA_ESTEIRA_B2B ? LINHA_ESTEIRA_B2B : LINHA_ESTEIRA_OPERACIONAL;
+  const todas = document.getElementById("metasTodasValor");
+  if (todas) todas.value = "";
+  renderMetasEtapaModal();
   if (!dlg.open) dlg.showModal();
+}
+
+function renderMetasEtapaModal({ manterFoco = false } = {}) {
+  if (!metasDraft) return;
+  const admin = isAdminUser();
+  const focado = manterFoco ? document.activeElement?.dataset?.metaStatus : "";
+  const abasEl = document.getElementById("metasEtapaAbas");
+  if (abasEl) {
+    abasEl.innerHTML = METAS_ABAS.map(([linha, nome]) => {
+      const cont = metasContagemEtapas(linha);
+      const acima = Object.values(cont).reduce((s, c) => s + c.acima, 0);
+      const ativo = linha === metasAba;
+      return (
+        `<button type="button" role="tab" data-metas-aba="${linha}" class="${ativo ? "is-active" : ""}" aria-selected="${ativo}">` +
+        `${escapeHtml(nome)}${acima ? ` <span class="metas-aba__n" title="${acima} projeto(s) acima da meta">${acima}</span>` : ""}</button>`
+      );
+    }).join("");
+  }
+  const linha = metasAba;
+  const etapas = etapasComMeta(linha);
+  const cont = metasContagemEtapas(linha);
+  const personalizadas = etapas.filter(([k]) => metasDraft[linha][k] !== "").length;
+  const totalAcima = etapas.reduce((s, [k]) => s + (cont[k]?.acima || 0), 0);
+  const resumo = document.getElementById("metasEtapaResumo");
+  if (resumo) {
+    resumo.innerHTML =
+      `<span class="metas-resumo__item"><b>${etapas.length}</b> etapas</span>` +
+      `<span class="metas-resumo__item"><b>${personalizadas}</b> com meta própria</span>` +
+      `<span class="metas-resumo__item${totalAcima ? " is-alerta" : " is-ok"}">` +
+      (totalAcima ? `<b>${totalAcima}</b> projeto(s) acima da meta agora` : "✓ Nenhum projeto acima da meta") +
+      `</span>`;
+  }
+  const lista = document.getElementById("metasEtapaCorpo");
+  if (lista) {
+    lista.innerHTML = etapas
+      .map(([k, label], i) => {
+        const v = metasDraft[linha][k];
+        const alterada = v !== metasOriginal[linha][k];
+        const semMeta = v === 0;
+        const c = cont[k] || { total: 0, acima: 0 };
+        const setor = setorForStatusDemanda(k, linha);
+        const tag = semMeta
+          ? `<span class="meta-tag meta-tag--off">sem meta</span>`
+          : v === ""
+            ? `<span class="meta-tag">padrão</span>`
+            : `<span class="meta-tag meta-tag--custom">própria</span>`;
+        const uso = c.total
+          ? `${c.total} projeto${c.total > 1 ? "s" : ""}` +
+            (c.acima ? ` · <b class="meta-etapa__acima">${c.acima} acima da meta</b>` : "")
+          : `<span class="muted">vazia</span>`;
+        return (
+          `<li class="meta-etapa${alterada ? " is-alterada" : ""}${semMeta ? " is-sem-meta" : ""}">` +
+          `<span class="meta-etapa__n" aria-hidden="true">${i + 1}</span>` +
+          `<div class="meta-etapa__info"><strong>${escapeHtml(label)}</strong>` +
+          `<span class="meta-etapa__sub">${setor ? setorBadgeHtml(setor) : ""}<span>${uso}</span></span></div>` +
+          `<div class="meta-etapa__ctrl">${tag}` +
+          `<div class="meta-stepper${admin ? "" : " is-ro"}">` +
+          `<button type="button" data-meta-passo="-1" data-meta-k="${escapeHtml(k)}" aria-label="Diminuir meta de ${escapeHtml(label)}"${admin ? "" : " disabled"}>−</button>` +
+          `<input type="number" min="0" max="365" step="1" inputmode="numeric" data-meta-status="${escapeHtml(k)}" value="${v === "" ? "" : v}" placeholder="${ALERTA_DIAS_MESMA_COLUNA}"` +
+          ` aria-label="Meta em dias para ${escapeHtml(label)}"${admin ? "" : " disabled"} />` +
+          `<button type="button" data-meta-passo="1" data-meta-k="${escapeHtml(k)}" aria-label="Aumentar meta de ${escapeHtml(label)}"${admin ? "" : " disabled"}>+</button>` +
+          `</div><span class="meta-etapa__un">dias</span></div></li>`
+        );
+      })
+      .join("");
+    if (focado) {
+      const inp = lista.querySelector(`[data-meta-status="${CSS.escape(focado)}"]`);
+      if (inp) {
+        inp.focus();
+        const fim = inp.value.length;
+        try {
+          inp.setSelectionRange(fim, fim);
+        } catch {
+          /* input number não aceita seleção em alguns navegadores */
+        }
+      }
+    }
+  }
+  const n = metasAlteracoes();
+  const salvar = document.getElementById("btnSalvarMetasEtapa");
+  if (salvar) {
+    salvar.hidden = !admin;
+    salvar.disabled = n === 0;
+    salvar.textContent = n ? `Salvar ${n} ${n > 1 ? "alterações" : "alteração"}` : "Salvar metas";
+  }
+  const padrao = document.getElementById("btnPadraoMetasEtapa");
+  if (padrao) padrao.hidden = !admin;
+  const todas = document.getElementById("metasTodas");
+  if (todas) todas.hidden = !admin;
+  const aviso = document.getElementById("metasEtapaAviso");
+  if (aviso) aviso.hidden = admin;
+}
+
+function definirMetaRascunho(k, valor) {
+  metasDraft[metasAba][k] = metaValorBruto(valor);
 }
 
 function salvarMetasEtapa() {
@@ -10147,33 +10272,68 @@ function salvarMetasEtapa() {
     toast("Só administradores alteram as metas");
     return;
   }
-  const metas = { [LINHA_ESTEIRA_OPERACIONAL]: {}, [LINHA_ESTEIRA_B2B]: {} };
-  document.querySelectorAll("#metasEtapaCorpo [data-meta-status]").forEach((inp) => {
-    const raw = String(inp.value || "").trim();
-    if (raw === "") return;
-    const n = Math.round(Number(raw));
-    if (!Number.isFinite(n) || n < 0) return;
-    metas[inp.dataset.metaLinha][inp.dataset.metaStatus] = Math.min(365, n);
-  });
-  // Etapas sem valor voltam ao padrão: grava `null` para apagar o valor antigo no merge do Firestore.
-  for (const linha of Object.keys(metas)) {
-    for (const [k] of etapasComMeta(linha)) if (!(k in metas[linha])) metas[linha][k] = null;
+  if (!metasDraft) return;
+  // Etapas em branco voltam ao padrão: grava `null` para apagar o valor antigo no merge do Firestore.
+  const metas = {};
+  for (const [linha] of METAS_ABAS) {
+    metas[linha] = {};
+    for (const [k] of etapasComMeta(linha)) {
+      const v = metasDraft[linha][k];
+      metas[linha][k] = v === "" ? null : v;
+    }
   }
+  const n = metasAlteracoes();
   state.metasEtapa = metas;
   saveState({ metaFields: { metasEtapa: metas } });
   document.getElementById("modalMetasEtapa")?.close();
   refreshAllViews();
-  toast("Metas por etapa salvas");
+  toast(n ? `Metas salvas · ${n} etapa(s) alterada(s)` : "Metas por etapa salvas");
 }
 
 function initMetasEtapa() {
   document.getElementById("btnMetasEtapa")?.addEventListener("click", abrirMetasEtapaModal);
-  const fechar = () => document.getElementById("modalMetasEtapa")?.close();
+  const dlg = document.getElementById("modalMetasEtapa");
+  const fechar = () => dlg?.close();
   document.getElementById("modalMetasEtapaClose")?.addEventListener("click", fechar);
   document.getElementById("btnCancelarMetasEtapa")?.addEventListener("click", fechar);
   document.getElementById("btnSalvarMetasEtapa")?.addEventListener("click", salvarMetasEtapa);
   document.getElementById("btnPadraoMetasEtapa")?.addEventListener("click", () => {
-    document.querySelectorAll("#metasEtapaCorpo [data-meta-status]").forEach((inp) => (inp.value = ""));
+    if (!metasDraft) return;
+    for (const [k] of etapasComMeta(metasAba)) metasDraft[metasAba][k] = "";
+    renderMetasEtapaModal();
+  });
+  document.getElementById("metasEtapaAbas")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-metas-aba]");
+    if (!b || b.dataset.metasAba === metasAba) return;
+    metasAba = b.dataset.metasAba;
+    renderMetasEtapaModal();
+  });
+  const corpo = document.getElementById("metasEtapaCorpo");
+  corpo?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-meta-passo]");
+    if (!b || !metasDraft || !isAdminUser()) return;
+    const k = b.dataset.metaK;
+    const atual = metasDraft[metasAba][k];
+    const base = atual === "" ? ALERTA_DIAS_MESMA_COLUNA : atual;
+    definirMetaRascunho(k, Math.max(0, base + Number(b.dataset.metaPasso)));
+    renderMetasEtapaModal();
+  });
+  corpo?.addEventListener("input", (e) => {
+    const inp = e.target.closest("[data-meta-status]");
+    if (!inp || !metasDraft) return;
+    definirMetaRascunho(inp.dataset.metaStatus, inp.value.trim());
+    renderMetasEtapaModal({ manterFoco: true });
+  });
+  document.getElementById("btnMetasTodas")?.addEventListener("click", () => {
+    const inp = document.getElementById("metasTodasValor");
+    const raw = (inp?.value || "").trim();
+    if (raw === "" || !metasDraft) {
+      toast("Informe quantos dias aplicar em todas as etapas");
+      inp?.focus();
+      return;
+    }
+    for (const [k] of etapasComMeta(metasAba)) definirMetaRascunho(k, raw);
+    renderMetasEtapaModal();
   });
 }
 
