@@ -1,8 +1,10 @@
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { aggregateViabilidade } = require("./viabilidade");
+const { gerarBackup, isAdminEmail } = require("./backup");
 
 initializeApp();
 
@@ -495,3 +497,25 @@ exports.getViabilidadePortas = onCall(
     }
   },
 );
+
+/** Backup diário (03:10, horário de Brasília) de todos os projetos e do doc meta no Storage. */
+exports.backupDiario = onSchedule(
+  { schedule: "10 3 * * *", timeZone: "America/Sao_Paulo", region: REGION, memory: "512MiB", timeoutSeconds: 300 },
+  async () => {
+    const info = await gerarBackup({ motivo: "agendado" });
+    console.log("Backup diário gerado", info);
+  },
+);
+
+/** Backup sob demanda (botão no app) — só administradores. */
+exports.backupAgora = onCall({ region: REGION, memory: "512MiB", timeoutSeconds: 300 }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Faça login para gerar o backup.");
+  const email = request.auth.token.email || "";
+  if (!(await isAdminEmail(email))) throw new HttpsError("permission-denied", "Só administradores geram backup.");
+  try {
+    return await gerarBackup({ motivo: "manual", autor: email });
+  } catch (e) {
+    console.error("backupAgora", e);
+    throw new HttpsError("internal", String(e?.message || "Falha ao gerar o backup."));
+  }
+});

@@ -87,6 +87,9 @@ const ESTEIRA_CONFIG = {
   [LINHA_ESTEIRA_B2B]: buildEsteiraConfig(STATUS_ORDER_B2B, [], "pre_vendas"),
 };
 
+/** Modo de seleção da esteira (ações em lote). */
+const selecaoEsteira = { ativa: false, ids: new Set() };
+
 function getEsteiraConfig(linha = activeEsteiraCanal) {
   return ESTEIRA_CONFIG[normalizeLinhaEsteira(linha)] || ESTEIRA_CONFIG[LINHA_ESTEIRA_OPERACIONAL];
 }
@@ -488,13 +491,17 @@ function columnHeadHtml(status, linha, count, list = null) {
     indHtml =
       (ind.atrasados ? `<span class="column__ind column__ind--bad" title="${ind.atrasados} atrasado(s)">${ind.atrasados} atrasado${ind.atrasados > 1 ? "s" : ""}</span>` : "") +
       (ind.vencendo ? `<span class="column__ind column__ind--warn" title="${ind.vencendo} vence(m) em até 3 dias">${ind.vencendo} vencendo</span>` : "") +
-      (ind.parados ? `<span class="column__ind column__ind--coluna" title="${ind.parados} parado(s) há ${ALERTA_DIAS_MESMA_COLUNA}+ dias nesta coluna">${ind.parados} parado${ind.parados > 1 ? "s" : ""}</span>` : "");
+      (ind.parados ? `<span class="column__ind column__ind--coluna" title="${ind.parados} acima da meta de ${metaDiasEtapa(status, linha)} dia(s) nesta etapa">${ind.parados} parado${ind.parados > 1 ? "s" : ""}</span>` : "");
   }
+  const meta = metaDiasEtapa(status, linha);
+  const metaHtml = meta != null
+    ? `<span class="column__meta" title="Meta: até ${meta} dia(s) nesta etapa">⏱ ${meta}d</span>`
+    : "";
   return (
     `<div class="column__head">` +
     `<div class="column__head-top"><div class="column__title" title="${title}">${title}</div>` +
     `<span class="column__count${count ? "" : " is-zero"}" title="${count} projeto(s)">${count}</span></div>` +
-    `<div class="column__head-meta">${setorHtml}${indHtml ? `<span class="column__inds">${indHtml}</span>` : ""}</div>` +
+    `<div class="column__head-meta">${setorHtml}${metaHtml}${indHtml ? `<span class="column__inds">${indHtml}</span>` : ""}</div>` +
     `</div>`
   );
 }
@@ -1434,8 +1441,7 @@ function demandaPrazoProximo(d) {
 
 function demandaParadaNaColuna(d) {
   if (isDemandaEncerrada(d) || !normalizeResponsavel(d.responsavel)) return false;
-  const dias = diasNaColunaAtual(d);
-  return dias != null && dias >= ALERTA_DIAS_MESMA_COLUNA;
+  return diasAcimaDaMeta(d) != null;
 }
 
 const ESTEIRA_FILTROS_RAPIDOS = {
@@ -1444,7 +1450,7 @@ const ESTEIRA_FILTROS_RAPIDOS = {
   sem_projetista: { label: "sem projetista", tom: "bad", test: (d) => !normalizeResponsavel(d.responsavel) },
   parados: {
     get label() {
-      return `parado(s) há ${ALERTA_DIAS_MESMA_COLUNA}+ dias na coluna`;
+      return "acima da meta da etapa";
     },
     tom: "coluna",
     test: demandaParadaNaColuna,
@@ -2015,7 +2021,10 @@ function applyLoadedState(data) {
   state = mergeLoadedState(data);
   const tombstones = demandaDeleteTombstones();
   const diariaTombstones = diariaDeleteTombstones();
-  state.demandas = (state.demandas || []).filter((d) => !tombstones.has(d.id)).map(migrateDemanda);
+  const todas = (state.demandas || []).filter((d) => !tombstones.has(d.id)).map(migrateDemanda);
+  // Excluídas ficam na lixeira (fora de esteira, dashboard e alertas) até serem restauradas ou apagadas.
+  state.lixeira = todas.filter((d) => d.excluidoEm);
+  state.demandas = todas.filter((d) => !d.excluidoEm);
   state.diarias = (state.diarias || [])
     .filter((d) => !diariaTombstones.has(d.id))
     .map(normalizeDiaria);
@@ -2069,6 +2078,12 @@ function applyCloudPatch(patch) {
       toast(e?.message || "Não foi possível sincronizar diárias/projetistas na nuvem");
     });
   }
+  if (patch.metaFields && persistenceApi.persistMetaFields) {
+    void persistenceApi.persistMetaFields(patch.metaFields).catch((e) => {
+      console.warn("Salvar configuração na nuvem:", e);
+      toast(e?.message || "Não foi possível salvar a configuração na nuvem");
+    });
+  }
   if (patch.importFull && persistenceApi.importFullState) {
     void persistenceApi.importFullState(state);
   }
@@ -2079,12 +2094,13 @@ function saveState(patch = {}) {
     // Cópia local sem flag interna de migração
     const toSave = {
       ...state,
-      demandas: (state.demandas || []).map((d) => {
+      demandas: [...(state.demandas || []), ...(state.lixeira || [])].map((d) => {
         if (!d || !d.__isMigrated) return d;
         const { __isMigrated, ...rest } = d;
         return rest;
       }),
     };
+    delete toSave.lixeira;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch (e) {
     console.warn("Falha ao salvar cópia local:", e);
@@ -3445,6 +3461,10 @@ function normalizeComentario(c) {
     createdAt: c?.createdAt || new Date().toISOString(),
   };
   if (c?.editadoEm) out.editadoEm = String(c.editadoEm);
+  const mencoes = Array.isArray(c?.mencoes)
+    ? [...new Set(c.mencoes.map((e) => String(e || "").trim().toLowerCase()).filter(Boolean))]
+    : [];
+  if (mencoes.length) out.mencoes = mencoes;
   return out;
 }
 
@@ -3556,6 +3576,7 @@ const HISTORICO_ALERTAS_LIMITE = 80;
 const ALERTA_KIND_SEM_ATRIB = "sem_atribuicao";
 const ALERTA_KIND_COLUNA = "coluna";
 const ALERTA_KIND_CLICKUP_RETORNO = "clickup_retorno";
+const ALERTA_KIND_MENCAO = "mencao";
 const ALERTA_DIAS_MESMA_COLUNA = 6;
 const ALERTA_SNOOZE_DIAS_PADRAO = 4;
 
@@ -3767,6 +3788,8 @@ function sameChecklist(a, b) {
     if (x[i].date !== y[i].date) return false;
     if (x[i].done !== y[i].done) return false;
     if (x[i].status !== y[i].status) return false;
+    if ((x[i].dependeDe || "") !== (y[i].dependeDe || "")) return false;
+    if ((x[i].dateConclusao || "") !== (y[i].dateConclusao || "")) return false;
   }
   return true;
 }
@@ -3919,6 +3942,8 @@ function normalizeChecklistItem(it) {
     date: String(it.date || it.dateFim || "").trim(),
     // Data real em que a atividade foi concluída (para comparar com o término previsto).
     dateConclusao: status === "concluida" ? isoDatePart(it.dateConclusao || "") || "" : "",
+    // Atividade que precisa terminar antes desta começar (id no mesmo checklist).
+    dependeDe: String(it.dependeDe || "").trim(),
     status,
     done: status === "concluida",
   };
@@ -3926,7 +3951,29 @@ function normalizeChecklistItem(it) {
 
 function normalizeChecklist(list) {
   if (!Array.isArray(list)) return [];
-  return list.map(normalizeChecklistItem).filter(Boolean);
+  const items = list.map(normalizeChecklistItem).filter(Boolean);
+  const ids = new Set(items.map((x) => x.id));
+  for (const it of items) {
+    if (it.dependeDe && (it.dependeDe === it.id || !ids.has(it.dependeDe))) it.dependeDe = "";
+  }
+  return items;
+}
+
+/** Anexos do projeto (arquivos no Firebase Storage). */
+function normalizeAnexos(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((a) => a && typeof a === "object" && a.path && a.nome)
+    .map((a) => ({
+      id: String(a.id || uid()),
+      nome: String(a.nome),
+      tipo: String(a.tipo || ""),
+      tamanho: Number(a.tamanho) || 0,
+      path: String(a.path),
+      url: String(a.url || ""),
+      enviadoPor: String(a.enviadoPor || ""),
+      enviadoEm: String(a.enviadoEm || ""),
+    }));
 }
 
 function migrateDemanda(d) {
@@ -3980,6 +4027,16 @@ function migrateDemanda(d) {
     createdAt: d.createdAt || new Date().toISOString(),
     updatedAt: d.updatedAt || new Date().toISOString(),
   };
+  base.anexos = normalizeAnexos(d.anexos);
+  // Lixeira / arquivo: excluído vai para a lixeira (recuperável); arquivado sai da esteira.
+  if (d.excluidoEm) {
+    base.excluidoEm = String(d.excluidoEm);
+    base.excluidoPor = String(d.excluidoPor || "");
+  }
+  if (d.arquivadoEm) {
+    base.arquivadoEm = String(d.arquivadoEm);
+    base.arquivadoPor = String(d.arquivadoPor || "");
+  }
   const snooze = normalizeAlertaSnooze(d.alertaSnooze);
   if (snooze) base.alertaSnooze = snooze;
   if (!base.clickup) delete base.clickup;
@@ -4396,6 +4453,7 @@ function filteredDemandasForEsteira(linha = activeEsteiraCanal, { rapido = true 
   return state.demandas
     .filter((d) => !tombstones.has(d.id))
     .map(migrateDemanda)
+    .filter((d) => !d.arquivadoEm)
     .filter((d) => inferLinhaEsteira(d) === normalizeLinhaEsteira(linha))
     .filter((d) => demandaMatchesEsteiraFilters(d, f));
 }
@@ -4628,8 +4686,8 @@ function buildInboxAlertasRows(list, linha) {
       continue;
     }
 
-    const diasCol = diasNaColunaAtual(d);
-    if (diasCol != null && diasCol >= ALERTA_DIAS_MESMA_COLUNA) {
+    const diasCol = diasAcimaDaMeta(d);
+    if (diasCol != null) {
       if (alertaSnoozeAtivo(d, ALERTA_KIND_COLUNA)) continue;
       const fase = labelStatus(d.status, d.linhaEsteira);
       rows.push({
@@ -4637,7 +4695,7 @@ function buildInboxAlertasRows(list, linha) {
         kind: ALERTA_KIND_COLUNA,
         d,
         dias: diasCol,
-        msg: `${diasCol} dia(s) em «${fase}»`,
+        msg: `${diasCol} dia(s) em «${fase}» · meta ${metaDiasDemanda(d)}d`,
         curta: `Parado em ${fase}`,
         meta: formatProjetistasDemanda(d) ? `Projetista: ${formatProjetistasDemanda(d)}` : "",
       });
@@ -4657,6 +4715,7 @@ function buildInboxAlertasRows(list, linha) {
 let alertasFiltroKind = "";
 
 const ALERTAS_ABAS = [
+  { kind: ALERTA_KIND_MENCAO, label: "Menções", tom: "mencao" },
   { kind: ALERTA_KIND_SEM_ATRIB, label: "Sem projetista", tom: "bad" },
   { kind: ALERTA_KIND_COLUNA, label: "Parados", tom: "coluna" },
   { kind: ALERTA_KIND_CLICKUP_RETORNO, label: "Retornos", tom: "ok" },
@@ -4666,13 +4725,13 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   const el = document.getElementById("esteiraInboxAlertas");
   if (!el) return;
   const list = filteredDemandasForEsteira(linha, { rapido: false });
-  const rows = buildInboxAlertasRows(list, linha);
+  const rows = [...mencoesParaMimRows(), ...buildInboxAlertasRows(list, linha)];
   syncNotifBadge(rows);
   const canal = linha === LINHA_ESTEIRA_B2B ? "Esteira B2B" : "Esteira Projetos";
   const head = (extra = "") =>
     `<div class="inbox-alertas__head"><h4 class="inbox-alertas__title">Alertas${extra}</h4>` +
     `<span class="inbox-alertas__canal">${canal}${esteiraFiltrosAtivosCount() ? " · com filtros" : ""}</span>` +
-    `<span class="inbox-alertas__ajuda" tabindex="0" title="Vermelho: sem projetista. Laranja: ${ALERTA_DIAS_MESMA_COLUNA}+ dias na mesma coluna. Verde: retornou da Operação.&#10;Adiar registra um comentário e silencia o alerta por alguns dias. Ciente tira o retorno da lista." aria-label="Como funcionam os alertas">?</span></div>`;
+    `<span class="inbox-alertas__ajuda" tabindex="0" title="Vermelho: sem projetista. Laranja: passou da meta de dias da etapa. Verde: retornou da Operação.&#10;Adiar registra um comentário e silencia o alerta por alguns dias. Ciente tira o retorno da lista." aria-label="Como funcionam os alertas">?</span></div>`;
 
   if (!rows.length) {
     el.innerHTML =
@@ -4708,17 +4767,21 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   const items = visiveis
     .map((r) => {
       const dias =
-        r.kind === ALERTA_KIND_CLICKUP_RETORNO
+        r.kind === ALERTA_KIND_MENCAO
+          ? `<span class="alerta__dias alerta__dias--ico" aria-hidden="true">@</span>`
+          : r.kind === ALERTA_KIND_CLICKUP_RETORNO
           ? `<span class="alerta__dias alerta__dias--ico" aria-hidden="true">✓</span>`
           : `<span class="alerta__dias" title="${escapeHtml(r.msg)}"><b>${r.dias}</b><small>${r.dias === 1 ? "dia" : "dias"}</small></span>`;
-      const acao = ro
+      const acao = r.kind === ALERTA_KIND_MENCAO
+        ? `<button type="button" class="alerta__acao" data-mencao-ciente="${escapeHtml(r.cid)}" title="Marcar como lida" aria-label="Marcar menção em ${escapeHtml(r.d.titulo)} como lida"><span aria-hidden="true">✓</span> Ciente</button>`
+        : ro
         ? ""
         : r.kind === ALERTA_KIND_CLICKUP_RETORNO
           ? `<button type="button" class="alerta__acao" data-alerta-ciente="${escapeHtml(r.d.id)}" title="Marcar como ciente" aria-label="Marcar ${escapeHtml(r.d.titulo)} como ciente"><span aria-hidden="true">✓</span> Ciente</button>`
           : `<button type="button" class="alerta__acao" data-alerta-snooze="${escapeHtml(r.d.id)}" data-kind="${escapeHtml(r.kind)}" title="Registrar e silenciar por alguns dias" aria-label="Adiar alerta de ${escapeHtml(r.d.titulo)}"><span aria-hidden="true">⏰</span> Adiar</button>`;
       return (
         `<li class="alerta alerta--${r.severity}">` +
-        `<button type="button" class="alerta__abrir" data-alerta-abrir="${escapeHtml(r.d.id)}" title="Abrir projeto">` +
+        `<button type="button" class="alerta__abrir" data-alerta-abrir="${escapeHtml(r.d.id)}"${r.cid ? ` data-cid="${escapeHtml(r.cid)}"` : ""} title="Abrir projeto">` +
         dias +
         `<span class="alerta__txt"><span class="alerta__titulo" title="${escapeHtml(r.d.titulo)}">${escapeHtml(r.d.titulo)}</span>` +
         `<span class="alerta__msg">${escapeHtml(r.curta || r.msg)}</span>` +
@@ -4744,6 +4807,7 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   });
   el.querySelectorAll("[data-alerta-abrir]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (btn.dataset.cid) marcarMencaoVista(btn.dataset.cid);
       setNotifAberto(false);
       openDemandaModal(btn.dataset.alertaAbrir);
     });
@@ -4758,6 +4822,12 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   });
   el.querySelectorAll("[data-alerta-ciente]").forEach((btn) => {
     btn.addEventListener("click", () => marcarClickupRetornoCiente(btn.dataset.alertaCiente));
+  });
+  el.querySelectorAll("[data-mencao-ciente]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      marcarMencaoVista(btn.dataset.mencaoCiente);
+      renderInboxAlertas(linha);
+    });
   });
 }
 
@@ -4945,6 +5015,12 @@ function initAlertaSnoozeModal() {
 }
 
 initAlertaSnoozeModal();
+initLixeiraModal();
+initAnexosDemanda();
+initBackupsModal();
+initLoteEsteira();
+initFiltrosSalvos();
+initMetasEtapa();
 
 /**
  * Captura o scroll do board e de cada coluna ANTES de re-renderizar
@@ -5062,6 +5138,9 @@ function renderBoard() {
   if (esteira) renderBoardInto(esteira, BOARD_ATRIBUIDOS, linha);
   renderInboxAlertas(linha);
   updateEsteiraStatusLine();
+  syncFiltrosSalvosUi();
+  podarSelecaoEsteira();
+  syncLoteBarra();
 }
 
 function setEsteiraTabMenuOpen(open) {
@@ -5159,6 +5238,8 @@ const CARD_ICONS = {
     '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1.2"/><path d="M2.5 12l3.5-3.5 2.5 2.5 2-2 3 3"/></svg>',
   pino:
     '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.5s4.5-4.2 4.5-7.7a4.5 4.5 0 0 0-9 0c0 3.5 4.5 7.7 4.5 7.7z"/><circle cx="8" cy="6.8" r="1.6"/></svg>',
+  clipe:
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5 5.8 9.2a1.5 1.5 0 0 0 2.1 2.1l5-5a3 3 0 0 0-4.2-4.2l-5 5a4.5 4.5 0 0 0 6.4 6.4l4.2-4.2"/></svg>',
 };
 
 /** Próxima coluna do fluxo (sem pausado/reprovado); execução regional/terceirizada são alternativas. */
@@ -5295,7 +5376,14 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     el.classList.add("card--being-edited");
   }
   if (expandido) el.classList.add("card--expandido");
-  el.draggable = !readOnly;
+  const emSelecao = selecaoEsteira.ativa;
+  if (emSelecao) {
+    el.classList.add("card--selecionavel");
+    const sel = selecaoEsteira.ids.has(d.id);
+    el.classList.toggle("is-selecionado", sel);
+    el.setAttribute("aria-pressed", sel ? "true" : "false");
+  }
+  el.draggable = !readOnly && !emSelecao;
   el.dataset.id = d.id;
   el.tabIndex = 0;
   el.setAttribute("role", "button");
@@ -5321,6 +5409,11 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   });
   el.addEventListener("dragend", () => el.classList.remove("card--drag-source"));
   el.addEventListener("click", (e) => {
+    if (selecaoEsteira.ativa) {
+      e.preventDefault();
+      alternarSelecaoCard(d.id, el);
+      return;
+    }
     const from = e.target instanceof Element ? e.target : e.target?.parentElement;
     if (from?.closest(".card__prio, .card__acoes")) return;
     openDemandaModal(d.id);
@@ -5329,7 +5422,8 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     if (e.target !== el) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      openDemandaModal(d.id);
+      if (selecaoEsteira.ativa) alternarSelecaoCard(d.id, el);
+      else openDemandaModal(d.id);
       return;
     }
     if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && !isReadOnlyUser()) {
@@ -5367,17 +5461,16 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
 
   const snoozeAtivo =
     alertaSnoozeAtivo(dmCard, ALERTA_KIND_SEM_ATRIB) || alertaSnoozeAtivo(dmCard, ALERTA_KIND_COLUNA);
-  const diasColuna = diasNaColunaAtual(dmCard);
+  const diasColuna = diasAcimaDaMeta(dmCard);
   const mostraColunaAlerta =
     !snoozeAtivo &&
     !isStatusConcluidoDemanda(dmCard) &&
     !isDemandaEncerrada(dmCard) &&
     normalizeResponsavel(dmCard.responsavel) &&
-    diasColuna != null &&
-    diasColuna >= ALERTA_DIAS_MESMA_COLUNA;
+    diasColuna != null;
   if (mostraColunaAlerta) el.classList.add("card--coluna-alerta");
   const colunaAlertaHtml = mostraColunaAlerta
-    ? `<p class="card__coluna-alerta"><strong>${escapeHtml(String(diasColuna))} dia(s)</strong> nesta coluna</p>`
+    ? `<p class="card__coluna-alerta"><strong>${escapeHtml(String(diasColuna))} dia(s)</strong> nesta coluna · meta ${metaDiasDemanda(dmCard)}d</p>`
     : "";
 
   const respNomes = demandaProjetistasList(d);
@@ -5405,6 +5498,8 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   }
   if (nComent) stats.push(`<span class="card__stat" title="${nComent} comentário(s)">${CARD_ICONS.comentario}${nComent}</span>`);
   if (nImg) stats.push(`<span class="card__stat" title="${nImg} imagem(ns)">${CARD_ICONS.imagem}${nImg}</span>`);
+  const nAnexos = Array.isArray(dmCard.anexos) ? dmCard.anexos.length : 0;
+  if (nAnexos) stats.push(`<span class="card__stat" title="${nAnexos} anexo(s)">${CARD_ICONS.clipe}${nAnexos}</span>`);
 
   const proxima = cardProximaEtapa(dmCard);
   const proximaLabel = proxima ? labelStatus(proxima, dmCard.linhaEsteira) : "";
@@ -5490,6 +5585,7 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     </div>
   `;
   el.querySelector(".card__title").textContent = d.titulo;
+  if (emSelecao) el.insertAdjacentHTML("afterbegin", '<span class="card__sel" aria-hidden="true"></span>');
   el.querySelectorAll(".card-prio-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -6252,6 +6348,9 @@ function readChecklistEtapaDraft(ids) {
     ...(ids.dateConclusao && document.getElementById(ids.dateConclusao)
       ? { dateConclusao: (document.getElementById(ids.dateConclusao).value || "").trim() }
       : {}),
+    ...(ids.dependeDe && document.getElementById(ids.dependeDe)
+      ? { dependeDe: document.getElementById(ids.dependeDe).value || "" }
+      : {}),
   };
 }
 
@@ -6283,6 +6382,7 @@ function applyChecklistItemPatch(id, patch) {
     if (!next.done) next.dateConclusao = "";
     return next;
   });
+  propagarDependenciasChecklist();
 }
 
 function persistOpenChecklistEdit() {
@@ -6294,6 +6394,7 @@ function persistOpenChecklistEdit() {
     dateInicio: "demChecklistEditInicio",
     date: "demChecklistEditFim",
     dateConclusao: "demChecklistEditConclusao",
+    dependeDe: "demChecklistEditDep",
   });
   if (!draft.name) return;
   applyChecklistItemPatch(editingChecklistItemId, draft);
@@ -6372,11 +6473,104 @@ function saveChecklistItemEdit(id) {
     dateInicio: "demChecklistEditInicio",
     date: "demChecklistEditFim",
     dateConclusao: "demChecklistEditConclusao",
+    dependeDe: "demChecklistEditDep",
   });
   if (!validateChecklistEtapa(draft, "demChecklistEditInicio")) return;
   applyChecklistItemPatch(id, draft);
   editingChecklistItemId = "";
   renderChecklistEditor();
+}
+
+/* ---------- Dependências entre atividades do checklist ---------- */
+/** Atividade da qual `it` depende (término → início), se existir. */
+function checklistPredecessora(items, it) {
+  if (!it?.dependeDe) return null;
+  return items.find((x) => x.id === it.dependeDe && x.id !== it.id) || null;
+}
+
+/** Fim real da atividade: data de conclusão (se concluída) ou término previsto. */
+function checklistFimEfetivo(it) {
+  return (it.done && isoDatePart(it.dateConclusao || "")) || isoDatePart(it.date || "") || "";
+}
+
+/** Predecessora ainda não concluída de uma atividade pendente (null se liberada). */
+function checklistBloqueadaPor(items, it) {
+  const p = checklistPredecessora(items, it);
+  return !it.done && p && !p.done ? p : null;
+}
+
+/** `id` e tudo que depende dele (direta ou indiretamente) — não podem virar predecessoras dele. */
+function checklistCadeiaDependentes(items, id) {
+  const out = new Set([id]);
+  let mudou = true;
+  while (mudou) {
+    mudou = false;
+    for (const x of items) {
+      if (x.dependeDe && out.has(x.dependeDe) && !out.has(x.id)) {
+        out.add(x.id);
+        mudou = true;
+      }
+    }
+  }
+  return out;
+}
+
+function checklistOpcoesDependencia(items, itemId) {
+  const proibidos = itemId ? checklistCadeiaDependentes(items, itemId) : new Set();
+  return items.filter((x) => !proibidos.has(x.id));
+}
+
+function fillChecklistDepSelect(sel, items, itemId, atual) {
+  if (!sel) return;
+  const opcoes = checklistOpcoesDependencia(items, itemId);
+  sel.innerHTML =
+    '<option value="">Nenhuma — pode começar a qualquer momento</option>' +
+    opcoes.map((x) => `<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)}</option>`).join("");
+  sel.value = atual && opcoes.some((x) => x.id === atual) ? atual : "";
+}
+
+/**
+ * Empurra para frente as atividades pendentes que começariam antes do fim da predecessora,
+ * mantendo a duração. Nunca puxa datas para trás. Devolve quantas foram reagendadas.
+ */
+function propagarDependenciasChecklist() {
+  const items = normalizeChecklist(editingChecklist).map((x) => ({ ...x }));
+  const byId = new Map(items.map((x) => [x.id, x]));
+  const movidas = new Set();
+  for (let volta = 0; volta < items.length; volta++) {
+    let mudou = false;
+    for (const it of items) {
+      if (it.done) continue;
+      const p = it.dependeDe ? byId.get(it.dependeDe) : null;
+      if (!p || p.id === it.id) continue;
+      const fimP = checklistFimEfetivo(p);
+      if (!fimP) continue;
+      const ini = isoDatePart(it.dateInicio || "");
+      const fim = isoDatePart(it.date || "");
+      if (ini && ini < fimP) {
+        const dur = fim && fim >= ini ? diasEntreDatasISO(ini, fim) : 0;
+        it.dateInicio = fimP;
+        if (fim) it.date = addDaysISO(fimP, dur);
+      } else if (!ini && fim && fim < fimP) {
+        it.date = fimP;
+      } else {
+        continue;
+      }
+      movidas.add(it.id);
+      mudou = true;
+    }
+    if (!mudou) break;
+  }
+  if (movidas.size) {
+    editingChecklist = items;
+    const nomes = items.filter((x) => movidas.has(x.id)).map((x) => `“${x.name}”`);
+    toast(
+      movidas.size === 1
+        ? `${nomes[0]} foi reagendada para depois da atividade da qual depende`
+        : `${movidas.size} atividades dependentes foram reagendadas`,
+    );
+  }
+  return movidas.size;
 }
 
 /** Filtro da lista de atividades no modal (todas | pendentes | atrasadas | concluidas). */
@@ -6556,6 +6750,8 @@ function renderChecklistEditor() {
   renderChecklistProxima(items);
   const expand = document.getElementById("btnChecklistExpand");
   if (expand) expand.hidden = isReadOnlyUser();
+  const novaDep = document.getElementById("demChecklistDep");
+  fillChecklistDepSelect(novaDep, items, "", novaDep?.value || "");
   if (!list) return;
   const readOnly = isReadOnlyUser();
   list.innerHTML = "";
@@ -6656,6 +6852,14 @@ function renderChecklistEditor() {
             value: it.dateConclusao || "",
           })
         : null;
+      const depWrap = document.createElement("label");
+      depWrap.className = "field checklist-item__edit-dep";
+      const depSpan = document.createElement("span");
+      depSpan.textContent = "Depende de";
+      const depSel = document.createElement("select");
+      depSel.id = "demChecklistEditDep";
+      fillChecklistDepSelect(depSel, items, it.id, it.dependeDe);
+      depWrap.append(depSpan, depSel);
       [nameField.input, whoField.input, startField.input, endField.input, conclField?.input].filter(Boolean).forEach((input) => {
         input.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
@@ -6692,7 +6896,7 @@ function renderChecklistEditor() {
       save.addEventListener("click", () => saveChecklistItemEdit(it.id));
       foot.append(rm, dica, cancel, save);
 
-      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, ...(conclField ? [conclField.wrap] : []), descField.wrap, foot);
+      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, ...(conclField ? [conclField.wrap] : []), depWrap, descField.wrap, foot);
       li.append(icone, edit);
     } else {
       const body = document.createElement("div");
@@ -6741,6 +6945,17 @@ function renderChecklistEditor() {
         }`;
         meta.append(periodo);
       }
+      const pred = checklistPredecessora(items, it);
+      if (pred) {
+        const bloq = checklistBloqueadaPor(items, it);
+        const dep = document.createElement("span");
+        dep.className = "ck-dep" + (bloq ? " is-bloqueada" : "");
+        dep.textContent = bloq ? `⛓ Aguardando “${pred.name}”` : `⛓ Após “${pred.name}”`;
+        dep.title = bloq
+          ? `Bloqueada: “${pred.name}” ainda não foi concluída`
+          : `Depende de “${pred.name}” (já concluída)`;
+        meta.append(dep);
+      }
       body.append(meta);
 
       // Prazo (texto) + status (seletor) à direita.
@@ -6769,8 +6984,10 @@ function renderChecklistEditor() {
           sel.value = status;
           return;
         }
+        const bloq = sel.value !== "afazer" ? checklistBloqueadaPor(items, it) : null;
         applyChecklistItemPatch(it.id, { status: sel.value });
         checklistRecemConcluidaId = sel.value === "concluida" ? it.id : "";
+        if (bloq) toast(`Atenção: “${bloq.name}” (da qual esta depende) ainda não foi concluída`);
         renderChecklistEditor();
       });
 
@@ -7118,7 +7335,8 @@ function renderChecklistGantt() {
     name.textContent = it.name || "Atividade";
     name.title = it.name || "";
     const who = document.createElement("span");
-    who.textContent = `${it.who || "—"} · ${sitRow.texto}`;
+    const predGantt = checklistPredecessora(items, it);
+    who.textContent = `${it.who || "—"} · ${sitRow.texto}${predGantt ? ` · ⛓ após “${predGantt.name}”` : ""}`;
     label.append(name, who);
     if (!readOnlyGantt) {
       row.classList.add("is-clicavel");
@@ -7229,6 +7447,7 @@ function addChecklistEtapaFromForm() {
     who: "demChecklistWho",
     dateInicio: "demChecklistDateInicio",
     date: "demChecklistDate",
+    dependeDe: "demChecklistDep",
   });
   if (!validateChecklistEtapa(draft, "demChecklistDateInicio")) return;
   const selStatus = document.getElementById("demChecklistStatus");
@@ -7243,10 +7462,12 @@ function addChecklistEtapaFromForm() {
       who: draft.who,
       dateInicio: draft.dateInicio,
       date: draft.date,
+      dependeDe: draft.dependeDe || "",
       status: novoStatus,
       done: novoStatus === "concluida",
     },
   ];
+  propagarDependenciasChecklist();
   const etapa = document.getElementById("demChecklistEtapa");
   const desc = document.getElementById("demChecklistDesc");
   const resp = document.getElementById("demChecklistWho");
@@ -7258,6 +7479,8 @@ function addChecklistEtapaFromForm() {
     if (el) el.value = "";
   });
   if (selStatus) selStatus.value = "afazer";
+  const selDep = document.getElementById("demChecklistDep");
+  if (selDep) selDep.value = "";
   checklistFiltro = "todas";
   renderChecklistEditor();
   toast(`Atividade “${draft.name}” adicionada`);
@@ -7308,10 +7531,225 @@ function bindChecklistEditor() {
 
 /** Texto do comentário com links clicáveis (o resto escapado). */
 function comentarioTextoHtml(texto) {
-  return escapeHtml(texto).replace(
-    /(https?:\/\/[^\s<]+[^\s<.,;:!?)\]])/g,
-    (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`,
+  return destacarMencoesHtml(
+    escapeHtml(texto).replace(
+      /(https?:\/\/[^\s<]+[^\s<.,;:!?)\]])/g,
+      (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`,
+    ),
   );
+}
+
+/* ---------- @Menções nos comentários ---------- */
+const MENCOES_JANELA_DIAS = 30;
+let mencionaveisCache = { versao: -1, lista: [] };
+
+/** Usuários que podem ser mencionados: todos com acesso (não bloqueados), pelo nome de exibição. */
+function usuariosMencionaveis() {
+  const versao = typeof DemandasRoles !== "undefined" && DemandasRoles.getVersion ? DemandasRoles.getVersion() : 0;
+  if (mencionaveisCache.versao === versao && mencionaveisCache.lista.length) return mencionaveisCache.lista;
+  const mapa =
+    typeof DemandasRoles !== "undefined" ? DemandasRoles.getRolesMap() : { ...(window.DEMANDAS_ROLES_SEED || {}) };
+  const lista = Object.keys(mapa)
+    .map((e) => String(e).trim().toLowerCase())
+    .filter((e) => e && !(typeof DemandasRoles !== "undefined" && DemandasRoles.isDisabled?.(e)))
+    .map((email) => ({ email, nome: accountDisplayNameForEmail(email) || email }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  mencionaveisCache = { versao, lista };
+  return lista;
+}
+
+/** E-mails mencionados no texto (`@Nome` de um usuário conhecido). */
+function extrairMencoes(texto) {
+  const t = String(texto || "").toLowerCase();
+  const out = [];
+  for (const u of usuariosMencionaveis()) {
+    const alvo = `@${u.nome.toLowerCase()}`;
+    let i = t.indexOf(alvo);
+    while (i >= 0) {
+      const depois = t.charAt(i + alvo.length);
+      if (!depois || !/[\p{L}\d]/u.test(depois)) {
+        out.push(u.email);
+        break;
+      }
+      i = t.indexOf(alvo, i + 1);
+    }
+  }
+  return [...new Set(out)];
+}
+
+/** Destaca `@Nome` (já escapado) de usuários conhecidos — nomes mais longos primeiro. */
+function destacarMencoesHtml(html) {
+  const nomes = usuariosMencionaveis()
+    .map((u) => escapeHtml(u.nome))
+    .sort((a, b) => b.length - a.length);
+  if (!nomes.length) return html;
+  const re = new RegExp(`@(${nomes.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}\\d])`, "giu");
+  const eu = accountDisplayNameForEmail(getCurrentUserEmail()).toLowerCase();
+  return html.replace(re, (m, nome) => `<span class="mencao${eu && nome.toLowerCase() === escapeHtml(eu).toLowerCase() ? " is-eu" : ""}">${m}</span>`);
+}
+
+/* Autocompletar: aparece ao digitar "@" num campo de comentário. */
+const mencaoAc = { ta: null, inicio: -1, itens: [], ativo: 0 };
+
+function mencaoAcEl() {
+  let el = document.getElementById("mencaoAutocomplete");
+  if (!el) {
+    el = document.createElement("ul");
+    el.id = "mencaoAutocomplete";
+    el.className = "mencao-ac";
+    el.setAttribute("role", "listbox");
+    el.hidden = true;
+    el.addEventListener("mousedown", (e) => {
+      const li = e.target.closest("[data-idx]");
+      if (!li) return;
+      e.preventDefault();
+      escolherMencao(Number(li.dataset.idx));
+    });
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function fecharMencaoAc() {
+  const el = document.getElementById("mencaoAutocomplete");
+  if (el) el.hidden = true;
+  mencaoAc.ta = null;
+  mencaoAc.inicio = -1;
+  mencaoAc.itens = [];
+}
+
+function atualizarMencaoAc(ta) {
+  const pos = ta.selectionStart ?? ta.value.length;
+  const antes = ta.value.slice(0, pos);
+  const m = antes.match(/(^|\s)@([\p{L}\d .'-]{0,30})$/u);
+  if (!m || /\s{2}/.test(m[2])) return fecharMencaoAc();
+  const termo = projetistaSlug(m[2].trim());
+  const itens = usuariosMencionaveis()
+    .filter((u) => {
+      if (!termo) return true;
+      const nome = projetistaSlug(u.nome);
+      return nome.startsWith(termo) || nome.split(/\s+/).some((p) => p.startsWith(termo)) || u.email.startsWith(termo);
+    })
+    .slice(0, 6);
+  if (!itens.length) return fecharMencaoAc();
+  mencaoAc.ta = ta;
+  mencaoAc.inicio = pos - m[2].length - 1;
+  mencaoAc.itens = itens;
+  mencaoAc.ativo = Math.min(mencaoAc.ativo, itens.length - 1);
+  const el = mencaoAcEl();
+  el.innerHTML = itens
+    .map(
+      (u, i) =>
+        `<li role="option" data-idx="${i}" class="${i === mencaoAc.ativo ? "is-ativo" : ""}" aria-selected="${i === mencaoAc.ativo}">` +
+        `<span class="mencao-ac__av comment-avatar ${comentarioAvatarClass(u.nome)}">${escapeHtml(comentarioIniciais(u.nome))}</span>` +
+        `<span class="mencao-ac__txt"><strong>${escapeHtml(u.nome)}</strong><small>${escapeHtml(u.email)}</small></span></li>`,
+    )
+    .join("");
+  const r = ta.getBoundingClientRect();
+  el.hidden = false;
+  const alto = el.offsetHeight;
+  const cabeEmbaixo = r.bottom + alto + 8 < window.innerHeight;
+  el.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - el.offsetWidth - 8))}px`;
+  el.style.top = `${cabeEmbaixo ? r.bottom + 4 : Math.max(8, r.top - alto - 4)}px`;
+}
+
+function escolherMencao(idx) {
+  const ta = mencaoAc.ta;
+  const u = mencaoAc.itens[idx];
+  if (!ta || !u || mencaoAc.inicio < 0) return fecharMencaoAc();
+  const pos = ta.selectionStart ?? ta.value.length;
+  const insercao = `@${u.nome} `;
+  ta.value = ta.value.slice(0, mencaoAc.inicio) + insercao + ta.value.slice(pos);
+  const caret = mencaoAc.inicio + insercao.length;
+  ta.setSelectionRange(caret, caret);
+  fecharMencaoAc();
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+  ta.focus();
+}
+
+/** Liga o autocompletar a um textarea (o teclado tem prioridade sobre os atalhos do campo). */
+function ligarMencoesNoCampo(ta) {
+  if (!ta || ta.dataset.mencoes) return;
+  ta.dataset.mencoes = "1";
+  ta.addEventListener("input", () => {
+    mencaoAc.ativo = mencaoAc.ta === ta ? mencaoAc.ativo : 0;
+    atualizarMencaoAc(ta);
+  });
+  ta.addEventListener("click", () => atualizarMencaoAc(ta));
+  ta.addEventListener("blur", () => setTimeout(() => mencaoAc.ta === ta && fecharMencaoAc(), 120));
+  ta.addEventListener(
+    "keydown",
+    (e) => {
+      if (mencaoAc.ta !== ta || document.getElementById("mencaoAutocomplete")?.hidden) return;
+      const n = mencaoAc.itens.length;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        mencaoAc.ativo = (mencaoAc.ativo + (e.key === "ArrowDown" ? 1 : n - 1)) % n;
+        atualizarMencaoAc(ta);
+      } else if ((e.key === "Enter" && !e.ctrlKey && !e.metaKey) || e.key === "Tab") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        escolherMencao(mencaoAc.ativo);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        fecharMencaoAc();
+      }
+    },
+    true,
+  );
+}
+
+/* Menções para mim no sino: comentários recentes que me citam e que ainda não marquei como cientes. */
+function mencoesVistasChave() {
+  return `demandas.mencoesVistas.${getCurrentUserEmail() || "local"}`;
+}
+
+function mencoesVistas() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(mencoesVistasChave()) || "[]");
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function marcarMencaoVista(cid) {
+  const vistas = [...mencoesVistas(), cid].slice(-500);
+  try {
+    localStorage.setItem(mencoesVistasChave(), JSON.stringify(vistas));
+  } catch {
+    /* sem armazenamento local: a menção volta a aparecer na próxima sessão */
+  }
+}
+
+function mencoesParaMimRows() {
+  const eu = getCurrentUserEmail();
+  if (!eu) return [];
+  const meuNome = getLoggedInComentarioAutor();
+  const vistas = mencoesVistas();
+  const limite = new Date(Date.now() - MENCOES_JANELA_DIAS * 864e5).toISOString();
+  const rows = [];
+  for (const d of state.demandas || []) {
+    for (const c of d.comentarios || []) {
+      if (!Array.isArray(c.mencoes) || !c.mencoes.includes(eu)) continue;
+      if (c.autor === meuNome || vistas.has(c.id) || (c.createdAt || "") < limite) continue;
+      const trecho = c.texto.length > 90 ? `${c.texto.slice(0, 87)}…` : c.texto;
+      rows.push({
+        severity: "mencao",
+        kind: ALERTA_KIND_MENCAO,
+        d,
+        cid: c.id,
+        dias: 0,
+        at: c.createdAt,
+        msg: `${c.autor} mencionou você`,
+        curta: `${c.autor} mencionou você · ${formatComentarioRelativo(c.createdAt)}`,
+        meta: trecho,
+      });
+    }
+  }
+  return rows.sort((a, b) => String(b.at).localeCompare(String(a.at)));
 }
 
 /** Comentário em edição no painel (id) — só um por vez. */
@@ -7400,6 +7838,7 @@ function renderComentariosList() {
   });
   const ta = list.querySelector(".comment-edit__input");
   if (ta) {
+    ligarMencoesNoCampo(ta);
     const ajustar = () => {
       ta.style.height = "auto";
       ta.style.height = `${Math.min(ta.scrollHeight, 260)}px`;
@@ -7464,7 +7903,7 @@ function salvarEdicaoComentario(cid, texto) {
     return;
   }
   editingComentarios = editingComentarios.map((x) =>
-    x.id === cid ? { ...x, texto: novo, editadoEm: new Date().toISOString() } : x,
+    x.id === cid ? { ...x, texto: novo, mencoes: extrairMencoes(novo), editadoEm: new Date().toISOString() } : x,
   );
   persistComentariosDemandaAberta();
   renderComentariosList();
@@ -7487,8 +7926,8 @@ function syncComentarioCompose() {
       restante < 300
         ? `${restante} caracteres restantes · Ctrl+Enter envia`
         : existente
-          ? "Ctrl+Enter envia · salvo na hora"
-          : "Ctrl+Enter envia · salvo junto com o projeto";
+          ? "@ menciona alguém · Ctrl+Enter envia"
+          : "@ menciona alguém · Ctrl+Enter envia · salvo com o projeto";
   }
 }
 
@@ -7514,7 +7953,12 @@ function addComentarioFromForm() {
     ta.focus();
     return;
   }
-  const c = normalizeComentario({ texto, autor: getLoggedInComentarioAutor(), createdAt: new Date().toISOString() });
+  const c = normalizeComentario({
+    texto,
+    autor: getLoggedInComentarioAutor(),
+    createdAt: new Date().toISOString(),
+    mencoes: extrairMencoes(texto),
+  });
   if (c) editingComentarios.unshift(c);
   ta.value = "";
   // Projeto existente: grava na hora (como a exclusão). Projeto novo: vai junto com o Salvar.
@@ -7602,6 +8046,11 @@ const DEM_SECOES = [
     key: "checklist",
     sel: ".fieldset--checklist",
     icone: '<rect x="2" y="2" width="12" height="12" rx="2.5"/><path d="M5 8.2l2 2 4-4.2"/>',
+  },
+  {
+    key: "anexos",
+    sel: ".fieldset--anexos",
+    icone: '<path d="M10.5 4.5 5.8 9.2a1.5 1.5 0 0 0 2.1 2.1l5-5a3 3 0 0 0-4.2-4.2l-5 5a4.5 4.5 0 0 0 6.4 6.4l4.2-4.2"/>',
   },
   {
     key: "timeline",
@@ -8070,6 +8519,10 @@ function demSecaoResumo(key) {
       const feitas = editingChecklist.filter((it) => it.done).length;
       return { txt: `${feitas}/${n}`, tom: feitas === n ? "ok" : "alerta" };
     }
+    case "anexos": {
+      const n = normalizeAnexos(demandaAbertaParaAnexos()?.anexos).length;
+      return n ? { txt: `${n} arquivo(s)`, tom: "ok" } : { txt: "Nenhum", tom: "neutro" };
+    }
     case "timeline": {
       const n = document.querySelectorAll("#demTimelineTable tbody tr").length;
       return n ? { txt: `${n} fase(s)`, tom: "neutro" } : { txt: "Sem histórico", tom: "neutro" };
@@ -8145,6 +8598,11 @@ initDemNavegacao();
 
 function openDemandaModal(id) {
   comentarioEditandoId = "";
+  anexosEnviando.clear();
+  setTimeout(() => {
+    syncDemandaArquivadoUi(id);
+    renderAnexosDemanda();
+  }, 0);
   if (!id && isReadOnlyUser()) {
     toast("Seu perfil (Visibilidade) e somente leitura");
     return;
@@ -9246,6 +9704,7 @@ document.getElementById("btnAddComentario")?.addEventListener("click", () => {
   addComentarioFromForm();
 });
 document.getElementById("demComentarioNovo")?.addEventListener("input", syncComentarioCompose);
+ligarMencoesNoCampo(document.getElementById("demComentarioNovo"));
 document.getElementById("demComentarioNovo")?.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
@@ -9607,20 +10066,1142 @@ document.getElementById("btnExcluirDemanda")?.addEventListener("click", async ()
   }
   const titulo = document.getElementById("demTitulo")?.value?.trim() || "esta demanda";
   const ok = await confirmDialog({
-    title: "Excluir demanda?",
-    message: `A demanda «${titulo}» será removida permanentemente. Esta ação não pode ser desfeita.`,
-    confirmText: "Excluir demanda",
+    title: "Mover para a lixeira?",
+    message: `O projeto «${titulo}» sai da esteira e vai para a Lixeira. Dá para restaurar depois.`,
+    confirmText: "Mover para a lixeira",
     variant: "danger",
   });
   if (!ok) return;
   stopPresenceHeartbeat();
   releaseDemandaEditing(id);
-  markDemandaPendingDelete(id);
-  saveState({ deleteDemandaId: id });
   closeDemandaModal();
-  renderBoard();
-  toast("Demanda excluída");
+  moverDemandasParaLixeira([id]);
 });
+
+/* ---------- Metas de dias por etapa (SLA) ---------- */
+/**
+ * Dias que um projeto pode ficar numa etapa antes de virar alerta de "parado".
+ * Sem configuração → padrão de ALERTA_DIAS_MESMA_COLUNA; 0 → etapa sem meta; finalizados nunca têm meta.
+ */
+function metaDiasEtapa(status, linha = activeEsteiraCanal) {
+  const l = normalizeLinhaEsteira(linha);
+  if (statusFinalizadosKeys(l).includes(status)) return null;
+  const v = state.metasEtapa?.[l]?.[status];
+  if (v === undefined || v === null || v === "") return ALERTA_DIAS_MESMA_COLUNA;
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n) || n < 0) return ALERTA_DIAS_MESMA_COLUNA;
+  return n === 0 ? null : n;
+}
+
+function metaDiasDemanda(d) {
+  return metaDiasEtapa(d.status, d.linhaEsteira || inferLinhaEsteira(d));
+}
+
+/** Dias na etapa atual acima da meta (null quando não estourou ou não há meta). */
+function diasAcimaDaMeta(d) {
+  const meta = metaDiasDemanda(d);
+  if (meta == null) return null;
+  const dias = diasNaColunaAtual(d);
+  return dias != null && dias >= meta ? dias : null;
+}
+
+function etapasComMeta(linha) {
+  const cfg = getEsteiraConfig(linha);
+  const fin = new Set(statusFinalizadosKeys(linha));
+  return [...cfg.statusOrder, ...cfg.statusExtra].filter(([k]) => !fin.has(k));
+}
+
+function abrirMetasEtapaModal() {
+  const dlg = document.getElementById("modalMetasEtapa");
+  if (!dlg) return;
+  const admin = isAdminUser();
+  const blocos = [
+    [LINHA_ESTEIRA_OPERACIONAL, "Esteira Projetos"],
+    [LINHA_ESTEIRA_B2B, "Esteira B2B"],
+  ];
+  document.getElementById("metasEtapaCorpo").innerHTML = blocos
+    .map(([linha, nome]) => {
+      const linhas = etapasComMeta(linha)
+        .map(([k, label]) => {
+          const v = state.metasEtapa?.[linha]?.[k];
+          const valor = v === undefined || v === null || v === "" ? "" : String(Math.max(0, Math.round(Number(v)) || 0));
+          return (
+            `<label class="metas-etapa__linha"><span>${escapeHtml(label)}</span>` +
+            `<span class="metas-etapa__campo"><input type="number" min="0" max="365" step="1" inputmode="numeric" ` +
+            `data-meta-linha="${escapeHtml(linha)}" data-meta-status="${escapeHtml(k)}" value="${escapeHtml(valor)}" ` +
+            `placeholder="${ALERTA_DIAS_MESMA_COLUNA}"${admin ? "" : " disabled"} aria-label="Meta em dias para ${escapeHtml(label)}" /> dias</span></label>`
+          );
+        })
+        .join("");
+      return `<section class="metas-etapa__bloco"><h3>${escapeHtml(nome)}</h3>${linhas}</section>`;
+    })
+    .join("");
+  document.getElementById("btnSalvarMetasEtapa").hidden = !admin;
+  document.getElementById("btnPadraoMetasEtapa").hidden = !admin;
+  document.getElementById("metasEtapaAviso").hidden = admin;
+  if (!dlg.open) dlg.showModal();
+}
+
+function salvarMetasEtapa() {
+  if (!isAdminUser()) {
+    toast("Só administradores alteram as metas");
+    return;
+  }
+  const metas = { [LINHA_ESTEIRA_OPERACIONAL]: {}, [LINHA_ESTEIRA_B2B]: {} };
+  document.querySelectorAll("#metasEtapaCorpo [data-meta-status]").forEach((inp) => {
+    const raw = String(inp.value || "").trim();
+    if (raw === "") return;
+    const n = Math.round(Number(raw));
+    if (!Number.isFinite(n) || n < 0) return;
+    metas[inp.dataset.metaLinha][inp.dataset.metaStatus] = Math.min(365, n);
+  });
+  // Etapas sem valor voltam ao padrão: grava `null` para apagar o valor antigo no merge do Firestore.
+  for (const linha of Object.keys(metas)) {
+    for (const [k] of etapasComMeta(linha)) if (!(k in metas[linha])) metas[linha][k] = null;
+  }
+  state.metasEtapa = metas;
+  saveState({ metaFields: { metasEtapa: metas } });
+  document.getElementById("modalMetasEtapa")?.close();
+  refreshAllViews();
+  toast("Metas por etapa salvas");
+}
+
+function initMetasEtapa() {
+  document.getElementById("btnMetasEtapa")?.addEventListener("click", abrirMetasEtapaModal);
+  const fechar = () => document.getElementById("modalMetasEtapa")?.close();
+  document.getElementById("modalMetasEtapaClose")?.addEventListener("click", fechar);
+  document.getElementById("btnCancelarMetasEtapa")?.addEventListener("click", fechar);
+  document.getElementById("btnSalvarMetasEtapa")?.addEventListener("click", salvarMetasEtapa);
+  document.getElementById("btnPadraoMetasEtapa")?.addEventListener("click", () => {
+    document.querySelectorAll("#metasEtapaCorpo [data-meta-status]").forEach((inp) => (inp.value = ""));
+  });
+}
+
+/* ---------- Filtros salvos e "Minhas demandas" ---------- */
+const FILTROS_SALVOS_LIMITE = 12;
+
+/** Chave do usuário no mapa `filtrosSalvos` do doc meta (sem pontos, que o Firestore lê como caminho). */
+function filtrosSalvosChaveUsuario() {
+  const email = String(getCurrentUserEmail() || "").trim().toLowerCase();
+  return email ? email.replace(/\./g, ",") : "local";
+}
+
+function filtrosSalvosDoUsuario() {
+  const mapa = state.filtrosSalvos && typeof state.filtrosSalvos === "object" ? state.filtrosSalvos : {};
+  const lista = mapa[filtrosSalvosChaveUsuario()];
+  return Array.isArray(lista) ? lista.filter((f) => f && f.id && f.nome) : [];
+}
+
+function gravarFiltrosSalvos(lista) {
+  const chave = filtrosSalvosChaveUsuario();
+  state.filtrosSalvos = { ...(state.filtrosSalvos || {}), [chave]: lista };
+  saveState({ metaFields: { filtrosSalvos: { [chave]: lista } } });
+}
+
+function filtrosAtuaisEsteira() {
+  return {
+    linha: activeEsteiraCanal,
+    projetista: document.getElementById("filterProjetista")?.value || "",
+    tipo: document.getElementById("filterTipo")?.value || "",
+    regional: document.getElementById("filterRegional")?.value || "",
+    cidade: document.getElementById("filterCidade")?.value || "",
+    busca: (document.getElementById("filterBusca")?.value || "").trim(),
+    rapido: esteiraFiltroRapido || "",
+    modo: document.getElementById("filterEsteiraModo")?.value || ESTEIRA_MODO_ATIVOS,
+  };
+}
+
+function resumoFiltroSalvo(f) {
+  const partes = [];
+  if (f.projetista) partes.push(f.projetista === "__none__" ? "Não atribuído" : f.projetista);
+  if (f.tipo) partes.push(f.tipo);
+  if (f.cidade) partes.push(f.cidade);
+  else if (f.regional) partes.push(f.regional);
+  if (f.rapido) partes.push(ESTEIRA_FILTROS_RAPIDOS[f.rapido]?.label || f.rapido);
+  if (f.busca) partes.push(`“${f.busca}”`);
+  if (f.modo === ESTEIRA_MODO_FINALIZADOS) partes.push("Finalizados");
+  else if (f.modo === ESTEIRA_MODO_TODOS) partes.push("Todas as colunas");
+  return partes.join(" · ") || "Sem filtros";
+}
+
+function setSelectSeExistir(id, valor) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  sel.value = valor && [...sel.options].some((o) => o.value === valor) ? valor : "";
+}
+
+function aplicarFiltroSalvo(f) {
+  setSelectSeExistir("filterProjetista", f.projetista);
+  setSelectSeExistir("filterTipo", f.tipo);
+  setSelectSeExistir("filterRegional", f.regional);
+  fillFilterCidadeSelect(document.getElementById("filterRegional")?.value || "");
+  setSelectSeExistir("filterCidade", f.cidade);
+  const busca = document.getElementById("filterBusca");
+  if (busca) busca.value = f.busca || "";
+  esteiraFiltroRapido = f.rapido && ESTEIRA_FILTROS_RAPIDOS[f.rapido] ? f.rapido : "";
+  const modo = document.getElementById("filterEsteiraModo");
+  if (modo && f.modo && [...modo.options].some((o) => o.value === f.modo)) modo.value = f.modo;
+  esteiraModoColunas = readEsteiraModoColunas();
+  updateEsteiraModoHints();
+  renderBoard();
+}
+
+function filtroSalvoIgualAtual(f) {
+  const a = filtrosAtuaisEsteira();
+  return ["projetista", "tipo", "regional", "cidade", "busca", "rapido", "modo"].every(
+    (k) => String(a[k] || "") === String(f[k] || ""),
+  );
+}
+
+/** Rótulo de projetista do usuário logado, se ele aparece no filtro de projetistas. */
+function minhaEtiquetaProjetista() {
+  const nome = projetistaLabelForEmail(getCurrentUserEmail());
+  if (!nome) return "";
+  const sel = document.getElementById("filterProjetista");
+  return sel && [...sel.options].some((o) => o.value === nome) ? nome : "";
+}
+
+function syncFiltrosSalvosUi() {
+  const minhas = document.getElementById("btnMinhasDemandas");
+  if (minhas) {
+    const eu = minhaEtiquetaProjetista();
+    minhas.hidden = !eu;
+    const ativo = Boolean(eu) && document.getElementById("filterProjetista")?.value === eu;
+    minhas.classList.toggle("is-ativo", ativo);
+    minhas.setAttribute("aria-pressed", ativo ? "true" : "false");
+    minhas.title = ativo ? "Mostrar os projetos de todos" : `Só os projetos de ${eu}`;
+  }
+  const lista = filtrosSalvosDoUsuario().filter((f) => (f.linha || LINHA_ESTEIRA_OPERACIONAL) === activeEsteiraCanal);
+  const btn = document.getElementById("btnFiltrosSalvos");
+  const atual = lista.find(filtroSalvoIgualAtual);
+  if (btn) {
+    btn.classList.toggle("is-ativo", Boolean(atual));
+    document.getElementById("filtrosSalvosRotulo").textContent = atual ? atual.nome : "Filtros salvos";
+  }
+  const ul = document.getElementById("filtrosSalvosLista");
+  if (ul) {
+    ul.innerHTML = lista.length
+      ? lista
+          .map(
+            (f) =>
+              `<li class="filtros-salvos__item${f === atual ? " is-ativo" : ""}">` +
+              `<button type="button" class="filtros-salvos__aplicar" data-fs-aplicar="${escapeHtml(f.id)}">` +
+              `<strong>${escapeHtml(f.nome)}</strong><span>${escapeHtml(resumoFiltroSalvo(f))}</span></button>` +
+              `<button type="button" class="filtros-salvos__remover" data-fs-remover="${escapeHtml(f.id)}" aria-label="Remover ${escapeHtml(f.nome)}" title="Remover">✕</button></li>`,
+          )
+          .join("")
+      : `<li class="filtros-salvos__vazio">Nenhum filtro salvo nesta esteira. Monte os filtros e salve abaixo para voltar a eles com um clique.</li>`;
+  }
+  const temFiltro = esteiraFiltrosAtivosCount() > 0 || (document.getElementById("filterEsteiraModo")?.value || ESTEIRA_MODO_ATIVOS) !== ESTEIRA_MODO_ATIVOS;
+  const salvar = document.getElementById("btnSalvarFiltro");
+  const nome = document.getElementById("filtroSalvoNome");
+  if (salvar) salvar.disabled = !temFiltro || !(nome?.value || "").trim();
+  if (nome) {
+    nome.disabled = !temFiltro;
+    nome.placeholder = temFiltro ? "Nome (ex.: Atrasados de Goiânia)" : "Aplique algum filtro para salvar";
+  }
+}
+
+function setFiltrosSalvosAberto(aberto) {
+  setDropdownMenuOpen("filtrosSalvosMenu", "btnFiltrosSalvos", aberto);
+  if (aberto) {
+    syncFiltrosSalvosUi();
+    const nome = document.getElementById("filtroSalvoNome");
+    if (nome && !nome.disabled) nome.focus();
+  }
+}
+
+function salvarFiltroAtual() {
+  const inp = document.getElementById("filtroSalvoNome");
+  const nome = (inp?.value || "").trim().slice(0, 40);
+  if (!nome) return;
+  const lista = filtrosSalvosDoUsuario();
+  const f = { id: uid(), nome, ...filtrosAtuaisEsteira(), criadoEm: new Date().toISOString() };
+  const semMesmoNome = lista.filter((x) => !(x.nome.toLowerCase() === nome.toLowerCase() && x.linha === f.linha));
+  if (semMesmoNome.length >= FILTROS_SALVOS_LIMITE) {
+    toast(`Limite de ${FILTROS_SALVOS_LIMITE} filtros salvos — remova algum antes`);
+    return;
+  }
+  gravarFiltrosSalvos([...semMesmoNome, f]);
+  inp.value = "";
+  syncFiltrosSalvosUi();
+  toast(`Filtro “${nome}” salvo`);
+}
+
+function initFiltrosSalvos() {
+  document.getElementById("btnMinhasDemandas")?.addEventListener("click", () => {
+    const eu = minhaEtiquetaProjetista();
+    const sel = document.getElementById("filterProjetista");
+    if (!eu || !sel) return;
+    sel.value = sel.value === eu ? "" : eu;
+    renderBoard();
+  });
+  const btn = document.getElementById("btnFiltrosSalvos");
+  const menu = document.getElementById("filtrosSalvosMenu");
+  btn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setFiltrosSalvosAberto(menu.hidden);
+  });
+  document.addEventListener("click", (e) => {
+    if (menu && !menu.hidden && !e.composedPath().some((n) => n === menu || n === btn)) setFiltrosSalvosAberto(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && menu && !menu.hidden) {
+      setFiltrosSalvosAberto(false);
+      btn?.focus();
+    }
+  });
+  menu?.addEventListener("click", (e) => {
+    const aplicar = e.target.closest("[data-fs-aplicar]");
+    const remover = e.target.closest("[data-fs-remover]");
+    if (aplicar) {
+      const f = filtrosSalvosDoUsuario().find((x) => x.id === aplicar.dataset.fsAplicar);
+      if (f) aplicarFiltroSalvo(f);
+      setFiltrosSalvosAberto(false);
+    } else if (remover) {
+      const lista = filtrosSalvosDoUsuario();
+      const f = lista.find((x) => x.id === remover.dataset.fsRemover);
+      gravarFiltrosSalvos(lista.filter((x) => x.id !== remover.dataset.fsRemover));
+      syncFiltrosSalvosUi();
+      if (f) toast(`Filtro “${f.nome}” removido`);
+    }
+  });
+  document.getElementById("filtroSalvoNome")?.addEventListener("input", syncFiltrosSalvosUi);
+  document.getElementById("filtroSalvoForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    salvarFiltroAtual();
+  });
+}
+
+/* ---------- Seleção e ações em lote na esteira ---------- */
+function setSelecaoEsteiraAtiva(ativa) {
+  if (ativa && !requireWriteAccess()) return;
+  selecaoEsteira.ativa = Boolean(ativa);
+  selecaoEsteira.ids.clear();
+  renderBoard();
+}
+
+/** Cards visíveis na esteira atual (na ordem em que aparecem). */
+function idsCardsVisiveisEsteira() {
+  const board = document.getElementById(activeEsteiraCanal === LINHA_ESTEIRA_B2B ? "boardEsteiraB2b" : "boardEsteira");
+  return board ? [...board.querySelectorAll(".card[data-id]")].map((c) => c.dataset.id) : [];
+}
+
+function alternarSelecaoCard(id, el) {
+  if (selecaoEsteira.ids.has(id)) selecaoEsteira.ids.delete(id);
+  else selecaoEsteira.ids.add(id);
+  const on = selecaoEsteira.ids.has(id);
+  el?.classList.toggle("is-selecionado", on);
+  el?.setAttribute("aria-pressed", on ? "true" : "false");
+  syncLoteBarra();
+}
+
+/** Mantém só o que continua visível (filtro mudou, card arquivado/excluído etc.). */
+function podarSelecaoEsteira() {
+  if (!selecaoEsteira.ativa) return;
+  const visiveis = new Set(idsCardsVisiveisEsteira());
+  for (const id of [...selecaoEsteira.ids]) if (!visiveis.has(id)) selecaoEsteira.ids.delete(id);
+}
+
+function syncLoteBarra() {
+  const barra = document.getElementById("loteBarra");
+  const btn = document.getElementById("btnSelecionarCards");
+  if (btn) {
+    btn.classList.toggle("is-ativo", selecaoEsteira.ativa);
+    btn.setAttribute("aria-pressed", selecaoEsteira.ativa ? "true" : "false");
+    btn.hidden = isReadOnlyUser();
+  }
+  document.body.classList.toggle("modo-selecao", selecaoEsteira.ativa);
+  if (!barra) return;
+  barra.hidden = !selecaoEsteira.ativa;
+  if (!selecaoEsteira.ativa) return;
+  const n = selecaoEsteira.ids.size;
+  const visiveis = idsCardsVisiveisEsteira();
+  const todos = visiveis.length > 0 && visiveis.every((id) => selecaoEsteira.ids.has(id));
+  document.getElementById("loteQtd").textContent =
+    n === 0 ? "Clique nos cards para selecionar" : n === 1 ? "1 projeto selecionado" : `${n} projetos selecionados`;
+  const tudo = document.getElementById("btnLoteTodos");
+  if (tudo) {
+    tudo.textContent = todos ? "Limpar seleção" : `Selecionar todos (${visiveis.length})`;
+    tudo.disabled = !visiveis.length;
+  }
+  barra.querySelectorAll("[data-lote-acao]").forEach((el) => {
+    el.disabled = n === 0;
+  });
+  // Etapas da esteira atual.
+  const selStatus = document.getElementById("loteStatus");
+  if (selStatus && selStatus.dataset.linha !== activeEsteiraCanal) {
+    selStatus.dataset.linha = activeEsteiraCanal;
+    const cfg = getEsteiraConfig(activeEsteiraCanal);
+    selStatus.innerHTML =
+      '<option value="">Mover para…</option>' +
+      [...cfg.statusOrder, ...cfg.statusExtra]
+        .map(([k, label]) => `<option value="${escapeHtml(k)}">${escapeHtml(label)}</option>`)
+        .join("");
+  }
+  const selResp = document.getElementById("loteResponsavel");
+  if (selResp) {
+    const lista = projetistaLabelsFromRoles();
+    const chave = lista.join("|");
+    if (selResp.dataset.chave !== chave) {
+      selResp.dataset.chave = chave;
+      selResp.innerHTML =
+        '<option value="">Projetista…</option><option value="__none__">Não atribuído</option>' +
+        lista.map((nome) => `<option value="${escapeHtml(nome)}">${escapeHtml(nome)}</option>`).join("");
+    }
+  }
+}
+
+/** Aplica `mudar(dem)` em cada projeto selecionado; registra no histórico e salva um a um. */
+function aplicarEmLote(mudar, msgFeito) {
+  if (!requireWriteAccess()) return 0;
+  const now = new Date().toISOString();
+  let n = 0;
+  for (const id of selecaoEsteira.ids) {
+    const dem = state.demandas.find((x) => x.id === id);
+    if (!dem) continue;
+    const antes = migrateDemanda({ ...dem, __isMigrated: false });
+    if (mudar(dem, now) === false) continue;
+    dem.updatedAt = now;
+    invalidateAlertaSnoozeIfStale(dem);
+    registrarEdicaoNoHistoricoEdicao(antes, dem);
+    noteOwnDemandaWrite(id, now);
+    saveState({ demanda: dem });
+    n++;
+  }
+  renderBoard();
+  toast(n ? msgFeito(n) : "Nada a alterar nos projetos selecionados");
+  return n;
+}
+
+function loteMoverStatus(novoStatus) {
+  const label = getEsteiraConfig(activeEsteiraCanal).statusLabel[novoStatus] || novoStatus;
+  return aplicarEmLote(
+    (dem, now) => {
+      if (dem.status === novoStatus) return false;
+      const linha = migrateDemanda(dem).linhaEsteira;
+      dem.status = novoStatus;
+      dem.historicoStatus = statusHistoryPush(dem, novoStatus, now);
+      if (isStatusConcluidoNoFormulario(novoStatus, linha) && !dem.dataTermino) dem.dataTermino = todayISODate();
+      dem.ordemEsteira = ordemAoEntrarColuna(novoStatus, dem.responsavel);
+    },
+    (n) => `${n} ${n === 1 ? "projeto movido" : "projetos movidos"} para ${label}`,
+  );
+}
+
+function loteAtribuirProjetista(valor) {
+  const resp = valor === "__none__" ? "" : normalizeResponsavel(valor);
+  return aplicarEmLote(
+    (dem) => {
+      if (normalizeResponsavel(dem.responsavel) === resp) return false;
+      dem.responsavel = resp;
+      dem.projetistasExtra = normalizeProjetistasExtra(dem.projetistasExtra, resp);
+    },
+    (n) => (resp ? `${n} ${n === 1 ? "projeto atribuído" : "projetos atribuídos"} a ${resp}` : `${n} projeto(s) sem projetista`),
+  );
+}
+
+function loteDefinirPrazo(dataIso) {
+  return aplicarEmLote(
+    (dem) => {
+      if ((dem.dataFimPrevista || "") === dataIso) return false;
+      dem.dataFimPrevista = dataIso;
+    },
+    (n) => `Previsão de término ${dataIso ? `em ${formatDataCurta(dataIso)}` : "removida"} · ${n} projeto(s)`,
+  );
+}
+
+function initLoteEsteira() {
+  document.getElementById("btnSelecionarCards")?.addEventListener("click", () =>
+    setSelecaoEsteiraAtiva(!selecaoEsteira.ativa),
+  );
+  document.getElementById("btnLoteCancelar")?.addEventListener("click", () => setSelecaoEsteiraAtiva(false));
+  document.getElementById("btnLoteTodos")?.addEventListener("click", () => {
+    const visiveis = idsCardsVisiveisEsteira();
+    const todos = visiveis.every((id) => selecaoEsteira.ids.has(id));
+    selecaoEsteira.ids = todos ? new Set() : new Set(visiveis);
+    renderBoard();
+  });
+  document.getElementById("loteStatus")?.addEventListener("change", (e) => {
+    const v = e.target.value;
+    e.target.value = "";
+    if (v) loteMoverStatus(v);
+  });
+  document.getElementById("loteResponsavel")?.addEventListener("change", (e) => {
+    const v = e.target.value;
+    e.target.value = "";
+    if (v) loteAtribuirProjetista(v);
+  });
+  document.getElementById("btnLotePrazo")?.addEventListener("click", () => {
+    const inp = document.getElementById("lotePrazo");
+    const v = inp?.value || "";
+    if (!v) {
+      toast("Escolha a data da previsão de término");
+      inp?.focus();
+      return;
+    }
+    loteDefinirPrazo(v);
+    inp.value = "";
+  });
+  document.getElementById("btnLoteArquivar")?.addEventListener("click", () => {
+    const ids = [...selecaoEsteira.ids];
+    if (!ids.length) return;
+    selecaoEsteira.ids.clear();
+    arquivarDemandas(ids, true);
+  });
+  document.getElementById("btnLoteLixeira")?.addEventListener("click", () => {
+    const ids = [...selecaoEsteira.ids];
+    if (!ids.length) return;
+    if (!confirm(`Mover ${ids.length === 1 ? "o projeto selecionado" : `${ids.length} projetos`} para a lixeira?`)) return;
+    selecaoEsteira.ids.clear();
+    moverDemandasParaLixeira(ids);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !selecaoEsteira.ativa) return;
+    if (document.querySelector("dialog[open]")) return;
+    setSelecaoEsteiraAtiva(false);
+  });
+}
+
+/* ---------- Anexos do projeto (Firebase Storage) ---------- */
+const ANEXO_TAMANHO_MAX = 25 * 1024 * 1024;
+/** Uploads em andamento no modal aberto: id → { nome, pct }. */
+const anexosEnviando = new Map();
+
+function storageDisponivel() {
+  return typeof firebase !== "undefined" && typeof firebase.storage === "function" && persistenceApi?.mode === "firebase";
+}
+
+function formatTamanhoArquivo(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0).replace(".", ",")} MB`;
+}
+
+function anexoIcone(a) {
+  const t = `${a.tipo} ${a.nome}`.toLowerCase();
+  if (/pdf/.test(t)) return "📄";
+  if (/image|\.(png|jpe?g|gif|webp|heic)$/.test(t)) return "🖼";
+  if (/sheet|excel|\.(xlsx?|csv|ods)$/.test(t)) return "📊";
+  if (/kmz|kml|dwg|dxf/.test(t)) return "🗺";
+  if (/zip|rar|7z/.test(t)) return "🗜";
+  return "📎";
+}
+
+function mensagemErroStorage(e) {
+  const code = String(e?.code || "");
+  if (code === "storage/unauthorized") return "Sem permissão no Storage — publique as regras (storage.rules) no Firebase";
+  if (code === "storage/canceled") return "Envio cancelado";
+  if (code === "storage/quota-exceeded") return "Cota do Storage esgotada";
+  if (code === "storage/retry-limit-exceeded") return "Conexão instável — tente de novo";
+  if (code === "storage/object-not-found") return "Arquivo não encontrado no Storage";
+  if (/bucket|project-not-found|unknown|no-default-bucket/.test(code)) return "O Firebase Storage não está ativado neste projeto";
+  return e?.message ? `Falha no anexo: ${e.message}` : "Falha no anexo";
+}
+
+function demandaAbertaParaAnexos() {
+  const id = (document.getElementById("demId")?.value || "").trim() || editingDemandaOpenId;
+  return id ? state.demandas.find((x) => x.id === id) || null : null;
+}
+
+function nomeArquivoSeguro(nome) {
+  return (
+    String(nome || "arquivo")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^\w.\-]+/g, "_")
+      .replace(/_+/g, "_")
+      .slice(-120) || "arquivo"
+  );
+}
+
+function salvarAnexosDemanda(dem, anexos) {
+  const now = new Date().toISOString();
+  dem.anexos = normalizeAnexos(anexos);
+  dem.updatedAt = now;
+  editingDemandaBaselineUpdatedAt = now;
+  noteOwnDemandaWrite(dem.id, now);
+  saveState({ demanda: migrateDemanda(dem) });
+  renderAnexosDemanda();
+  renderBoard();
+}
+
+async function enviarAnexos(files) {
+  if (!requireWriteAccess()) return;
+  const dem = demandaAbertaParaAnexos();
+  if (!dem) {
+    toast("Salve o projeto antes de anexar arquivos");
+    return;
+  }
+  if (!storageDisponivel()) {
+    toast("Anexos indisponíveis: o Firebase Storage não está configurado");
+    return;
+  }
+  const autor = demandaAutorAcao();
+  for (const file of [...files]) {
+    if (file.size > ANEXO_TAMANHO_MAX) {
+      toast(`“${file.name}” passa de ${formatTamanhoArquivo(ANEXO_TAMANHO_MAX)}`);
+      continue;
+    }
+    const id = uid();
+    const path = `demandas/${dem.id}/anexos/${id}_${nomeArquivoSeguro(file.name)}`;
+    anexosEnviando.set(id, { nome: file.name, pct: 0 });
+    renderAnexosDemanda();
+    try {
+      const ref = firebase.storage().ref(path);
+      const task = ref.put(file, {
+        contentType: file.type || "application/octet-stream",
+        customMetadata: { nome: file.name, enviadoPor: autor, demandaId: dem.id },
+      });
+      task.on("state_changed", (snap) => {
+        const atual = anexosEnviando.get(id);
+        if (!atual || !snap.totalBytes) return;
+        atual.pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        const barra = document.querySelector(`[data-anexo-enviando="${id}"] .anexo__progresso i`);
+        if (barra) barra.style.width = `${atual.pct}%`;
+      });
+      await task;
+      const url = await ref.getDownloadURL();
+      const atualDem = state.demandas.find((x) => x.id === dem.id) || dem;
+      const novo = {
+        id,
+        nome: file.name,
+        tipo: file.type || "",
+        tamanho: file.size,
+        path,
+        url,
+        enviadoPor: autor,
+        enviadoEm: new Date().toISOString(),
+      };
+      anexosEnviando.delete(id);
+      salvarAnexosDemanda(atualDem, [...normalizeAnexos(atualDem.anexos), novo]);
+      toast(`“${file.name}” anexado`);
+    } catch (e) {
+      console.warn("Anexo:", e);
+      anexosEnviando.delete(id);
+      renderAnexosDemanda();
+      toast(mensagemErroStorage(e));
+      if (/não está ativado|Sem permissão/.test(mensagemErroStorage(e))) break;
+    }
+  }
+}
+
+async function removerAnexo(anexoId) {
+  if (!requireWriteAccess()) return;
+  const dem = demandaAbertaParaAnexos();
+  const a = normalizeAnexos(dem?.anexos).find((x) => x.id === anexoId);
+  if (!dem || !a) return;
+  const ok = await confirmDialog({
+    title: "Remover anexo?",
+    message: `“${a.nome}” será apagado do projeto e do armazenamento.`,
+    confirmText: "Remover",
+    cancelText: "Voltar",
+    variant: "danger",
+  });
+  if (!ok) return;
+  try {
+    if (storageDisponivel()) await firebase.storage().ref(a.path).delete();
+  } catch (e) {
+    if (e?.code !== "storage/object-not-found") {
+      toast(mensagemErroStorage(e));
+      return;
+    }
+  }
+  salvarAnexosDemanda(dem, normalizeAnexos(dem.anexos).filter((x) => x.id !== anexoId));
+  toast("Anexo removido");
+}
+
+/** Usado ao excluir um projeto de vez: apaga os arquivos dele no Storage. */
+async function apagarAnexosDoStorage(d) {
+  if (!storageDisponivel()) return;
+  for (const a of normalizeAnexos(d?.anexos)) {
+    try {
+      await firebase.storage().ref(a.path).delete();
+    } catch (e) {
+      if (e?.code !== "storage/object-not-found") console.warn("Apagar anexo:", e);
+    }
+  }
+}
+
+function renderAnexosDemanda() {
+  const lista = document.getElementById("demAnexosLista");
+  const drop = document.getElementById("demAnexosDrop");
+  const dica = document.getElementById("demAnexosDica");
+  if (!lista || !drop) return;
+  const dem = demandaAbertaParaAnexos();
+  const anexos = normalizeAnexos(dem?.anexos);
+  const ro = isReadOnlyUser();
+  const disponivel = storageDisponivel();
+  drop.hidden = ro;
+  drop.classList.toggle("is-desativado", !dem || !disponivel);
+  const input = document.getElementById("demAnexosInput");
+  if (input) {
+    input.disabled = ro || !dem || !disponivel;
+    input.dataset.keepDisabled = input.disabled ? "1" : "";
+    if (!input.disabled) delete input.dataset.keepDisabled;
+  }
+  if (dica) {
+    dica.textContent = !dem
+      ? "Salve o projeto para poder anexar arquivos."
+      : !disponivel
+        ? "Anexos indisponíveis: o Firebase Storage não está configurado neste ambiente."
+        : `PDF, imagens, planilhas, KMZ… até ${formatTamanhoArquivo(ANEXO_TAMANHO_MAX)} por arquivo.`;
+  }
+  const enviando = [...anexosEnviando.entries()]
+    .map(
+      ([id, a]) =>
+        `<li class="anexo is-enviando" data-anexo-enviando="${escapeHtml(id)}"><span class="anexo__ico" aria-hidden="true">⏳</span>` +
+        `<span class="anexo__txt"><strong>${escapeHtml(a.nome)}</strong><span class="anexo__progresso"><i style="width:${a.pct}%"></i></span></span></li>`,
+    )
+    .join("");
+  const itens = anexos
+    .slice()
+    .sort((a, b) => String(b.enviadoEm).localeCompare(String(a.enviadoEm)))
+    .map(
+      (a) =>
+        `<li class="anexo"><span class="anexo__ico" aria-hidden="true">${anexoIcone(a)}</span>` +
+        `<span class="anexo__txt"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer" class="anexo__nome" title="Abrir ${escapeHtml(a.nome)}">${escapeHtml(a.nome)}</a>` +
+        `<small>${escapeHtml(formatTamanhoArquivo(a.tamanho))} · ${escapeHtml(a.enviadoPor || "—")} · ${escapeHtml(formatDataCurta(isoDatePart(a.enviadoEm)))}</small></span>` +
+        `<a class="anexo__acao" href="${escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(a.nome)}" title="Baixar" aria-label="Baixar ${escapeHtml(a.nome)}">⬇</a>` +
+        (ro ? "" : `<button type="button" class="anexo__acao anexo__remover" data-anexo-remover="${escapeHtml(a.id)}" title="Remover" aria-label="Remover ${escapeHtml(a.nome)}">🗑</button>`) +
+        `</li>`,
+    )
+    .join("");
+  lista.innerHTML = enviando + itens || `<li class="anexos__vazio">Nenhum arquivo anexado.</li>`;
+  agendarSyncDemNavegacao();
+}
+
+function initAnexosDemanda() {
+  const drop = document.getElementById("demAnexosDrop");
+  const input = document.getElementById("demAnexosInput");
+  input?.addEventListener("change", () => {
+    if (input.files?.length) void enviarAnexos(input.files);
+    input.value = "";
+  });
+  drop?.addEventListener("dragover", (e) => {
+    if (input?.disabled) return;
+    e.preventDefault();
+    drop.classList.add("is-sobre");
+  });
+  drop?.addEventListener("dragleave", () => drop.classList.remove("is-sobre"));
+  drop?.addEventListener("drop", (e) => {
+    e.preventDefault();
+    drop.classList.remove("is-sobre");
+    if (input?.disabled) return;
+    if (e.dataTransfer?.files?.length) void enviarAnexos(e.dataTransfer.files);
+  });
+  document.getElementById("demAnexosLista")?.addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-anexo-remover]");
+    if (rm) void removerAnexo(rm.dataset.anexoRemover);
+  });
+}
+
+/* ---------- Backups automáticos na nuvem (Cloud Functions + Storage) ---------- */
+function backupNomeAmigavel(nome) {
+  const m = String(nome).match(/demandas-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})/);
+  if (!m) return nome.replace(/^backups\//, "");
+  // O nome usa o horário UTC; mostra no horário local.
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00Z`);
+  return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+async function renderBackupsModal() {
+  const lista = document.getElementById("backupsLista");
+  const ultimo = document.getElementById("backupsUltimo");
+  if (!lista || !ultimo) return;
+  if (!storageDisponivel()) {
+    ultimo.innerHTML = `<p class="muted small">Disponível só com o Firebase conectado.</p>`;
+    lista.innerHTML = "";
+    return;
+  }
+  ultimo.innerHTML = `<p class="muted small">Carregando…</p>`;
+  lista.innerHTML = "";
+  try {
+    const info = (await firebase.firestore().doc("demandasSistema/backups").get()).data()?.ultimo;
+    ultimo.innerHTML = info
+      ? `<span class="backups-ultimo__ico" aria-hidden="true">✓</span><div><strong>Último backup: ${escapeHtml(
+          new Date(info.geradoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }),
+        )}</strong><span class="muted small">${escapeHtml(String(info.totalDemandas))} projeto(s) · ${escapeHtml(
+          formatTamanhoArquivo(info.bytes),
+        )} · ${info.motivo === "manual" ? `manual (${escapeHtml(info.autor || "—")})` : "automático"}</span></div>`
+      : `<span class="backups-ultimo__ico is-pendente" aria-hidden="true">!</span><div><strong>Nenhum backup registrado ainda</strong><span class="muted small">Publique as funções (backupDiario e backupAgora) ou clique em Fazer backup agora.</span></div>`;
+  } catch (e) {
+    ultimo.innerHTML = `<p class="muted small">Não foi possível ler a situação do backup (${escapeHtml(e?.code || e?.message || "erro")}).</p>`;
+  }
+  try {
+    const res = await firebase.storage().ref("backups").listAll();
+    const itens = res.items.slice().sort((a, b) => b.name.localeCompare(a.name));
+    lista.innerHTML = itens.length
+      ? itens
+          .map(
+            (it) =>
+              `<li class="anexo"><span class="anexo__ico" aria-hidden="true">🗄</span><span class="anexo__txt"><strong>${escapeHtml(
+                backupNomeAmigavel(it.fullPath),
+              )}</strong><small>${/manual/.test(it.name) ? "Manual" : "Automático"} · ${escapeHtml(it.name)}</small></span>` +
+              `<button type="button" class="anexo__acao" data-backup-baixar="${escapeHtml(it.fullPath)}" title="Baixar" aria-label="Baixar backup">⬇</button></li>`,
+          )
+          .join("")
+      : `<li class="anexos__vazio">Nenhum arquivo de backup no Storage ainda.</li>`;
+  } catch (e) {
+    lista.innerHTML = `<li class="anexos__vazio">${escapeHtml(mensagemErroStorage(e))}</li>`;
+  }
+}
+
+function abrirBackupsModal() {
+  if (!isAdminUser()) {
+    toast("Apenas administrador acessa os backups");
+    return;
+  }
+  const dlg = document.getElementById("modalBackups");
+  if (!dlg) return;
+  if (!dlg.open) dlg.showModal();
+  void renderBackupsModal();
+}
+
+async function fazerBackupAgora() {
+  const btn = document.getElementById("btnBackupAgora");
+  if (typeof firebase === "undefined" || !firebase.functions) {
+    toast("Recarregue a página (Ctrl+F5) para carregar as funções.");
+    return;
+  }
+  const prev = btn?.textContent || "Fazer backup agora";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Gerando…";
+  }
+  try {
+    const res = await firebase.app().functions("us-central1").httpsCallable("backupAgora")({});
+    toast(`Backup gerado · ${res?.data?.totalDemandas ?? "?"} projeto(s)`);
+    await renderBackupsModal();
+  } catch (e) {
+    console.warn("backupAgora:", e);
+    toast(
+      e?.code === "functions/not-found"
+        ? "A função de backup ainda não foi publicada (firebase deploy --only functions)"
+        : e?.message || "Falha ao gerar o backup",
+    );
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
+  }
+}
+
+function initBackupsModal() {
+  document.getElementById("btnBackupsNuvem")?.addEventListener("click", () => {
+    setExportMenuOpen(false);
+    abrirBackupsModal();
+  });
+  const fechar = () => document.getElementById("modalBackups")?.close();
+  document.getElementById("modalBackupsClose")?.addEventListener("click", fechar);
+  document.getElementById("btnFecharBackups")?.addEventListener("click", fechar);
+  document.getElementById("btnBackupAgora")?.addEventListener("click", () => void fazerBackupAgora());
+  document.getElementById("backupsLista")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-backup-baixar]");
+    if (!btn) return;
+    try {
+      const url = await firebase.storage().ref(btn.dataset.backupBaixar).getDownloadURL();
+      window.open(url, "_blank", "noopener");
+    } catch (err) {
+      toast(mensagemErroStorage(err));
+    }
+  });
+}
+
+/* ---------- Lixeira e arquivo ---------- */
+function demandaAutorAcao() {
+  return getLoggedInComentarioAutor() || getCurrentUserEmail() || "Equipe";
+}
+
+/** Move projetos para a lixeira (recuperável): saem da esteira, do dashboard e dos alertas. */
+function moverDemandasParaLixeira(ids, { silencioso = false } = {}) {
+  if (!requireWriteAccess("deleteDemanda")) return 0;
+  const agora = new Date().toISOString();
+  const autor = demandaAutorAcao();
+  let n = 0;
+  for (const id of ids) {
+    const d = state.demandas.find((x) => x.id === id);
+    if (!d) continue;
+    d.excluidoEm = agora;
+    d.excluidoPor = autor;
+    d.updatedAt = agora;
+    delete d.editingBy;
+    state.demandas = state.demandas.filter((x) => x.id !== id);
+    state.lixeira = [...(state.lixeira || []).filter((x) => x.id !== id), d];
+    saveState({ demanda: migrateDemanda(d) });
+    n++;
+  }
+  if (n) {
+    refreshAllViews();
+    renderLixeiraModal();
+    if (!silencioso) {
+      toastComAcao(n === 1 ? "Projeto movido para a lixeira" : `${n} projetos movidos para a lixeira`, "Desfazer", () =>
+        restaurarDaLixeira(ids),
+      );
+    }
+  }
+  return n;
+}
+
+function restaurarDaLixeira(ids) {
+  if (!requireWriteAccess()) return 0;
+  const agora = new Date().toISOString();
+  let n = 0;
+  for (const id of ids) {
+    const d = (state.lixeira || []).find((x) => x.id === id);
+    if (!d) continue;
+    delete d.excluidoEm;
+    delete d.excluidoPor;
+    d.updatedAt = agora;
+    state.lixeira = state.lixeira.filter((x) => x.id !== id);
+    const restaurada = migrateDemanda({ ...d, __isMigrated: false });
+    state.demandas = [...state.demandas.filter((x) => x.id !== id), restaurada];
+    saveState({ demanda: { ...restaurada, excluidoEm: firebaseCampoApagar(), excluidoPor: firebaseCampoApagar() } });
+    n++;
+  }
+  if (n) {
+    refreshAllViews();
+    renderLixeiraModal();
+    toast(n === 1 ? "Projeto restaurado" : `${n} projetos restaurados`);
+  }
+  return n;
+}
+
+/** Valor que apaga um campo no Firestore (ou some na cópia local). */
+function firebaseCampoApagar() {
+  return typeof firebase !== "undefined" && firebase.firestore?.FieldValue ? firebase.firestore.FieldValue.delete() : undefined;
+}
+
+async function excluirDefinitivamente(ids) {
+  if (!isAdminUser()) {
+    toast("Só administradores podem excluir de vez");
+    return 0;
+  }
+  let n = 0;
+  for (const id of ids) {
+    const d = (state.lixeira || []).find((x) => x.id === id);
+    if (!d) continue;
+    if (typeof apagarAnexosDoStorage === "function") await apagarAnexosDoStorage(d).catch(() => {});
+    state.lixeira = state.lixeira.filter((x) => x.id !== id);
+    markDemandaPendingDelete(id);
+    saveState({ deleteDemandaId: id });
+    n++;
+  }
+  if (n) {
+    renderLixeiraModal();
+    toast(n === 1 ? "Projeto excluído de vez" : `${n} projetos excluídos de vez`);
+  }
+  return n;
+}
+
+function arquivarDemandas(ids, arquivar = true) {
+  if (!requireWriteAccess()) return 0;
+  const agora = new Date().toISOString();
+  const autor = demandaAutorAcao();
+  let n = 0;
+  for (const id of ids) {
+    const d = state.demandas.find((x) => x.id === id);
+    if (!d || Boolean(d.arquivadoEm) === arquivar) continue;
+    if (arquivar) {
+      d.arquivadoEm = agora;
+      d.arquivadoPor = autor;
+    } else {
+      delete d.arquivadoEm;
+      delete d.arquivadoPor;
+    }
+    d.updatedAt = agora;
+    const payload = migrateDemanda({ ...d, __isMigrated: false });
+    Object.assign(d, payload);
+    saveState({
+      demanda: arquivar ? payload : { ...payload, arquivadoEm: firebaseCampoApagar(), arquivadoPor: firebaseCampoApagar() },
+    });
+    n++;
+  }
+  if (n) {
+    refreshAllViews();
+    renderLixeiraModal();
+    if (arquivar) {
+      toastComAcao(n === 1 ? "Projeto arquivado" : `${n} projetos arquivados`, "Desfazer", () => arquivarDemandas(ids, false));
+    } else {
+      toast(n === 1 ? "Projeto desarquivado — voltou para a esteira" : `${n} projetos desarquivados`);
+    }
+  }
+  return n;
+}
+
+/** Toast com um botão de ação (ex.: Desfazer) — fica 6 s na tela. */
+function toastComAcao(msg, rotulo, acao) {
+  toast(msg);
+  if (!toastEl || typeof acao !== "function") return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "toast__acao";
+  btn.textContent = rotulo;
+  btn.addEventListener("click", () => {
+    btn.remove();
+    toastEl.hidden = true;
+    acao();
+  });
+  toastEl.appendChild(btn);
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { toastEl.hidden = true; }, 6000);
+}
+
+let lixeiraAba = "arquivados";
+
+function abrirLixeiraModal(aba) {
+  const dlg = document.getElementById("modalLixeira");
+  if (!dlg) return;
+  if (aba) lixeiraAba = aba;
+  const busca = document.getElementById("lixeiraBusca");
+  if (busca) busca.value = "";
+  renderLixeiraModal();
+  if (!dlg.open) dlg.showModal();
+}
+
+function renderLixeiraModal() {
+  const dlg = document.getElementById("modalLixeira");
+  if (!dlg) return;
+  const arquivados = state.demandas.filter((d) => d.arquivadoEm);
+  const lixeira = state.lixeira || [];
+  const nArq = document.getElementById("lixeiraNArq");
+  const nLix = document.getElementById("lixeiraNLix");
+  if (nArq) nArq.textContent = String(arquivados.length);
+  if (nLix) nLix.textContent = String(lixeira.length);
+  document.querySelectorAll("#lixeiraAbas [data-aba]").forEach((b) => {
+    const on = b.dataset.aba === lixeiraAba;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const ro = isReadOnlyUser();
+  const admin = isAdminUser();
+  const esvaziar = document.getElementById("btnEsvaziarLixeira");
+  if (esvaziar) esvaziar.hidden = !(lixeiraAba === "lixeira" && admin && lixeira.length);
+  const dica = document.getElementById("lixeiraDica");
+  if (dica) {
+    dica.textContent =
+      lixeiraAba === "arquivados"
+        ? "Projetos arquivados saem da esteira e dos alertas, mas continuam nos indicadores do dashboard."
+        : "Projetos na lixeira não aparecem em lugar nenhum até serem restaurados." + (admin ? " Só administradores excluem de vez." : "");
+  }
+  const termo = normalizeBuscaText(document.getElementById("lixeiraBusca")?.value || "");
+  const lista = (lixeiraAba === "arquivados" ? arquivados : lixeira)
+    .filter((d) => !termo || normalizeBuscaText([d.titulo, formatCidadesDemanda(d), d.tipo, d.produtoB2b, d.solicitante].join(" ")).includes(termo))
+    .sort((a, b) => String(b.arquivadoEm || b.excluidoEm).localeCompare(String(a.arquivadoEm || a.excluidoEm)));
+  const el = document.getElementById("lixeiraLista");
+  if (!el) return;
+  if (!lista.length) {
+    el.innerHTML = `<p class="lixeira-vazio">${termo ? "Nada encontrado." : lixeiraAba === "arquivados" ? "Nenhum projeto arquivado." : "A lixeira está vazia."}</p>`;
+    return;
+  }
+  el.innerHTML = lista
+    .map((d) => {
+      const quando = d.arquivadoEm || d.excluidoEm;
+      const quem = d.arquivadoPor || d.excluidoPor;
+      const dias = diasEntreDatasISO(String(quando).slice(0, 10), todayISODate());
+      const acoes =
+        lixeiraAba === "arquivados"
+          ? `<button type="button" class="btn btn--ghost btn--sm" data-lx-abrir="${escapeHtml(d.id)}">Abrir</button>` +
+            (ro ? "" : `<button type="button" class="btn btn--ghost btn--sm" data-lx-desarquivar="${escapeHtml(d.id)}">Desarquivar</button>`)
+          : (ro ? "" : `<button type="button" class="btn btn--ghost btn--sm" data-lx-restaurar="${escapeHtml(d.id)}">Restaurar</button>`) +
+            (admin ? `<button type="button" class="btn btn--ghost btn--sm btn--danger-ghost" data-lx-apagar="${escapeHtml(d.id)}">Excluir de vez</button>` : "");
+      return (
+        `<div class="lixeira-item">` +
+        `<div class="lixeira-item__info"><strong>${escapeHtml(d.titulo)}</strong>` +
+        `<span class="muted small"><span class="badge ${tipoBadgeClass(d.tipo)}">${escapeHtml(d.tipo)}</span> ${escapeHtml(labelStatus(d.status, d.linhaEsteira))}` +
+        `${formatCidadesDemanda(d) ? ` · ${escapeHtml(formatCidadesDemanda(d))}` : ""}</span>` +
+        `<span class="muted small">${lixeiraAba === "arquivados" ? "Arquivado" : "Excluído"} ${dias === 0 ? "hoje" : `há ${dias} dia(s)`}` +
+        `${quem ? ` por ${escapeHtml(quem)}` : ""} · ${escapeHtml(formatDataCurta(String(quando).slice(0, 10)))}</span></div>` +
+        `<div class="lixeira-item__acoes">${acoes}</div></div>`
+      );
+    })
+    .join("");
+}
+
+function initLixeiraModal() {
+  const dlg = document.getElementById("modalLixeira");
+  if (!dlg) return;
+  document.getElementById("btnLixeiraArquivo")?.addEventListener("click", () => abrirLixeiraModal());
+  document.getElementById("modalLixeiraClose")?.addEventListener("click", () => dlg.close());
+  document.getElementById("btnFecharLixeira")?.addEventListener("click", () => dlg.close());
+  document.getElementById("lixeiraAbas")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-aba]");
+    if (!b) return;
+    lixeiraAba = b.dataset.aba;
+    renderLixeiraModal();
+  });
+  document.getElementById("lixeiraBusca")?.addEventListener("input", renderLixeiraModal);
+  document.getElementById("lixeiraLista")?.addEventListener("click", async (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.lxAbrir) {
+      dlg.close();
+      openDemandaModal(b.dataset.lxAbrir);
+    } else if (b.dataset.lxDesarquivar) {
+      arquivarDemandas([b.dataset.lxDesarquivar], false);
+    } else if (b.dataset.lxRestaurar) {
+      restaurarDaLixeira([b.dataset.lxRestaurar]);
+    } else if (b.dataset.lxApagar) {
+      const d = (state.lixeira || []).find((x) => x.id === b.dataset.lxApagar);
+      const ok = await confirmDialog({
+        title: "Excluir de vez?",
+        message: `«${d?.titulo || "Projeto"}» e seus anexos serão apagados permanentemente. Não dá para desfazer.`,
+        confirmText: "Excluir de vez",
+        variant: "danger",
+      });
+      if (ok) await excluirDefinitivamente([b.dataset.lxApagar]);
+    }
+  });
+  document.getElementById("btnEsvaziarLixeira")?.addEventListener("click", async () => {
+    const ids = (state.lixeira || []).map((d) => d.id);
+    if (!ids.length) return;
+    const ok = await confirmDialog({
+      title: "Esvaziar a lixeira?",
+      message: `${ids.length} projeto(s) e seus anexos serão apagados permanentemente. Não dá para desfazer.`,
+      confirmText: "Esvaziar lixeira",
+      variant: "danger",
+    });
+    if (ok) await excluirDefinitivamente(ids);
+  });
+  // Arquivar/desarquivar pelo menu "…" do projeto
+  document.getElementById("btnArquivarDemanda")?.addEventListener("click", () => {
+    const id = (document.getElementById("demId")?.value || "").trim();
+    setDemandaFootMenuOpen(false);
+    if (!id) {
+      toast("Salve o projeto antes de arquivar");
+      return;
+    }
+    if (demandaTemAlteracoes()) {
+      toast("Salve as alterações antes de arquivar");
+      return;
+    }
+    const d = state.demandas.find((x) => x.id === id);
+    if (!d) return;
+    const arquivar = !d.arquivadoEm;
+    closeDemandaModal();
+    arquivarDemandas([id], arquivar);
+  });
+  document.getElementById("btnDesarquivarBanner")?.addEventListener("click", () => {
+    const id = (document.getElementById("demId")?.value || "").trim();
+    if (!id) return;
+    arquivarDemandas([id], false);
+    syncDemandaArquivadoUi(id);
+  });
+}
+
+/** Faixa "Projeto arquivado" e texto do item do menu conforme o projeto aberto. */
+function syncDemandaArquivadoUi(id) {
+  const d = id ? state.demandas.find((x) => x.id === id) : null;
+  const banner = document.getElementById("demArquivadoBanner");
+  const txt = document.getElementById("demArquivadoTxt");
+  const menuTxt = document.getElementById("btnArquivarDemandaTxt");
+  const arq = Boolean(d?.arquivadoEm);
+  if (banner) banner.hidden = !arq;
+  if (txt && arq) txt.textContent = `Arquivado em ${formatDataCurta(d.arquivadoEm.slice(0, 10))}${d.arquivadoPor ? ` por ${d.arquivadoPor}` : ""}`;
+  if (menuTxt) menuTxt.textContent = arq ? "Desarquivar projeto" : "Arquivar projeto";
+}
 
 /* ---------- Histórico de edição ---------- */
 const modalHistoricoEdicao = document.getElementById("modalHistoricoEdicao");
@@ -15212,9 +16793,14 @@ document.getElementById("inputImport")?.addEventListener("change", async (e) => 
   if (!requireWriteAccess("import")) return;
   try {
     const text = await file.text();
-    const data = JSON.parse(text);
+    // Backups da nuvem trazem cabeçalho e cópia bruta do meta — não entram no estado do app.
+    const { backup: _cabecalho, metaCompleto: _metaBruto, ...data } = JSON.parse(text);
     applyLoadedState(data);
     saveState({ importFull: true });
+    const metaFields = {};
+    if (data.metasEtapa && typeof data.metasEtapa === "object") metaFields.metasEtapa = data.metasEtapa;
+    if (data.filtrosSalvos && typeof data.filtrosSalvos === "object") metaFields.filtrosSalvos = data.filtrosSalvos;
+    if (Object.keys(metaFields).length) saveState({ metaFields });
     refreshAllViews();
     toast("Importação concluída");
   } catch {

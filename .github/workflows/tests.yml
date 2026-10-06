@@ -1,0 +1,55 @@
+name: Testes
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            functions/package-lock.json
+            tests/package-lock.json
+
+      - name: Verificar sintaxe dos scripts
+        run: |
+          for f in demandas-projetos/*.js functions/*.js; do node --check "$f"; done
+
+      - name: Instalar dependências
+        run: |
+          npm ci --prefix functions
+          npm ci --prefix tests
+
+      - name: Testes unitários
+        working-directory: tests
+        run: npm run test:unit
+
+      - name: Instalar navegador (Chromium)
+        working-directory: tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Testes ponta a ponta (Playwright)
+        working-directory: tests
+        env:
+          CI: "true"
+        run: npm run test:e2e
+
+      - name: Relatório do Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/playwright-report
+          retention-days: 7

@@ -26,6 +26,16 @@ const DemandasFirebase = (function () {
   let unsubRoles = null;
   let snapDemandas = [];
   let snapMeta = { diarias: [], projetistas: {}, deletedDemandaIds: [], deletedDiariaIds: [] };
+  /** Configurações extras guardadas no doc meta (metas por etapa, filtros salvos por usuário). */
+  const META_EXTRA_KEYS = ["metasEtapa", "filtrosSalvos"];
+
+  function pickMetaExtras(src) {
+    const out = {};
+    for (const k of META_EXTRA_KEYS) {
+      if (src && src[k] && typeof src[k] === "object") out[k] = src[k];
+    }
+    return out;
+  }
   let metaLoaded = false;
   let demandasLoaded = false;
   let legacyHintChecked = false;
@@ -97,6 +107,7 @@ const DemandasFirebase = (function () {
       deletedDiariaIds: Array.isArray(data.deletedDiariaIds)
         ? data.deletedDiariaIds.filter((id) => id)
         : [],
+      ...pickMetaExtras(data),
     };
   }
 
@@ -265,6 +276,8 @@ const DemandasFirebase = (function () {
       pendingDeleteDemandaIds: l.pendingDeleteDemandaIds,
       deletedDemandaIds: mergedDeleted,
       deletedDiariaIds: mergedDeletedDiarias,
+      ...pickMetaExtras(l),
+      ...pickMetaExtras(r),
     };
   }
 
@@ -654,6 +667,7 @@ const DemandasFirebase = (function () {
             deletedDiariaIds: Array.isArray(d.deletedDiariaIds)
               ? d.deletedDiariaIds.filter((id) => typeof id === "string" && id)
               : [],
+            ...pickMetaExtras(d),
           };
           if (Date.now() < inflightAccessUntil) {
             /* gravação local de acesso em voo — não reaplicar mapa antigo */
@@ -822,6 +836,19 @@ const DemandasFirebase = (function () {
         if (inflightMeta && Date.now() >= inflightMeta.until) inflightMeta = null;
       }, INFLIGHT_META_MS);
     }
+  }
+
+  /** Grava só os campos de configuração informados no doc meta (merge profundo nos mapas). */
+  async function persistMetaFields(fields) {
+    const data = pickMetaExtras(fields);
+    if (!Object.keys(data).length) return;
+    await ensureAuth();
+    onStatusFn("saving");
+    await withTimeout(
+      metaRef.set({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }),
+      REQ_TIMEOUT_MS,
+    );
+    onStatusFn("synced");
   }
 
   async function ensureRolesDoc() {
@@ -1097,6 +1124,7 @@ const DemandasFirebase = (function () {
       deleteDemanda,
       patchDemandaPresence,
       persistMeta,
+      persistMetaFields,
       persistRoles,
       importFullState,
       migrateLegacyPayload,
@@ -1121,6 +1149,7 @@ const DemandasFirebase = (function () {
       deleteDemanda: noop,
       patchDemandaPresence: noop,
       persistMeta: noop,
+      persistMetaFields: noop,
       persistRoles: async (roles) => {
         applyAccessMaps({
           roles,

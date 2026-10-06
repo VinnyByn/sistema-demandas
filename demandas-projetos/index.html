@@ -90,6 +90,20 @@
           <span class="sidebar__label">Dashboard</span>
         </button>
 
+        <button type="button" class="sidebar__item" id="btnLixeiraArquivo" data-tip="Arquivo e lixeira" aria-label="Arquivo e lixeira">
+          <span class="sidebar__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/></svg>
+          </span>
+          <span class="sidebar__label">Arquivo e lixeira</span>
+        </button>
+
+        <button type="button" class="sidebar__item" id="btnMetasEtapa" data-tip="Metas por etapa" aria-label="Metas por etapa">
+          <span class="sidebar__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>
+          </span>
+          <span class="sidebar__label">Metas por etapa</span>
+        </button>
+
         <div class="sidebar__group import-menu sidebar__admin" id="exportMenu" hidden>
           <button type="button" class="sidebar__item import-menu__toggle" id="btnExportToggle" aria-expanded="false" aria-haspopup="menu" aria-controls="exportMenuPanel" data-tip="Exportar" aria-label="Exportar">
             <span class="sidebar__icon" aria-hidden="true">
@@ -100,6 +114,7 @@
           <div class="import-menu__panel" id="exportMenuPanel" role="menu" hidden>
             <button type="button" class="import-menu__item" id="btnExportJson" role="menuitem">JSON — backup do sistema</button>
             <button type="button" class="import-menu__item" id="btnExportCsv" role="menuitem">CSV — relatório completo</button>
+            <button type="button" class="import-menu__item" id="btnBackupsNuvem" role="menuitem">Backups automáticos na nuvem…</button>
           </div>
         </div>
 
@@ -176,6 +191,10 @@
             </select>
           </div>
           <div class="filters">
+            <button type="button" class="filtro-atalho" id="btnMinhasDemandas" aria-pressed="false" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+              Minhas demandas
+            </button>
             <label class="field field--inline filtro-chip">
               <span>Projetista</span>
               <select id="filterProjetista">
@@ -200,10 +219,29 @@
                 <option value="">Todas</option>
               </select>
             </label>
+            <div class="filtros-salvos">
+              <button type="button" class="filtro-atalho" id="btnFiltrosSalvos" aria-haspopup="true" aria-expanded="false" aria-controls="filtrosSalvosMenu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
+                <span id="filtrosSalvosRotulo">Filtros salvos</span>
+                <span aria-hidden="true">▾</span>
+              </button>
+              <div class="filtros-salvos__menu" id="filtrosSalvosMenu" hidden>
+                <p class="filtros-salvos__titulo">Seus filtros salvos</p>
+                <ul class="filtros-salvos__lista" id="filtrosSalvosLista"></ul>
+                <form class="filtros-salvos__form" id="filtroSalvoForm">
+                  <input type="text" id="filtroSalvoNome" maxlength="40" autocomplete="off" aria-label="Nome do filtro" />
+                  <button type="submit" class="btn btn--primary btn--sm" id="btnSalvarFiltro" disabled>Salvar atual</button>
+                </form>
+              </div>
+            </div>
           </div>
           <div class="esteira-toolbar__resumo">
             <div class="esteira-resumo" id="esteiraStatusLine" aria-live="polite"></div>
             <button type="button" class="filters__limpar" id="btnLimparFiltros" hidden>✕ Limpar filtros</button>
+            <button type="button" class="btn-selecionar" id="btnSelecionarCards" aria-pressed="false" title="Selecionar vários cards para mover, atribuir, arquivar…">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 12l3 3 5-6"/></svg>
+              Selecionar
+            </button>
           </div>
         </div>
         <div class="esteiras">
@@ -221,6 +259,23 @@
               <div class="board board--b2b" id="boardEsteiraB2b"></div>
             </div>
           </div>
+        </div>
+        <div class="lote-barra" id="loteBarra" role="toolbar" aria-label="Ações em lote" hidden>
+          <div class="lote-barra__info">
+            <strong id="loteQtd">Clique nos cards para selecionar</strong>
+            <button type="button" class="lote-barra__link" id="btnLoteTodos">Selecionar todos</button>
+          </div>
+          <div class="lote-barra__acoes">
+            <select id="loteStatus" data-lote-acao aria-label="Mover selecionados para a etapa"><option value="">Mover para…</option></select>
+            <select id="loteResponsavel" data-lote-acao aria-label="Atribuir projetista aos selecionados"><option value="">Projetista…</option></select>
+            <span class="lote-barra__prazo">
+              <input type="date" id="lotePrazo" data-lote-acao aria-label="Nova previsão de término" title="Previsão de término" />
+              <button type="button" class="btn btn--ghost btn--sm" id="btnLotePrazo" data-lote-acao>Aplicar prazo</button>
+            </span>
+            <button type="button" class="btn btn--ghost btn--sm" id="btnLoteArquivar" data-lote-acao>📦 Arquivar</button>
+            <button type="button" class="btn btn--ghost btn--sm lote-barra__perigo" id="btnLoteLixeira" data-lote-acao>🗑 Lixeira</button>
+          </div>
+          <button type="button" class="lote-barra__fechar" id="btnLoteCancelar" aria-label="Sair da seleção (Esc)" title="Sair da seleção (Esc)">✕</button>
         </div>
       </section>
 
@@ -833,10 +888,18 @@
                 <span class="demanda-foot-menu__ico" aria-hidden="true">⏱</span>
                 <span>Histórico de edição</span>
               </button>
+              <button type="button" class="demanda-foot-menu__item" id="btnArquivarDemanda" role="menuitem">
+                <span class="demanda-foot-menu__ico" aria-hidden="true">📦</span>
+                <span id="btnArquivarDemandaTxt">Arquivar projeto</span>
+              </button>
             </div>
           </div>
           <button type="button" class="icon-btn" id="modalDemandaClose" aria-label="Fechar" title="Fechar (Esc)">×</button>
         </div>
+      </div>
+      <div id="demArquivadoBanner" class="demanda-alert demanda-alert--arquivado" hidden role="status">
+        <p>📦 <span id="demArquivadoTxt">Projeto arquivado</span> — fora da esteira; continua nos indicadores do dashboard.</p>
+        <button type="button" class="btn btn--ghost btn--sm" id="btnDesarquivarBanner">Desarquivar</button>
       </div>
       <div id="demSelfEditingBanner" class="demanda-alert demanda-alert--self" hidden role="status">
         <p>Você está editando este projeto — outros usuários veem <strong>seu nome no card</strong> na esteira.</p>
@@ -1221,6 +1284,12 @@
                   <option value="concluida">Concluída</option>
                 </select>
               </label>
+              <label class="field">
+                <span>Depende de</span>
+                <select id="demChecklistDep">
+                  <option value="">Nenhuma — pode começar a qualquer momento</option>
+                </select>
+              </label>
               <label class="field field--span">
                 <span>Descrição</span>
                 <textarea id="demChecklistDesc" maxlength="160" rows="2" placeholder="O que esta atividade entrega"></textarea>
@@ -1233,6 +1302,18 @@
           </div>
           <div id="demChecklistGantt" class="checklist-gantt" hidden></div>
           <ul class="checklist-list" id="demChecklistList"></ul>
+        </fieldset>
+
+        <fieldset class="fieldset fieldset--segment fieldset--anexos">
+          <legend>Anexos</legend>
+          <p class="muted small">Arquivos do projeto (PDFs, fotos, planilhas, KMZ). Ficam guardados no Firebase Storage e qualquer pessoa da equipe pode baixar.</p>
+          <label class="anexos-drop" id="demAnexosDrop">
+            <input type="file" id="demAnexosInput" multiple hidden />
+            <span class="anexos-drop__ico" aria-hidden="true">⇪</span>
+            <span><strong>Arraste arquivos aqui</strong> ou clique para escolher</span>
+            <small id="demAnexosDica"></small>
+          </label>
+          <ul class="anexos-lista" id="demAnexosLista"></ul>
         </fieldset>
 
         <fieldset class="fieldset fieldset--segment fieldset--timeline">
@@ -1257,7 +1338,7 @@
             </button>
             <div class="comments-panel__body" id="commentsPanelBody">
               <div class="comments-compose">
-                <textarea id="demComentarioNovo" rows="2" maxlength="4000" placeholder="Escreva um comentário…" aria-label="Novo comentário"></textarea>
+                <textarea id="demComentarioNovo" rows="2" maxlength="4000" placeholder="Escreva um comentário… use @ para mencionar" aria-label="Novo comentário"></textarea>
                 <button type="button" class="comments-compose__send" id="btnAddComentario" title="Enviar comentário (Ctrl+Enter)" aria-label="Enviar comentário" disabled>&#8593;</button>
                 <p class="comments-compose__hint" id="demComentarioHint">Ctrl+Enter envia</p>
               </div>
@@ -1287,6 +1368,72 @@
       </div>
       <div class="modal__foot">
         <button type="button" class="btn btn--ghost" id="btnFecharHistoricoEdicao">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--wide" id="modalLixeira" aria-labelledby="modalLixeiraTitulo">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2 id="modalLixeiraTitulo">Arquivo e lixeira</h2>
+        <button type="button" class="icon-btn" id="modalLixeiraClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <div class="lixeira-toolbar">
+          <div class="dash-seg" role="tablist" aria-label="Ver" id="lixeiraAbas">
+            <button type="button" role="tab" data-aba="arquivados">📦 Arquivados <b id="lixeiraNArq">0</b></button>
+            <button type="button" role="tab" data-aba="lixeira">🗑 Lixeira <b id="lixeiraNLix">0</b></button>
+          </div>
+          <input type="search" id="lixeiraBusca" placeholder="Buscar por nome, cidade, tipo…" autocomplete="off" aria-label="Buscar" />
+        </div>
+        <p class="muted small" id="lixeiraDica"></p>
+        <div id="lixeiraLista" class="lixeira-lista" aria-live="polite"></div>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost btn--danger-ghost" id="btnEsvaziarLixeira" hidden>Esvaziar lixeira</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn--ghost" id="btnFecharLixeira">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal" id="modalBackups" aria-labelledby="modalBackupsTitulo">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2 id="modalBackupsTitulo">Backups na nuvem</h2>
+        <button type="button" class="icon-btn" id="modalBackupsClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <p class="muted small">Todo dia às 03:10 uma cópia completa (projetos, comentários, checklists, diárias, metas e perfis) é salva no Firebase Storage. Ficam os 30 mais recentes.
+          Para restaurar, baixe o arquivo e use <strong>Importar → JSON — backup do sistema</strong>.</p>
+        <div class="backups-ultimo" id="backupsUltimo"></div>
+        <ul class="backups-lista" id="backupsLista"></ul>
+      </div>
+      <div class="modal__foot">
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn--ghost" id="btnFecharBackups">Fechar</button>
+        <button type="button" class="btn btn--primary" id="btnBackupAgora">Fazer backup agora</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal" id="modalMetasEtapa" aria-labelledby="modalMetasEtapaTitulo">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2 id="modalMetasEtapaTitulo">Metas por etapa</h2>
+        <button type="button" class="icon-btn" id="modalMetasEtapaClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <p class="muted small metas-etapa__ajuda">Quantos dias um projeto pode ficar em cada etapa. Ao passar da meta ele aparece como <strong>parado</strong> no card, no cabeçalho da coluna e no sino de alertas.
+          Em branco usa o padrão de 6 dias; <strong>0</strong> desliga a meta da etapa.</p>
+        <p class="metas-etapa__aviso" id="metasEtapaAviso" hidden>Só administradores podem alterar as metas.</p>
+        <div class="metas-etapa" id="metasEtapaCorpo"></div>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="btnPadraoMetasEtapa">Voltar ao padrão</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn--ghost" id="btnCancelarMetasEtapa">Cancelar</button>
+        <button type="button" class="btn btn--primary" id="btnSalvarMetasEtapa">Salvar metas</button>
       </div>
     </div>
   </dialog>
@@ -1604,6 +1751,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
   <script src="firebase-auth.js"></script>
   <script src="firebase-persist.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
