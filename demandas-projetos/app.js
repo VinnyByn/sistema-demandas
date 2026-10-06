@@ -2015,7 +2015,10 @@ function applyLoadedState(data) {
   state = mergeLoadedState(data);
   const tombstones = demandaDeleteTombstones();
   const diariaTombstones = diariaDeleteTombstones();
-  state.demandas = (state.demandas || []).filter((d) => !tombstones.has(d.id)).map(migrateDemanda);
+  const todas = (state.demandas || []).filter((d) => !tombstones.has(d.id)).map(migrateDemanda);
+  // Excluídas ficam na lixeira (fora de esteira, dashboard e alertas) até serem restauradas ou apagadas.
+  state.lixeira = todas.filter((d) => d.excluidoEm);
+  state.demandas = todas.filter((d) => !d.excluidoEm);
   state.diarias = (state.diarias || [])
     .filter((d) => !diariaTombstones.has(d.id))
     .map(normalizeDiaria);
@@ -2069,6 +2072,12 @@ function applyCloudPatch(patch) {
       toast(e?.message || "Não foi possível sincronizar diárias/projetistas na nuvem");
     });
   }
+  if (patch.metaFields && persistenceApi.persistMetaFields) {
+    void persistenceApi.persistMetaFields(patch.metaFields).catch((e) => {
+      console.warn("Salvar configuração na nuvem:", e);
+      toast(e?.message || "Não foi possível salvar a configuração na nuvem");
+    });
+  }
   if (patch.importFull && persistenceApi.importFullState) {
     void persistenceApi.importFullState(state);
   }
@@ -2079,12 +2088,13 @@ function saveState(patch = {}) {
     // Cópia local sem flag interna de migração
     const toSave = {
       ...state,
-      demandas: (state.demandas || []).map((d) => {
+      demandas: [...(state.demandas || []), ...(state.lixeira || [])].map((d) => {
         if (!d || !d.__isMigrated) return d;
         const { __isMigrated, ...rest } = d;
         return rest;
       }),
     };
+    delete toSave.lixeira;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch (e) {
     console.warn("Falha ao salvar cópia local:", e);
@@ -3929,6 +3939,23 @@ function normalizeChecklist(list) {
   return list.map(normalizeChecklistItem).filter(Boolean);
 }
 
+/** Anexos do projeto (arquivos no Firebase Storage). */
+function normalizeAnexos(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((a) => a && typeof a === "object" && a.path && a.nome)
+    .map((a) => ({
+      id: String(a.id || uid()),
+      nome: String(a.nome),
+      tipo: String(a.tipo || ""),
+      tamanho: Number(a.tamanho) || 0,
+      path: String(a.path),
+      url: String(a.url || ""),
+      enviadoPor: String(a.enviadoPor || ""),
+      enviadoEm: String(a.enviadoEm || ""),
+    }));
+}
+
 function migrateDemanda(d) {
   if (!d || typeof d !== "object") return d;
   // Já normalizada nesta sessão — evita reprocessar custo/histórico em todo card.
@@ -3980,6 +4007,16 @@ function migrateDemanda(d) {
     createdAt: d.createdAt || new Date().toISOString(),
     updatedAt: d.updatedAt || new Date().toISOString(),
   };
+  base.anexos = normalizeAnexos(d.anexos);
+  // Lixeira / arquivo: excluído vai para a lixeira (recuperável); arquivado sai da esteira.
+  if (d.excluidoEm) {
+    base.excluidoEm = String(d.excluidoEm);
+    base.excluidoPor = String(d.excluidoPor || "");
+  }
+  if (d.arquivadoEm) {
+    base.arquivadoEm = String(d.arquivadoEm);
+    base.arquivadoPor = String(d.arquivadoPor || "");
+  }
   const snooze = normalizeAlertaSnooze(d.alertaSnooze);
   if (snooze) base.alertaSnooze = snooze;
   if (!base.clickup) delete base.clickup;
@@ -4396,6 +4433,7 @@ function filteredDemandasForEsteira(linha = activeEsteiraCanal, { rapido = true 
   return state.demandas
     .filter((d) => !tombstones.has(d.id))
     .map(migrateDemanda)
+    .filter((d) => !d.arquivadoEm)
     .filter((d) => inferLinhaEsteira(d) === normalizeLinhaEsteira(linha))
     .filter((d) => demandaMatchesEsteiraFilters(d, f));
 }
@@ -4945,6 +4983,7 @@ function initAlertaSnoozeModal() {
 }
 
 initAlertaSnoozeModal();
+initLixeiraModal();
 
 /**
  * Captura o scroll do board e de cada coluna ANTES de re-renderizar
@@ -8145,6 +8184,7 @@ initDemNavegacao();
 
 function openDemandaModal(id) {
   comentarioEditandoId = "";
+  setTimeout(() => syncDemandaArquivadoUi(id), 0);
   if (!id && isReadOnlyUser()) {
     toast("Seu perfil (Visibilidade) e somente leitura");
     return;
@@ -9607,20 +9647,310 @@ document.getElementById("btnExcluirDemanda")?.addEventListener("click", async ()
   }
   const titulo = document.getElementById("demTitulo")?.value?.trim() || "esta demanda";
   const ok = await confirmDialog({
-    title: "Excluir demanda?",
-    message: `A demanda «${titulo}» será removida permanentemente. Esta ação não pode ser desfeita.`,
-    confirmText: "Excluir demanda",
+    title: "Mover para a lixeira?",
+    message: `O projeto «${titulo}» sai da esteira e vai para a Lixeira. Dá para restaurar depois.`,
+    confirmText: "Mover para a lixeira",
     variant: "danger",
   });
   if (!ok) return;
   stopPresenceHeartbeat();
   releaseDemandaEditing(id);
-  markDemandaPendingDelete(id);
-  saveState({ deleteDemandaId: id });
   closeDemandaModal();
-  renderBoard();
-  toast("Demanda excluída");
+  moverDemandasParaLixeira([id]);
 });
+
+/* ---------- Lixeira e arquivo ---------- */
+function demandaAutorAcao() {
+  return getLoggedInComentarioAutor() || getCurrentUserEmail() || "Equipe";
+}
+
+/** Move projetos para a lixeira (recuperável): saem da esteira, do dashboard e dos alertas. */
+function moverDemandasParaLixeira(ids, { silencioso = false } = {}) {
+  if (!requireWriteAccess("deleteDemanda")) return 0;
+  const agora = new Date().toISOString();
+  const autor = demandaAutorAcao();
+  let n = 0;
+  for (const id of ids) {
+    const d = state.demandas.find((x) => x.id === id);
+    if (!d) continue;
+    d.excluidoEm = agora;
+    d.excluidoPor = autor;
+    d.updatedAt = agora;
+    delete d.editingBy;
+    state.demandas = state.demandas.filter((x) => x.id !== id);
+    state.lixeira = [...(state.lixeira || []).filter((x) => x.id !== id), d];
+    saveState({ demanda: migrateDemanda(d) });
+    n++;
+  }
+  if (n) {
+    refreshAllViews();
+    renderLixeiraModal();
+    if (!silencioso) {
+      toastComAcao(n === 1 ? "Projeto movido para a lixeira" : `${n} projetos movidos para a lixeira`, "Desfazer", () =>
+        restaurarDaLixeira(ids),
+      );
+    }
+  }
+  return n;
+}
+
+function restaurarDaLixeira(ids) {
+  if (!requireWriteAccess()) return 0;
+  const agora = new Date().toISOString();
+  let n = 0;
+  for (const id of ids) {
+    const d = (state.lixeira || []).find((x) => x.id === id);
+    if (!d) continue;
+    delete d.excluidoEm;
+    delete d.excluidoPor;
+    d.updatedAt = agora;
+    state.lixeira = state.lixeira.filter((x) => x.id !== id);
+    const restaurada = migrateDemanda({ ...d, __isMigrated: false });
+    state.demandas = [...state.demandas.filter((x) => x.id !== id), restaurada];
+    saveState({ demanda: { ...restaurada, excluidoEm: firebaseCampoApagar(), excluidoPor: firebaseCampoApagar() } });
+    n++;
+  }
+  if (n) {
+    refreshAllViews();
+    renderLixeiraModal();
+    toast(n === 1 ? "Projeto restaurado" : `${n} projetos restaurados`);
+  }
+  return n;
+}
+
+/** Valor que apaga um campo no Firestore (ou some na cópia local). */
+function firebaseCampoApagar() {
+  return typeof firebase !== "undefined" && firebase.firestore?.FieldValue ? firebase.firestore.FieldValue.delete() : undefined;
+}
+
+async function excluirDefinitivamente(ids) {
+  if (!isAdminUser()) {
+    toast("Só administradores podem excluir de vez");
+    return 0;
+  }
+  let n = 0;
+  for (const id of ids) {
+    const d = (state.lixeira || []).find((x) => x.id === id);
+    if (!d) continue;
+    if (typeof apagarAnexosDoStorage === "function") await apagarAnexosDoStorage(d).catch(() => {});
+    state.lixeira = state.lixeira.filter((x) => x.id !== id);
+    markDemandaPendingDelete(id);
+    saveState({ deleteDemandaId: id });
+    n++;
+  }
+  if (n) {
+    renderLixeiraModal();
+    toast(n === 1 ? "Projeto excluído de vez" : `${n} projetos excluídos de vez`);
+  }
+  return n;
+}
+
+function arquivarDemandas(ids, arquivar = true) {
+  if (!requireWriteAccess()) return 0;
+  const agora = new Date().toISOString();
+  const autor = demandaAutorAcao();
+  let n = 0;
+  for (const id of ids) {
+    const d = state.demandas.find((x) => x.id === id);
+    if (!d || Boolean(d.arquivadoEm) === arquivar) continue;
+    if (arquivar) {
+      d.arquivadoEm = agora;
+      d.arquivadoPor = autor;
+    } else {
+      delete d.arquivadoEm;
+      delete d.arquivadoPor;
+    }
+    d.updatedAt = agora;
+    const payload = migrateDemanda({ ...d, __isMigrated: false });
+    Object.assign(d, payload);
+    saveState({
+      demanda: arquivar ? payload : { ...payload, arquivadoEm: firebaseCampoApagar(), arquivadoPor: firebaseCampoApagar() },
+    });
+    n++;
+  }
+  if (n) {
+    refreshAllViews();
+    renderLixeiraModal();
+    if (arquivar) {
+      toastComAcao(n === 1 ? "Projeto arquivado" : `${n} projetos arquivados`, "Desfazer", () => arquivarDemandas(ids, false));
+    } else {
+      toast(n === 1 ? "Projeto desarquivado — voltou para a esteira" : `${n} projetos desarquivados`);
+    }
+  }
+  return n;
+}
+
+/** Toast com um botão de ação (ex.: Desfazer) — fica 6 s na tela. */
+function toastComAcao(msg, rotulo, acao) {
+  toast(msg);
+  if (!toastEl || typeof acao !== "function") return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "toast__acao";
+  btn.textContent = rotulo;
+  btn.addEventListener("click", () => {
+    btn.remove();
+    toastEl.hidden = true;
+    acao();
+  });
+  toastEl.appendChild(btn);
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { toastEl.hidden = true; }, 6000);
+}
+
+let lixeiraAba = "arquivados";
+
+function abrirLixeiraModal(aba) {
+  const dlg = document.getElementById("modalLixeira");
+  if (!dlg) return;
+  if (aba) lixeiraAba = aba;
+  const busca = document.getElementById("lixeiraBusca");
+  if (busca) busca.value = "";
+  renderLixeiraModal();
+  if (!dlg.open) dlg.showModal();
+}
+
+function renderLixeiraModal() {
+  const dlg = document.getElementById("modalLixeira");
+  if (!dlg) return;
+  const arquivados = state.demandas.filter((d) => d.arquivadoEm);
+  const lixeira = state.lixeira || [];
+  const nArq = document.getElementById("lixeiraNArq");
+  const nLix = document.getElementById("lixeiraNLix");
+  if (nArq) nArq.textContent = String(arquivados.length);
+  if (nLix) nLix.textContent = String(lixeira.length);
+  document.querySelectorAll("#lixeiraAbas [data-aba]").forEach((b) => {
+    const on = b.dataset.aba === lixeiraAba;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const ro = isReadOnlyUser();
+  const admin = isAdminUser();
+  const esvaziar = document.getElementById("btnEsvaziarLixeira");
+  if (esvaziar) esvaziar.hidden = !(lixeiraAba === "lixeira" && admin && lixeira.length);
+  const dica = document.getElementById("lixeiraDica");
+  if (dica) {
+    dica.textContent =
+      lixeiraAba === "arquivados"
+        ? "Projetos arquivados saem da esteira e dos alertas, mas continuam nos indicadores do dashboard."
+        : "Projetos na lixeira não aparecem em lugar nenhum até serem restaurados." + (admin ? " Só administradores excluem de vez." : "");
+  }
+  const termo = normalizeBuscaText(document.getElementById("lixeiraBusca")?.value || "");
+  const lista = (lixeiraAba === "arquivados" ? arquivados : lixeira)
+    .filter((d) => !termo || normalizeBuscaText([d.titulo, formatCidadesDemanda(d), d.tipo, d.produtoB2b, d.solicitante].join(" ")).includes(termo))
+    .sort((a, b) => String(b.arquivadoEm || b.excluidoEm).localeCompare(String(a.arquivadoEm || a.excluidoEm)));
+  const el = document.getElementById("lixeiraLista");
+  if (!el) return;
+  if (!lista.length) {
+    el.innerHTML = `<p class="lixeira-vazio">${termo ? "Nada encontrado." : lixeiraAba === "arquivados" ? "Nenhum projeto arquivado." : "A lixeira está vazia."}</p>`;
+    return;
+  }
+  el.innerHTML = lista
+    .map((d) => {
+      const quando = d.arquivadoEm || d.excluidoEm;
+      const quem = d.arquivadoPor || d.excluidoPor;
+      const dias = diasEntreDatasISO(String(quando).slice(0, 10), todayISODate());
+      const acoes =
+        lixeiraAba === "arquivados"
+          ? `<button type="button" class="btn btn--ghost btn--sm" data-lx-abrir="${escapeHtml(d.id)}">Abrir</button>` +
+            (ro ? "" : `<button type="button" class="btn btn--ghost btn--sm" data-lx-desarquivar="${escapeHtml(d.id)}">Desarquivar</button>`)
+          : (ro ? "" : `<button type="button" class="btn btn--ghost btn--sm" data-lx-restaurar="${escapeHtml(d.id)}">Restaurar</button>`) +
+            (admin ? `<button type="button" class="btn btn--ghost btn--sm btn--danger-ghost" data-lx-apagar="${escapeHtml(d.id)}">Excluir de vez</button>` : "");
+      return (
+        `<div class="lixeira-item">` +
+        `<div class="lixeira-item__info"><strong>${escapeHtml(d.titulo)}</strong>` +
+        `<span class="muted small"><span class="badge ${tipoBadgeClass(d.tipo)}">${escapeHtml(d.tipo)}</span> ${escapeHtml(labelStatus(d.status, d.linhaEsteira))}` +
+        `${formatCidadesDemanda(d) ? ` · ${escapeHtml(formatCidadesDemanda(d))}` : ""}</span>` +
+        `<span class="muted small">${lixeiraAba === "arquivados" ? "Arquivado" : "Excluído"} ${dias === 0 ? "hoje" : `há ${dias} dia(s)`}` +
+        `${quem ? ` por ${escapeHtml(quem)}` : ""} · ${escapeHtml(formatDataCurta(String(quando).slice(0, 10)))}</span></div>` +
+        `<div class="lixeira-item__acoes">${acoes}</div></div>`
+      );
+    })
+    .join("");
+}
+
+function initLixeiraModal() {
+  const dlg = document.getElementById("modalLixeira");
+  if (!dlg) return;
+  document.getElementById("btnLixeiraArquivo")?.addEventListener("click", () => abrirLixeiraModal());
+  document.getElementById("modalLixeiraClose")?.addEventListener("click", () => dlg.close());
+  document.getElementById("btnFecharLixeira")?.addEventListener("click", () => dlg.close());
+  document.getElementById("lixeiraAbas")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-aba]");
+    if (!b) return;
+    lixeiraAba = b.dataset.aba;
+    renderLixeiraModal();
+  });
+  document.getElementById("lixeiraBusca")?.addEventListener("input", renderLixeiraModal);
+  document.getElementById("lixeiraLista")?.addEventListener("click", async (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.lxAbrir) {
+      dlg.close();
+      openDemandaModal(b.dataset.lxAbrir);
+    } else if (b.dataset.lxDesarquivar) {
+      arquivarDemandas([b.dataset.lxDesarquivar], false);
+    } else if (b.dataset.lxRestaurar) {
+      restaurarDaLixeira([b.dataset.lxRestaurar]);
+    } else if (b.dataset.lxApagar) {
+      const d = (state.lixeira || []).find((x) => x.id === b.dataset.lxApagar);
+      const ok = await confirmDialog({
+        title: "Excluir de vez?",
+        message: `«${d?.titulo || "Projeto"}» e seus anexos serão apagados permanentemente. Não dá para desfazer.`,
+        confirmText: "Excluir de vez",
+        variant: "danger",
+      });
+      if (ok) await excluirDefinitivamente([b.dataset.lxApagar]);
+    }
+  });
+  document.getElementById("btnEsvaziarLixeira")?.addEventListener("click", async () => {
+    const ids = (state.lixeira || []).map((d) => d.id);
+    if (!ids.length) return;
+    const ok = await confirmDialog({
+      title: "Esvaziar a lixeira?",
+      message: `${ids.length} projeto(s) e seus anexos serão apagados permanentemente. Não dá para desfazer.`,
+      confirmText: "Esvaziar lixeira",
+      variant: "danger",
+    });
+    if (ok) await excluirDefinitivamente(ids);
+  });
+  // Arquivar/desarquivar pelo menu "…" do projeto
+  document.getElementById("btnArquivarDemanda")?.addEventListener("click", () => {
+    const id = (document.getElementById("demId")?.value || "").trim();
+    setDemandaFootMenuOpen(false);
+    if (!id) {
+      toast("Salve o projeto antes de arquivar");
+      return;
+    }
+    if (demandaTemAlteracoes()) {
+      toast("Salve as alterações antes de arquivar");
+      return;
+    }
+    const d = state.demandas.find((x) => x.id === id);
+    if (!d) return;
+    const arquivar = !d.arquivadoEm;
+    closeDemandaModal();
+    arquivarDemandas([id], arquivar);
+  });
+  document.getElementById("btnDesarquivarBanner")?.addEventListener("click", () => {
+    const id = (document.getElementById("demId")?.value || "").trim();
+    if (!id) return;
+    arquivarDemandas([id], false);
+    syncDemandaArquivadoUi(id);
+  });
+}
+
+/** Faixa "Projeto arquivado" e texto do item do menu conforme o projeto aberto. */
+function syncDemandaArquivadoUi(id) {
+  const d = id ? state.demandas.find((x) => x.id === id) : null;
+  const banner = document.getElementById("demArquivadoBanner");
+  const txt = document.getElementById("demArquivadoTxt");
+  const menuTxt = document.getElementById("btnArquivarDemandaTxt");
+  const arq = Boolean(d?.arquivadoEm);
+  if (banner) banner.hidden = !arq;
+  if (txt && arq) txt.textContent = `Arquivado em ${formatDataCurta(d.arquivadoEm.slice(0, 10))}${d.arquivadoPor ? ` por ${d.arquivadoPor}` : ""}`;
+  if (menuTxt) menuTxt.textContent = arq ? "Desarquivar projeto" : "Arquivar projeto";
+}
 
 /* ---------- Histórico de edição ---------- */
 const modalHistoricoEdicao = document.getElementById("modalHistoricoEdicao");

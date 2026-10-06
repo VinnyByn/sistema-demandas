@@ -90,6 +90,13 @@
           <span class="sidebar__label">Dashboard</span>
         </button>
 
+        <button type="button" class="sidebar__item" id="btnLixeiraArquivo" data-tip="Arquivo e lixeira" aria-label="Arquivo e lixeira">
+          <span class="sidebar__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/></svg>
+          </span>
+          <span class="sidebar__label">Arquivo e lixeira</span>
+        </button>
+
         <div class="sidebar__group import-menu sidebar__admin" id="exportMenu" hidden>
           <button type="button" class="sidebar__item import-menu__toggle" id="btnExportToggle" aria-expanded="false" aria-haspopup="menu" aria-controls="exportMenuPanel" data-tip="Exportar" aria-label="Exportar">
             <span class="sidebar__icon" aria-hidden="true">
@@ -833,10 +840,18 @@
                 <span class="demanda-foot-menu__ico" aria-hidden="true">⏱</span>
                 <span>Histórico de edição</span>
               </button>
+              <button type="button" class="demanda-foot-menu__item" id="btnArquivarDemanda" role="menuitem">
+                <span class="demanda-foot-menu__ico" aria-hidden="true">📦</span>
+                <span id="btnArquivarDemandaTxt">Arquivar projeto</span>
+              </button>
             </div>
           </div>
           <button type="button" class="icon-btn" id="modalDemandaClose" aria-label="Fechar" title="Fechar (Esc)">×</button>
         </div>
+      </div>
+      <div id="demArquivadoBanner" class="demanda-alert demanda-alert--arquivado" hidden role="status">
+        <p>📦 <span id="demArquivadoTxt">Projeto arquivado</span> — fora da esteira; continua nos indicadores do dashboard.</p>
+        <button type="button" class="btn btn--ghost btn--sm" id="btnDesarquivarBanner">Desarquivar</button>
       </div>
       <div id="demSelfEditingBanner" class="demanda-alert demanda-alert--self" hidden role="status">
         <p>Você está editando este projeto — outros usuários veem <strong>seu nome no card</strong> na esteira.</p>
@@ -1287,6 +1302,31 @@
       </div>
       <div class="modal__foot">
         <button type="button" class="btn btn--ghost" id="btnFecharHistoricoEdicao">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal modal--wide" id="modalLixeira" aria-labelledby="modalLixeiraTitulo">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2 id="modalLixeiraTitulo">Arquivo e lixeira</h2>
+        <button type="button" class="icon-btn" id="modalLixeiraClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <div class="lixeira-toolbar">
+          <div class="dash-seg" role="tablist" aria-label="Ver" id="lixeiraAbas">
+            <button type="button" role="tab" data-aba="arquivados">📦 Arquivados <b id="lixeiraNArq">0</b></button>
+            <button type="button" role="tab" data-aba="lixeira">🗑 Lixeira <b id="lixeiraNLix">0</b></button>
+          </div>
+          <input type="search" id="lixeiraBusca" placeholder="Buscar por nome, cidade, tipo…" autocomplete="off" aria-label="Buscar" />
+        </div>
+        <p class="muted small" id="lixeiraDica"></p>
+        <div id="lixeiraLista" class="lixeira-lista" aria-live="polite"></div>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost btn--danger-ghost" id="btnEsvaziarLixeira" hidden>Esvaziar lixeira</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn--ghost" id="btnFecharLixeira">Fechar</button>
       </div>
     </div>
   </dialog>

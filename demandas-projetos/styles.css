@@ -6361,3 +6361,45 @@ html[data-theme="light"] .pdf-rev__alerta { color: #b45309; }
 .card__ck-seg.is-done-late { background: linear-gradient(90deg, #22c55e 0 60%, var(--danger) 60% 100%); }
 .ck-prazo.is-concl-atraso { color: var(--danger); font-weight: 700; }
 .checklist-gantt__row.is-done-late .checklist-gantt__label span { color: var(--danger); font-weight: 600; }
+
+/* ---------- Arquivo e lixeira ---------- */
+.lixeira-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+.lixeira-toolbar input[type="search"] { flex: 1 1 14rem; min-width: 0; }
+.lixeira-toolbar .dash-seg b { margin-left: 0.25rem; font-variant-numeric: tabular-nums; }
+.lixeira-lista { display: flex; flex-direction: column; gap: 0.4rem; max-height: min(60vh, 560px); overflow-y: auto; }
+.lixeira-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+}
+.lixeira-item__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.lixeira-item__info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lixeira-item__info .muted { margin: 0; }
+.lixeira-item__acoes { display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: flex-end; }
+.lixeira-vazio { margin: 1.5rem 0; text-align: center; color: var(--muted); }
+.toast__acao {
+  margin-left: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.toast__acao:hover { background: rgba(255, 255, 255, 0.15); }
+.demanda-alert--arquivado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-color: rgba(148, 163, 184, 0.5);
+  background: rgba(148, 163, 184, 0.12);
+}
+.demanda-alert--arquivado[hidden] { display: none; }
+.demanda-alert--arquivado p { margin: 0; }
