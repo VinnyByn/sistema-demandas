@@ -211,6 +211,10 @@
           <div class="esteira-toolbar__resumo">
             <div class="esteira-resumo" id="esteiraStatusLine" aria-live="polite"></div>
             <button type="button" class="filters__limpar" id="btnLimparFiltros" hidden>✕ Limpar filtros</button>
+            <button type="button" class="btn-selecionar" id="btnSelecionarCards" aria-pressed="false" title="Selecionar vários cards para mover, atribuir, arquivar…">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 12l3 3 5-6"/></svg>
+              Selecionar
+            </button>
           </div>
         </div>
         <div class="esteiras">
@@ -228,6 +232,23 @@
               <div class="board board--b2b" id="boardEsteiraB2b"></div>
             </div>
           </div>
+        </div>
+        <div class="lote-barra" id="loteBarra" role="toolbar" aria-label="Ações em lote" hidden>
+          <div class="lote-barra__info">
+            <strong id="loteQtd">Clique nos cards para selecionar</strong>
+            <button type="button" class="lote-barra__link" id="btnLoteTodos">Selecionar todos</button>
+          </div>
+          <div class="lote-barra__acoes">
+            <select id="loteStatus" data-lote-acao aria-label="Mover selecionados para a etapa"><option value="">Mover para…</option></select>
+            <select id="loteResponsavel" data-lote-acao aria-label="Atribuir projetista aos selecionados"><option value="">Projetista…</option></select>
+            <span class="lote-barra__prazo">
+              <input type="date" id="lotePrazo" data-lote-acao aria-label="Nova previsão de término" title="Previsão de término" />
+              <button type="button" class="btn btn--ghost btn--sm" id="btnLotePrazo" data-lote-acao>Aplicar prazo</button>
+            </span>
+            <button type="button" class="btn btn--ghost btn--sm" id="btnLoteArquivar" data-lote-acao>📦 Arquivar</button>
+            <button type="button" class="btn btn--ghost btn--sm lote-barra__perigo" id="btnLoteLixeira" data-lote-acao>🗑 Lixeira</button>
+          </div>
+          <button type="button" class="lote-barra__fechar" id="btnLoteCancelar" aria-label="Sair da seleção (Esc)" title="Sair da seleção (Esc)">✕</button>
         </div>
       </section>
 

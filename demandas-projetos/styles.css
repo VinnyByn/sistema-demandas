@@ -6403,3 +6403,66 @@ html[data-theme="light"] .pdf-rev__alerta { color: #b45309; }
 }
 .demanda-alert--arquivado[hidden] { display: none; }
 .demanda-alert--arquivado p { margin: 0; }
+
+/* ---------- Seleção e ações em lote ---------- */
+.btn-selecionar {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  height: 1.9rem; padding: 0 0.8rem;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: transparent; color: var(--muted);
+  font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+}
+.btn-selecionar svg { width: 0.95rem; height: 0.95rem; }
+.btn-selecionar:hover { color: var(--text); border-color: var(--accent); }
+.btn-selecionar.is-ativo { color: #fff; background: var(--accent); border-color: var(--accent); }
+.card.card--selecionavel { cursor: pointer; padding-left: 2.1rem; }
+.card--selecionavel .card__prio,
+.card--selecionavel .card__acoes { visibility: hidden; }
+.card__sel {
+  position: absolute; left: 0.6rem; top: 0.75rem;
+  width: 1.05rem; height: 1.05rem; border-radius: 5px;
+  border: 2px solid var(--muted); background: var(--surface);
+  display: grid; place-items: center;
+}
+.card.is-selecionado {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.55), 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+.card.is-selecionado .card__sel { background: var(--accent); border-color: var(--accent); }
+.card.is-selecionado .card__sel::after {
+  content: ""; width: 0.28rem; height: 0.55rem; margin-top: -0.12rem;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.lote-barra {
+  position: fixed; left: 50%; bottom: 1rem; transform: translateX(-50%);
+  z-index: 110; width: max-content; max-width: calc(100vw - 2rem);
+  display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
+  padding: 0.6rem 0.7rem 0.6rem 1rem;
+  background: var(--surface); border: 1px solid var(--accent); border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.lote-barra[hidden] { display: none; }
+.lote-barra__info { display: flex; flex-direction: column; gap: 0.1rem; min-width: 11rem; }
+.lote-barra__info strong { font-size: 0.88rem; }
+.lote-barra__link {
+  align-self: flex-start; padding: 0; border: 0; background: none;
+  color: var(--accent); font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+}
+.lote-barra__link:hover { text-decoration: underline; }
+.lote-barra__link:disabled { color: var(--muted); cursor: default; text-decoration: none; }
+.lote-barra__acoes { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.lote-barra__acoes select,
+.lote-barra__acoes input[type="date"] {
+  height: 2rem; padding: 0 0.5rem; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface2); color: var(--text); font: inherit; font-size: 0.82rem;
+}
+.lote-barra__prazo { display: inline-flex; gap: 0.3rem; align-items: center; }
+.lote-barra__acoes :disabled { opacity: 0.45; cursor: not-allowed; }
+.lote-barra__perigo:not(:disabled):hover { color: #fca5a5; border-color: rgba(239, 68, 68, 0.6); background: rgba(239, 68, 68, 0.08); }
+.lote-barra__fechar {
+  width: 2rem; height: 2rem; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted); cursor: pointer; font-size: 0.95rem;
+}
+.lote-barra__fechar:hover { color: var(--text); background: var(--surface2); }
+body.modo-selecao .esteiras { padding-bottom: 5.5rem; }
+:root[data-theme="light"] .lote-barra__perigo:not(:disabled):hover { color: #b91c1c; }

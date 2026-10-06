@@ -87,6 +87,9 @@ const ESTEIRA_CONFIG = {
   [LINHA_ESTEIRA_B2B]: buildEsteiraConfig(STATUS_ORDER_B2B, [], "pre_vendas"),
 };
 
+/** Modo de seleção da esteira (ações em lote). */
+const selecaoEsteira = { ativa: false, ids: new Set() };
+
 function getEsteiraConfig(linha = activeEsteiraCanal) {
   return ESTEIRA_CONFIG[normalizeLinhaEsteira(linha)] || ESTEIRA_CONFIG[LINHA_ESTEIRA_OPERACIONAL];
 }
@@ -4984,6 +4987,7 @@ function initAlertaSnoozeModal() {
 
 initAlertaSnoozeModal();
 initLixeiraModal();
+initLoteEsteira();
 
 /**
  * Captura o scroll do board e de cada coluna ANTES de re-renderizar
@@ -5101,6 +5105,8 @@ function renderBoard() {
   if (esteira) renderBoardInto(esteira, BOARD_ATRIBUIDOS, linha);
   renderInboxAlertas(linha);
   updateEsteiraStatusLine();
+  podarSelecaoEsteira();
+  syncLoteBarra();
 }
 
 function setEsteiraTabMenuOpen(open) {
@@ -5334,7 +5340,14 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     el.classList.add("card--being-edited");
   }
   if (expandido) el.classList.add("card--expandido");
-  el.draggable = !readOnly;
+  const emSelecao = selecaoEsteira.ativa;
+  if (emSelecao) {
+    el.classList.add("card--selecionavel");
+    const sel = selecaoEsteira.ids.has(d.id);
+    el.classList.toggle("is-selecionado", sel);
+    el.setAttribute("aria-pressed", sel ? "true" : "false");
+  }
+  el.draggable = !readOnly && !emSelecao;
   el.dataset.id = d.id;
   el.tabIndex = 0;
   el.setAttribute("role", "button");
@@ -5360,6 +5373,11 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   });
   el.addEventListener("dragend", () => el.classList.remove("card--drag-source"));
   el.addEventListener("click", (e) => {
+    if (selecaoEsteira.ativa) {
+      e.preventDefault();
+      alternarSelecaoCard(d.id, el);
+      return;
+    }
     const from = e.target instanceof Element ? e.target : e.target?.parentElement;
     if (from?.closest(".card__prio, .card__acoes")) return;
     openDemandaModal(d.id);
@@ -5368,7 +5386,8 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     if (e.target !== el) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      openDemandaModal(d.id);
+      if (selecaoEsteira.ativa) alternarSelecaoCard(d.id, el);
+      else openDemandaModal(d.id);
       return;
     }
     if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && !isReadOnlyUser()) {
@@ -5529,6 +5548,7 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
     </div>
   `;
   el.querySelector(".card__title").textContent = d.titulo;
+  if (emSelecao) el.insertAdjacentHTML("afterbegin", '<span class="card__sel" aria-hidden="true"></span>');
   el.querySelectorAll(".card-prio-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -9658,6 +9678,196 @@ document.getElementById("btnExcluirDemanda")?.addEventListener("click", async ()
   closeDemandaModal();
   moverDemandasParaLixeira([id]);
 });
+
+/* ---------- Seleção e ações em lote na esteira ---------- */
+function setSelecaoEsteiraAtiva(ativa) {
+  if (ativa && !requireWriteAccess()) return;
+  selecaoEsteira.ativa = Boolean(ativa);
+  selecaoEsteira.ids.clear();
+  renderBoard();
+}
+
+/** Cards visíveis na esteira atual (na ordem em que aparecem). */
+function idsCardsVisiveisEsteira() {
+  const board = document.getElementById(activeEsteiraCanal === LINHA_ESTEIRA_B2B ? "boardEsteiraB2b" : "boardEsteira");
+  return board ? [...board.querySelectorAll(".card[data-id]")].map((c) => c.dataset.id) : [];
+}
+
+function alternarSelecaoCard(id, el) {
+  if (selecaoEsteira.ids.has(id)) selecaoEsteira.ids.delete(id);
+  else selecaoEsteira.ids.add(id);
+  const on = selecaoEsteira.ids.has(id);
+  el?.classList.toggle("is-selecionado", on);
+  el?.setAttribute("aria-pressed", on ? "true" : "false");
+  syncLoteBarra();
+}
+
+/** Mantém só o que continua visível (filtro mudou, card arquivado/excluído etc.). */
+function podarSelecaoEsteira() {
+  if (!selecaoEsteira.ativa) return;
+  const visiveis = new Set(idsCardsVisiveisEsteira());
+  for (const id of [...selecaoEsteira.ids]) if (!visiveis.has(id)) selecaoEsteira.ids.delete(id);
+}
+
+function syncLoteBarra() {
+  const barra = document.getElementById("loteBarra");
+  const btn = document.getElementById("btnSelecionarCards");
+  if (btn) {
+    btn.classList.toggle("is-ativo", selecaoEsteira.ativa);
+    btn.setAttribute("aria-pressed", selecaoEsteira.ativa ? "true" : "false");
+    btn.hidden = isReadOnlyUser();
+  }
+  document.body.classList.toggle("modo-selecao", selecaoEsteira.ativa);
+  if (!barra) return;
+  barra.hidden = !selecaoEsteira.ativa;
+  if (!selecaoEsteira.ativa) return;
+  const n = selecaoEsteira.ids.size;
+  const visiveis = idsCardsVisiveisEsteira();
+  const todos = visiveis.length > 0 && visiveis.every((id) => selecaoEsteira.ids.has(id));
+  document.getElementById("loteQtd").textContent =
+    n === 0 ? "Clique nos cards para selecionar" : n === 1 ? "1 projeto selecionado" : `${n} projetos selecionados`;
+  const tudo = document.getElementById("btnLoteTodos");
+  if (tudo) {
+    tudo.textContent = todos ? "Limpar seleção" : `Selecionar todos (${visiveis.length})`;
+    tudo.disabled = !visiveis.length;
+  }
+  barra.querySelectorAll("[data-lote-acao]").forEach((el) => {
+    el.disabled = n === 0;
+  });
+  // Etapas da esteira atual.
+  const selStatus = document.getElementById("loteStatus");
+  if (selStatus && selStatus.dataset.linha !== activeEsteiraCanal) {
+    selStatus.dataset.linha = activeEsteiraCanal;
+    const cfg = getEsteiraConfig(activeEsteiraCanal);
+    selStatus.innerHTML =
+      '<option value="">Mover para…</option>' +
+      [...cfg.statusOrder, ...cfg.statusExtra]
+        .map(([k, label]) => `<option value="${escapeHtml(k)}">${escapeHtml(label)}</option>`)
+        .join("");
+  }
+  const selResp = document.getElementById("loteResponsavel");
+  if (selResp) {
+    const lista = projetistaLabelsFromRoles();
+    const chave = lista.join("|");
+    if (selResp.dataset.chave !== chave) {
+      selResp.dataset.chave = chave;
+      selResp.innerHTML =
+        '<option value="">Projetista…</option><option value="__none__">Não atribuído</option>' +
+        lista.map((nome) => `<option value="${escapeHtml(nome)}">${escapeHtml(nome)}</option>`).join("");
+    }
+  }
+}
+
+/** Aplica `mudar(dem)` em cada projeto selecionado; registra no histórico e salva um a um. */
+function aplicarEmLote(mudar, msgFeito) {
+  if (!requireWriteAccess()) return 0;
+  const now = new Date().toISOString();
+  let n = 0;
+  for (const id of selecaoEsteira.ids) {
+    const dem = state.demandas.find((x) => x.id === id);
+    if (!dem) continue;
+    const antes = migrateDemanda({ ...dem, __isMigrated: false });
+    if (mudar(dem, now) === false) continue;
+    dem.updatedAt = now;
+    invalidateAlertaSnoozeIfStale(dem);
+    registrarEdicaoNoHistoricoEdicao(antes, dem);
+    noteOwnDemandaWrite(id, now);
+    saveState({ demanda: dem });
+    n++;
+  }
+  renderBoard();
+  toast(n ? msgFeito(n) : "Nada a alterar nos projetos selecionados");
+  return n;
+}
+
+function loteMoverStatus(novoStatus) {
+  const label = getEsteiraConfig(activeEsteiraCanal).statusLabel[novoStatus] || novoStatus;
+  return aplicarEmLote(
+    (dem, now) => {
+      if (dem.status === novoStatus) return false;
+      const linha = migrateDemanda(dem).linhaEsteira;
+      dem.status = novoStatus;
+      dem.historicoStatus = statusHistoryPush(dem, novoStatus, now);
+      if (isStatusConcluidoNoFormulario(novoStatus, linha) && !dem.dataTermino) dem.dataTermino = todayISODate();
+      dem.ordemEsteira = ordemAoEntrarColuna(novoStatus, dem.responsavel);
+    },
+    (n) => `${n} ${n === 1 ? "projeto movido" : "projetos movidos"} para ${label}`,
+  );
+}
+
+function loteAtribuirProjetista(valor) {
+  const resp = valor === "__none__" ? "" : normalizeResponsavel(valor);
+  return aplicarEmLote(
+    (dem) => {
+      if (normalizeResponsavel(dem.responsavel) === resp) return false;
+      dem.responsavel = resp;
+      dem.projetistasExtra = normalizeProjetistasExtra(dem.projetistasExtra, resp);
+    },
+    (n) => (resp ? `${n} ${n === 1 ? "projeto atribuído" : "projetos atribuídos"} a ${resp}` : `${n} projeto(s) sem projetista`),
+  );
+}
+
+function loteDefinirPrazo(dataIso) {
+  return aplicarEmLote(
+    (dem) => {
+      if ((dem.dataFimPrevista || "") === dataIso) return false;
+      dem.dataFimPrevista = dataIso;
+    },
+    (n) => `Previsão de término ${dataIso ? `em ${formatDataCurta(dataIso)}` : "removida"} · ${n} projeto(s)`,
+  );
+}
+
+function initLoteEsteira() {
+  document.getElementById("btnSelecionarCards")?.addEventListener("click", () =>
+    setSelecaoEsteiraAtiva(!selecaoEsteira.ativa),
+  );
+  document.getElementById("btnLoteCancelar")?.addEventListener("click", () => setSelecaoEsteiraAtiva(false));
+  document.getElementById("btnLoteTodos")?.addEventListener("click", () => {
+    const visiveis = idsCardsVisiveisEsteira();
+    const todos = visiveis.every((id) => selecaoEsteira.ids.has(id));
+    selecaoEsteira.ids = todos ? new Set() : new Set(visiveis);
+    renderBoard();
+  });
+  document.getElementById("loteStatus")?.addEventListener("change", (e) => {
+    const v = e.target.value;
+    e.target.value = "";
+    if (v) loteMoverStatus(v);
+  });
+  document.getElementById("loteResponsavel")?.addEventListener("change", (e) => {
+    const v = e.target.value;
+    e.target.value = "";
+    if (v) loteAtribuirProjetista(v);
+  });
+  document.getElementById("btnLotePrazo")?.addEventListener("click", () => {
+    const inp = document.getElementById("lotePrazo");
+    const v = inp?.value || "";
+    if (!v) {
+      toast("Escolha a data da previsão de término");
+      inp?.focus();
+      return;
+    }
+    loteDefinirPrazo(v);
+    inp.value = "";
+  });
+  document.getElementById("btnLoteArquivar")?.addEventListener("click", () => {
+    const ids = [...selecaoEsteira.ids];
+    if (!ids.length) return;
+    selecaoEsteira.ids.clear();
+    arquivarDemandas(ids, true);
+  });
+  document.getElementById("btnLoteLixeira")?.addEventListener("click", () => {
+    const ids = [...selecaoEsteira.ids];
+    if (!ids.length) return;
+    if (!confirm(`Mover ${ids.length === 1 ? "o projeto selecionado" : `${ids.length} projetos`} para a lixeira?`)) return;
+    selecaoEsteira.ids.clear();
+    moverDemandasParaLixeira(ids);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !selecaoEsteira.ativa) return;
+    if (document.querySelector("dialog[open]")) return;
+    setSelecaoEsteiraAtiva(false);
+  });
+}
 
 /* ---------- Lixeira e arquivo ---------- */
 function demandaAutorAcao() {
