@@ -97,6 +97,13 @@
           <span class="sidebar__label">Arquivo e lixeira</span>
         </button>
 
+        <button type="button" class="sidebar__item" id="btnMetasEtapa" data-tip="Metas por etapa" aria-label="Metas por etapa">
+          <span class="sidebar__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>
+          </span>
+          <span class="sidebar__label">Metas por etapa</span>
+        </button>
+
         <div class="sidebar__group import-menu sidebar__admin" id="exportMenu" hidden>
           <button type="button" class="sidebar__item import-menu__toggle" id="btnExportToggle" aria-expanded="false" aria-haspopup="menu" aria-controls="exportMenuPanel" data-tip="Exportar" aria-label="Exportar">
             <span class="sidebar__icon" aria-hidden="true">
@@ -1367,6 +1374,27 @@
         <button type="button" class="btn btn--ghost btn--danger-ghost" id="btnEsvaziarLixeira" hidden>Esvaziar lixeira</button>
         <span style="flex:1"></span>
         <button type="button" class="btn btn--ghost" id="btnFecharLixeira">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal" id="modalMetasEtapa" aria-labelledby="modalMetasEtapaTitulo">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2 id="modalMetasEtapaTitulo">Metas por etapa</h2>
+        <button type="button" class="icon-btn" id="modalMetasEtapaClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <p class="muted small metas-etapa__ajuda">Quantos dias um projeto pode ficar em cada etapa. Ao passar da meta ele aparece como <strong>parado</strong> no card, no cabeçalho da coluna e no sino de alertas.
+          Em branco usa o padrão de 6 dias; <strong>0</strong> desliga a meta da etapa.</p>
+        <p class="metas-etapa__aviso" id="metasEtapaAviso" hidden>Só administradores podem alterar as metas.</p>
+        <div class="metas-etapa" id="metasEtapaCorpo"></div>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn btn--ghost" id="btnPadraoMetasEtapa">Voltar ao padrão</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn--ghost" id="btnCancelarMetasEtapa">Cancelar</button>
+        <button type="button" class="btn btn--primary" id="btnSalvarMetasEtapa">Salvar metas</button>
       </div>
     </div>
   </dialog>

@@ -491,13 +491,17 @@ function columnHeadHtml(status, linha, count, list = null) {
     indHtml =
       (ind.atrasados ? `<span class="column__ind column__ind--bad" title="${ind.atrasados} atrasado(s)">${ind.atrasados} atrasado${ind.atrasados > 1 ? "s" : ""}</span>` : "") +
       (ind.vencendo ? `<span class="column__ind column__ind--warn" title="${ind.vencendo} vence(m) em até 3 dias">${ind.vencendo} vencendo</span>` : "") +
-      (ind.parados ? `<span class="column__ind column__ind--coluna" title="${ind.parados} parado(s) há ${ALERTA_DIAS_MESMA_COLUNA}+ dias nesta coluna">${ind.parados} parado${ind.parados > 1 ? "s" : ""}</span>` : "");
+      (ind.parados ? `<span class="column__ind column__ind--coluna" title="${ind.parados} acima da meta de ${metaDiasEtapa(status, linha)} dia(s) nesta etapa">${ind.parados} parado${ind.parados > 1 ? "s" : ""}</span>` : "");
   }
+  const meta = metaDiasEtapa(status, linha);
+  const metaHtml = meta != null
+    ? `<span class="column__meta" title="Meta: até ${meta} dia(s) nesta etapa">⏱ ${meta}d</span>`
+    : "";
   return (
     `<div class="column__head">` +
     `<div class="column__head-top"><div class="column__title" title="${title}">${title}</div>` +
     `<span class="column__count${count ? "" : " is-zero"}" title="${count} projeto(s)">${count}</span></div>` +
-    `<div class="column__head-meta">${setorHtml}${indHtml ? `<span class="column__inds">${indHtml}</span>` : ""}</div>` +
+    `<div class="column__head-meta">${setorHtml}${metaHtml}${indHtml ? `<span class="column__inds">${indHtml}</span>` : ""}</div>` +
     `</div>`
   );
 }
@@ -1437,8 +1441,7 @@ function demandaPrazoProximo(d) {
 
 function demandaParadaNaColuna(d) {
   if (isDemandaEncerrada(d) || !normalizeResponsavel(d.responsavel)) return false;
-  const dias = diasNaColunaAtual(d);
-  return dias != null && dias >= ALERTA_DIAS_MESMA_COLUNA;
+  return diasAcimaDaMeta(d) != null;
 }
 
 const ESTEIRA_FILTROS_RAPIDOS = {
@@ -1447,7 +1450,7 @@ const ESTEIRA_FILTROS_RAPIDOS = {
   sem_projetista: { label: "sem projetista", tom: "bad", test: (d) => !normalizeResponsavel(d.responsavel) },
   parados: {
     get label() {
-      return `parado(s) há ${ALERTA_DIAS_MESMA_COLUNA}+ dias na coluna`;
+      return "acima da meta da etapa";
     },
     tom: "coluna",
     test: demandaParadaNaColuna,
@@ -4669,8 +4672,8 @@ function buildInboxAlertasRows(list, linha) {
       continue;
     }
 
-    const diasCol = diasNaColunaAtual(d);
-    if (diasCol != null && diasCol >= ALERTA_DIAS_MESMA_COLUNA) {
+    const diasCol = diasAcimaDaMeta(d);
+    if (diasCol != null) {
       if (alertaSnoozeAtivo(d, ALERTA_KIND_COLUNA)) continue;
       const fase = labelStatus(d.status, d.linhaEsteira);
       rows.push({
@@ -4678,7 +4681,7 @@ function buildInboxAlertasRows(list, linha) {
         kind: ALERTA_KIND_COLUNA,
         d,
         dias: diasCol,
-        msg: `${diasCol} dia(s) em «${fase}»`,
+        msg: `${diasCol} dia(s) em «${fase}» · meta ${metaDiasDemanda(d)}d`,
         curta: `Parado em ${fase}`,
         meta: formatProjetistasDemanda(d) ? `Projetista: ${formatProjetistasDemanda(d)}` : "",
       });
@@ -4713,7 +4716,7 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   const head = (extra = "") =>
     `<div class="inbox-alertas__head"><h4 class="inbox-alertas__title">Alertas${extra}</h4>` +
     `<span class="inbox-alertas__canal">${canal}${esteiraFiltrosAtivosCount() ? " · com filtros" : ""}</span>` +
-    `<span class="inbox-alertas__ajuda" tabindex="0" title="Vermelho: sem projetista. Laranja: ${ALERTA_DIAS_MESMA_COLUNA}+ dias na mesma coluna. Verde: retornou da Operação.&#10;Adiar registra um comentário e silencia o alerta por alguns dias. Ciente tira o retorno da lista." aria-label="Como funcionam os alertas">?</span></div>`;
+    `<span class="inbox-alertas__ajuda" tabindex="0" title="Vermelho: sem projetista. Laranja: passou da meta de dias da etapa. Verde: retornou da Operação.&#10;Adiar registra um comentário e silencia o alerta por alguns dias. Ciente tira o retorno da lista." aria-label="Como funcionam os alertas">?</span></div>`;
 
   if (!rows.length) {
     el.innerHTML =
@@ -4989,6 +4992,7 @@ initAlertaSnoozeModal();
 initLixeiraModal();
 initLoteEsteira();
 initFiltrosSalvos();
+initMetasEtapa();
 
 /**
  * Captura o scroll do board e de cada coluna ANTES de re-renderizar
@@ -5427,17 +5431,16 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
 
   const snoozeAtivo =
     alertaSnoozeAtivo(dmCard, ALERTA_KIND_SEM_ATRIB) || alertaSnoozeAtivo(dmCard, ALERTA_KIND_COLUNA);
-  const diasColuna = diasNaColunaAtual(dmCard);
+  const diasColuna = diasAcimaDaMeta(dmCard);
   const mostraColunaAlerta =
     !snoozeAtivo &&
     !isStatusConcluidoDemanda(dmCard) &&
     !isDemandaEncerrada(dmCard) &&
     normalizeResponsavel(dmCard.responsavel) &&
-    diasColuna != null &&
-    diasColuna >= ALERTA_DIAS_MESMA_COLUNA;
+    diasColuna != null;
   if (mostraColunaAlerta) el.classList.add("card--coluna-alerta");
   const colunaAlertaHtml = mostraColunaAlerta
-    ? `<p class="card__coluna-alerta"><strong>${escapeHtml(String(diasColuna))} dia(s)</strong> nesta coluna</p>`
+    ? `<p class="card__coluna-alerta"><strong>${escapeHtml(String(diasColuna))} dia(s)</strong> nesta coluna · meta ${metaDiasDemanda(dmCard)}d</p>`
     : "";
 
   const respNomes = demandaProjetistasList(d);
@@ -9680,6 +9683,105 @@ document.getElementById("btnExcluirDemanda")?.addEventListener("click", async ()
   closeDemandaModal();
   moverDemandasParaLixeira([id]);
 });
+
+/* ---------- Metas de dias por etapa (SLA) ---------- */
+/**
+ * Dias que um projeto pode ficar numa etapa antes de virar alerta de "parado".
+ * Sem configuração → padrão de ALERTA_DIAS_MESMA_COLUNA; 0 → etapa sem meta; finalizados nunca têm meta.
+ */
+function metaDiasEtapa(status, linha = activeEsteiraCanal) {
+  const l = normalizeLinhaEsteira(linha);
+  if (statusFinalizadosKeys(l).includes(status)) return null;
+  const v = state.metasEtapa?.[l]?.[status];
+  if (v === undefined || v === null || v === "") return ALERTA_DIAS_MESMA_COLUNA;
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n) || n < 0) return ALERTA_DIAS_MESMA_COLUNA;
+  return n === 0 ? null : n;
+}
+
+function metaDiasDemanda(d) {
+  return metaDiasEtapa(d.status, d.linhaEsteira || inferLinhaEsteira(d));
+}
+
+/** Dias na etapa atual acima da meta (null quando não estourou ou não há meta). */
+function diasAcimaDaMeta(d) {
+  const meta = metaDiasDemanda(d);
+  if (meta == null) return null;
+  const dias = diasNaColunaAtual(d);
+  return dias != null && dias >= meta ? dias : null;
+}
+
+function etapasComMeta(linha) {
+  const cfg = getEsteiraConfig(linha);
+  const fin = new Set(statusFinalizadosKeys(linha));
+  return [...cfg.statusOrder, ...cfg.statusExtra].filter(([k]) => !fin.has(k));
+}
+
+function abrirMetasEtapaModal() {
+  const dlg = document.getElementById("modalMetasEtapa");
+  if (!dlg) return;
+  const admin = isAdminUser();
+  const blocos = [
+    [LINHA_ESTEIRA_OPERACIONAL, "Esteira Projetos"],
+    [LINHA_ESTEIRA_B2B, "Esteira B2B"],
+  ];
+  document.getElementById("metasEtapaCorpo").innerHTML = blocos
+    .map(([linha, nome]) => {
+      const linhas = etapasComMeta(linha)
+        .map(([k, label]) => {
+          const v = state.metasEtapa?.[linha]?.[k];
+          const valor = v === undefined || v === null || v === "" ? "" : String(Math.max(0, Math.round(Number(v)) || 0));
+          return (
+            `<label class="metas-etapa__linha"><span>${escapeHtml(label)}</span>` +
+            `<span class="metas-etapa__campo"><input type="number" min="0" max="365" step="1" inputmode="numeric" ` +
+            `data-meta-linha="${escapeHtml(linha)}" data-meta-status="${escapeHtml(k)}" value="${escapeHtml(valor)}" ` +
+            `placeholder="${ALERTA_DIAS_MESMA_COLUNA}"${admin ? "" : " disabled"} aria-label="Meta em dias para ${escapeHtml(label)}" /> dias</span></label>`
+          );
+        })
+        .join("");
+      return `<section class="metas-etapa__bloco"><h3>${escapeHtml(nome)}</h3>${linhas}</section>`;
+    })
+    .join("");
+  document.getElementById("btnSalvarMetasEtapa").hidden = !admin;
+  document.getElementById("btnPadraoMetasEtapa").hidden = !admin;
+  document.getElementById("metasEtapaAviso").hidden = admin;
+  if (!dlg.open) dlg.showModal();
+}
+
+function salvarMetasEtapa() {
+  if (!isAdminUser()) {
+    toast("Só administradores alteram as metas");
+    return;
+  }
+  const metas = { [LINHA_ESTEIRA_OPERACIONAL]: {}, [LINHA_ESTEIRA_B2B]: {} };
+  document.querySelectorAll("#metasEtapaCorpo [data-meta-status]").forEach((inp) => {
+    const raw = String(inp.value || "").trim();
+    if (raw === "") return;
+    const n = Math.round(Number(raw));
+    if (!Number.isFinite(n) || n < 0) return;
+    metas[inp.dataset.metaLinha][inp.dataset.metaStatus] = Math.min(365, n);
+  });
+  // Etapas sem valor voltam ao padrão: grava `null` para apagar o valor antigo no merge do Firestore.
+  for (const linha of Object.keys(metas)) {
+    for (const [k] of etapasComMeta(linha)) if (!(k in metas[linha])) metas[linha][k] = null;
+  }
+  state.metasEtapa = metas;
+  saveState({ metaFields: { metasEtapa: metas } });
+  document.getElementById("modalMetasEtapa")?.close();
+  refreshAllViews();
+  toast("Metas por etapa salvas");
+}
+
+function initMetasEtapa() {
+  document.getElementById("btnMetasEtapa")?.addEventListener("click", abrirMetasEtapaModal);
+  const fechar = () => document.getElementById("modalMetasEtapa")?.close();
+  document.getElementById("modalMetasEtapaClose")?.addEventListener("click", fechar);
+  document.getElementById("btnCancelarMetasEtapa")?.addEventListener("click", fechar);
+  document.getElementById("btnSalvarMetasEtapa")?.addEventListener("click", salvarMetasEtapa);
+  document.getElementById("btnPadraoMetasEtapa")?.addEventListener("click", () => {
+    document.querySelectorAll("#metasEtapaCorpo [data-meta-status]").forEach((inp) => (inp.value = ""));
+  });
+}
 
 /* ---------- Filtros salvos e "Minhas demandas" ---------- */
 const FILTROS_SALVOS_LIMITE = 12;
