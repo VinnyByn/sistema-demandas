@@ -183,6 +183,10 @@
             </select>
           </div>
           <div class="filters">
+            <button type="button" class="filtro-atalho" id="btnMinhasDemandas" aria-pressed="false" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+              Minhas demandas
+            </button>
             <label class="field field--inline filtro-chip">
               <span>Projetista</span>
               <select id="filterProjetista">
@@ -207,6 +211,21 @@
                 <option value="">Todas</option>
               </select>
             </label>
+            <div class="filtros-salvos">
+              <button type="button" class="filtro-atalho" id="btnFiltrosSalvos" aria-haspopup="true" aria-expanded="false" aria-controls="filtrosSalvosMenu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
+                <span id="filtrosSalvosRotulo">Filtros salvos</span>
+                <span aria-hidden="true">▾</span>
+              </button>
+              <div class="filtros-salvos__menu" id="filtrosSalvosMenu" hidden>
+                <p class="filtros-salvos__titulo">Seus filtros salvos</p>
+                <ul class="filtros-salvos__lista" id="filtrosSalvosLista"></ul>
+                <form class="filtros-salvos__form" id="filtroSalvoForm">
+                  <input type="text" id="filtroSalvoNome" maxlength="40" autocomplete="off" aria-label="Nome do filtro" />
+                  <button type="submit" class="btn btn--primary btn--sm" id="btnSalvarFiltro" disabled>Salvar atual</button>
+                </form>
+              </div>
+            </div>
           </div>
           <div class="esteira-toolbar__resumo">
             <div class="esteira-resumo" id="esteiraStatusLine" aria-live="polite"></div>

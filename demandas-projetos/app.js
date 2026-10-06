@@ -4988,6 +4988,7 @@ function initAlertaSnoozeModal() {
 initAlertaSnoozeModal();
 initLixeiraModal();
 initLoteEsteira();
+initFiltrosSalvos();
 
 /**
  * Captura o scroll do board e de cada coluna ANTES de re-renderizar
@@ -5105,6 +5106,7 @@ function renderBoard() {
   if (esteira) renderBoardInto(esteira, BOARD_ATRIBUIDOS, linha);
   renderInboxAlertas(linha);
   updateEsteiraStatusLine();
+  syncFiltrosSalvosUi();
   podarSelecaoEsteira();
   syncLoteBarra();
 }
@@ -9678,6 +9680,202 @@ document.getElementById("btnExcluirDemanda")?.addEventListener("click", async ()
   closeDemandaModal();
   moverDemandasParaLixeira([id]);
 });
+
+/* ---------- Filtros salvos e "Minhas demandas" ---------- */
+const FILTROS_SALVOS_LIMITE = 12;
+
+/** Chave do usuário no mapa `filtrosSalvos` do doc meta (sem pontos, que o Firestore lê como caminho). */
+function filtrosSalvosChaveUsuario() {
+  const email = String(getCurrentUserEmail() || "").trim().toLowerCase();
+  return email ? email.replace(/\./g, ",") : "local";
+}
+
+function filtrosSalvosDoUsuario() {
+  const mapa = state.filtrosSalvos && typeof state.filtrosSalvos === "object" ? state.filtrosSalvos : {};
+  const lista = mapa[filtrosSalvosChaveUsuario()];
+  return Array.isArray(lista) ? lista.filter((f) => f && f.id && f.nome) : [];
+}
+
+function gravarFiltrosSalvos(lista) {
+  const chave = filtrosSalvosChaveUsuario();
+  state.filtrosSalvos = { ...(state.filtrosSalvos || {}), [chave]: lista };
+  saveState({ metaFields: { filtrosSalvos: { [chave]: lista } } });
+}
+
+function filtrosAtuaisEsteira() {
+  return {
+    linha: activeEsteiraCanal,
+    projetista: document.getElementById("filterProjetista")?.value || "",
+    tipo: document.getElementById("filterTipo")?.value || "",
+    regional: document.getElementById("filterRegional")?.value || "",
+    cidade: document.getElementById("filterCidade")?.value || "",
+    busca: (document.getElementById("filterBusca")?.value || "").trim(),
+    rapido: esteiraFiltroRapido || "",
+    modo: document.getElementById("filterEsteiraModo")?.value || ESTEIRA_MODO_ATIVOS,
+  };
+}
+
+function resumoFiltroSalvo(f) {
+  const partes = [];
+  if (f.projetista) partes.push(f.projetista === "__none__" ? "Não atribuído" : f.projetista);
+  if (f.tipo) partes.push(f.tipo);
+  if (f.cidade) partes.push(f.cidade);
+  else if (f.regional) partes.push(f.regional);
+  if (f.rapido) partes.push(ESTEIRA_FILTROS_RAPIDOS[f.rapido]?.label || f.rapido);
+  if (f.busca) partes.push(`“${f.busca}”`);
+  if (f.modo === ESTEIRA_MODO_FINALIZADOS) partes.push("Finalizados");
+  else if (f.modo === ESTEIRA_MODO_TODOS) partes.push("Todas as colunas");
+  return partes.join(" · ") || "Sem filtros";
+}
+
+function setSelectSeExistir(id, valor) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  sel.value = valor && [...sel.options].some((o) => o.value === valor) ? valor : "";
+}
+
+function aplicarFiltroSalvo(f) {
+  setSelectSeExistir("filterProjetista", f.projetista);
+  setSelectSeExistir("filterTipo", f.tipo);
+  setSelectSeExistir("filterRegional", f.regional);
+  fillFilterCidadeSelect(document.getElementById("filterRegional")?.value || "");
+  setSelectSeExistir("filterCidade", f.cidade);
+  const busca = document.getElementById("filterBusca");
+  if (busca) busca.value = f.busca || "";
+  esteiraFiltroRapido = f.rapido && ESTEIRA_FILTROS_RAPIDOS[f.rapido] ? f.rapido : "";
+  const modo = document.getElementById("filterEsteiraModo");
+  if (modo && f.modo && [...modo.options].some((o) => o.value === f.modo)) modo.value = f.modo;
+  esteiraModoColunas = readEsteiraModoColunas();
+  updateEsteiraModoHints();
+  renderBoard();
+}
+
+function filtroSalvoIgualAtual(f) {
+  const a = filtrosAtuaisEsteira();
+  return ["projetista", "tipo", "regional", "cidade", "busca", "rapido", "modo"].every(
+    (k) => String(a[k] || "") === String(f[k] || ""),
+  );
+}
+
+/** Rótulo de projetista do usuário logado, se ele aparece no filtro de projetistas. */
+function minhaEtiquetaProjetista() {
+  const nome = projetistaLabelForEmail(getCurrentUserEmail());
+  if (!nome) return "";
+  const sel = document.getElementById("filterProjetista");
+  return sel && [...sel.options].some((o) => o.value === nome) ? nome : "";
+}
+
+function syncFiltrosSalvosUi() {
+  const minhas = document.getElementById("btnMinhasDemandas");
+  if (minhas) {
+    const eu = minhaEtiquetaProjetista();
+    minhas.hidden = !eu;
+    const ativo = Boolean(eu) && document.getElementById("filterProjetista")?.value === eu;
+    minhas.classList.toggle("is-ativo", ativo);
+    minhas.setAttribute("aria-pressed", ativo ? "true" : "false");
+    minhas.title = ativo ? "Mostrar os projetos de todos" : `Só os projetos de ${eu}`;
+  }
+  const lista = filtrosSalvosDoUsuario().filter((f) => (f.linha || LINHA_ESTEIRA_OPERACIONAL) === activeEsteiraCanal);
+  const btn = document.getElementById("btnFiltrosSalvos");
+  const atual = lista.find(filtroSalvoIgualAtual);
+  if (btn) {
+    btn.classList.toggle("is-ativo", Boolean(atual));
+    document.getElementById("filtrosSalvosRotulo").textContent = atual ? atual.nome : "Filtros salvos";
+  }
+  const ul = document.getElementById("filtrosSalvosLista");
+  if (ul) {
+    ul.innerHTML = lista.length
+      ? lista
+          .map(
+            (f) =>
+              `<li class="filtros-salvos__item${f === atual ? " is-ativo" : ""}">` +
+              `<button type="button" class="filtros-salvos__aplicar" data-fs-aplicar="${escapeHtml(f.id)}">` +
+              `<strong>${escapeHtml(f.nome)}</strong><span>${escapeHtml(resumoFiltroSalvo(f))}</span></button>` +
+              `<button type="button" class="filtros-salvos__remover" data-fs-remover="${escapeHtml(f.id)}" aria-label="Remover ${escapeHtml(f.nome)}" title="Remover">✕</button></li>`,
+          )
+          .join("")
+      : `<li class="filtros-salvos__vazio">Nenhum filtro salvo nesta esteira. Monte os filtros e salve abaixo para voltar a eles com um clique.</li>`;
+  }
+  const temFiltro = esteiraFiltrosAtivosCount() > 0 || (document.getElementById("filterEsteiraModo")?.value || ESTEIRA_MODO_ATIVOS) !== ESTEIRA_MODO_ATIVOS;
+  const salvar = document.getElementById("btnSalvarFiltro");
+  const nome = document.getElementById("filtroSalvoNome");
+  if (salvar) salvar.disabled = !temFiltro || !(nome?.value || "").trim();
+  if (nome) {
+    nome.disabled = !temFiltro;
+    nome.placeholder = temFiltro ? "Nome (ex.: Atrasados de Goiânia)" : "Aplique algum filtro para salvar";
+  }
+}
+
+function setFiltrosSalvosAberto(aberto) {
+  setDropdownMenuOpen("filtrosSalvosMenu", "btnFiltrosSalvos", aberto);
+  if (aberto) {
+    syncFiltrosSalvosUi();
+    const nome = document.getElementById("filtroSalvoNome");
+    if (nome && !nome.disabled) nome.focus();
+  }
+}
+
+function salvarFiltroAtual() {
+  const inp = document.getElementById("filtroSalvoNome");
+  const nome = (inp?.value || "").trim().slice(0, 40);
+  if (!nome) return;
+  const lista = filtrosSalvosDoUsuario();
+  const f = { id: uid(), nome, ...filtrosAtuaisEsteira(), criadoEm: new Date().toISOString() };
+  const semMesmoNome = lista.filter((x) => !(x.nome.toLowerCase() === nome.toLowerCase() && x.linha === f.linha));
+  if (semMesmoNome.length >= FILTROS_SALVOS_LIMITE) {
+    toast(`Limite de ${FILTROS_SALVOS_LIMITE} filtros salvos — remova algum antes`);
+    return;
+  }
+  gravarFiltrosSalvos([...semMesmoNome, f]);
+  inp.value = "";
+  syncFiltrosSalvosUi();
+  toast(`Filtro “${nome}” salvo`);
+}
+
+function initFiltrosSalvos() {
+  document.getElementById("btnMinhasDemandas")?.addEventListener("click", () => {
+    const eu = minhaEtiquetaProjetista();
+    const sel = document.getElementById("filterProjetista");
+    if (!eu || !sel) return;
+    sel.value = sel.value === eu ? "" : eu;
+    renderBoard();
+  });
+  const btn = document.getElementById("btnFiltrosSalvos");
+  const menu = document.getElementById("filtrosSalvosMenu");
+  btn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setFiltrosSalvosAberto(menu.hidden);
+  });
+  document.addEventListener("click", (e) => {
+    if (menu && !menu.hidden && !e.composedPath().some((n) => n === menu || n === btn)) setFiltrosSalvosAberto(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && menu && !menu.hidden) {
+      setFiltrosSalvosAberto(false);
+      btn?.focus();
+    }
+  });
+  menu?.addEventListener("click", (e) => {
+    const aplicar = e.target.closest("[data-fs-aplicar]");
+    const remover = e.target.closest("[data-fs-remover]");
+    if (aplicar) {
+      const f = filtrosSalvosDoUsuario().find((x) => x.id === aplicar.dataset.fsAplicar);
+      if (f) aplicarFiltroSalvo(f);
+      setFiltrosSalvosAberto(false);
+    } else if (remover) {
+      const lista = filtrosSalvosDoUsuario();
+      const f = lista.find((x) => x.id === remover.dataset.fsRemover);
+      gravarFiltrosSalvos(lista.filter((x) => x.id !== remover.dataset.fsRemover));
+      syncFiltrosSalvosUi();
+      if (f) toast(`Filtro “${f.nome}” removido`);
+    }
+  });
+  document.getElementById("filtroSalvoNome")?.addEventListener("input", syncFiltrosSalvosUi);
+  document.getElementById("filtroSalvoForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    salvarFiltroAtual();
+  });
+}
 
 /* ---------- Seleção e ações em lote na esteira ---------- */
 function setSelecaoEsteiraAtiva(ativa) {
