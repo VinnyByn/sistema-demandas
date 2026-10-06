@@ -6531,3 +6531,9 @@ html[data-theme="light"] .filtro-atalho.is-ativo { background: #eff6ff; border-c
   border: 1px solid var(--border); background: var(--surface2); color: var(--text); font: inherit; font-size: 0.86rem;
 }
 .metas-etapa__campo input:disabled { opacity: 0.7; }
+
+/* ---------- Dependências do checklist ---------- */
+.ck-dep { font-size: 0.76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.ck-dep.is-bloqueada { color: #fbbf24; font-weight: 600; }
+html[data-theme="light"] .ck-dep.is-bloqueada { color: #b45309; }
+.checklist-item__edit-dep select { width: 100%; }

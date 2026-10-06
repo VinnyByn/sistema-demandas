@@ -3783,6 +3783,8 @@ function sameChecklist(a, b) {
     if (x[i].date !== y[i].date) return false;
     if (x[i].done !== y[i].done) return false;
     if (x[i].status !== y[i].status) return false;
+    if ((x[i].dependeDe || "") !== (y[i].dependeDe || "")) return false;
+    if ((x[i].dateConclusao || "") !== (y[i].dateConclusao || "")) return false;
   }
   return true;
 }
@@ -3935,6 +3937,8 @@ function normalizeChecklistItem(it) {
     date: String(it.date || it.dateFim || "").trim(),
     // Data real em que a atividade foi concluída (para comparar com o término previsto).
     dateConclusao: status === "concluida" ? isoDatePart(it.dateConclusao || "") || "" : "",
+    // Atividade que precisa terminar antes desta começar (id no mesmo checklist).
+    dependeDe: String(it.dependeDe || "").trim(),
     status,
     done: status === "concluida",
   };
@@ -3942,7 +3946,12 @@ function normalizeChecklistItem(it) {
 
 function normalizeChecklist(list) {
   if (!Array.isArray(list)) return [];
-  return list.map(normalizeChecklistItem).filter(Boolean);
+  const items = list.map(normalizeChecklistItem).filter(Boolean);
+  const ids = new Set(items.map((x) => x.id));
+  for (const it of items) {
+    if (it.dependeDe && (it.dependeDe === it.id || !ids.has(it.dependeDe))) it.dependeDe = "";
+  }
+  return items;
 }
 
 /** Anexos do projeto (arquivos no Firebase Storage). */
@@ -6316,6 +6325,9 @@ function readChecklistEtapaDraft(ids) {
     ...(ids.dateConclusao && document.getElementById(ids.dateConclusao)
       ? { dateConclusao: (document.getElementById(ids.dateConclusao).value || "").trim() }
       : {}),
+    ...(ids.dependeDe && document.getElementById(ids.dependeDe)
+      ? { dependeDe: document.getElementById(ids.dependeDe).value || "" }
+      : {}),
   };
 }
 
@@ -6347,6 +6359,7 @@ function applyChecklistItemPatch(id, patch) {
     if (!next.done) next.dateConclusao = "";
     return next;
   });
+  propagarDependenciasChecklist();
 }
 
 function persistOpenChecklistEdit() {
@@ -6358,6 +6371,7 @@ function persistOpenChecklistEdit() {
     dateInicio: "demChecklistEditInicio",
     date: "demChecklistEditFim",
     dateConclusao: "demChecklistEditConclusao",
+    dependeDe: "demChecklistEditDep",
   });
   if (!draft.name) return;
   applyChecklistItemPatch(editingChecklistItemId, draft);
@@ -6436,11 +6450,104 @@ function saveChecklistItemEdit(id) {
     dateInicio: "demChecklistEditInicio",
     date: "demChecklistEditFim",
     dateConclusao: "demChecklistEditConclusao",
+    dependeDe: "demChecklistEditDep",
   });
   if (!validateChecklistEtapa(draft, "demChecklistEditInicio")) return;
   applyChecklistItemPatch(id, draft);
   editingChecklistItemId = "";
   renderChecklistEditor();
+}
+
+/* ---------- Dependências entre atividades do checklist ---------- */
+/** Atividade da qual `it` depende (término → início), se existir. */
+function checklistPredecessora(items, it) {
+  if (!it?.dependeDe) return null;
+  return items.find((x) => x.id === it.dependeDe && x.id !== it.id) || null;
+}
+
+/** Fim real da atividade: data de conclusão (se concluída) ou término previsto. */
+function checklistFimEfetivo(it) {
+  return (it.done && isoDatePart(it.dateConclusao || "")) || isoDatePart(it.date || "") || "";
+}
+
+/** Predecessora ainda não concluída de uma atividade pendente (null se liberada). */
+function checklistBloqueadaPor(items, it) {
+  const p = checklistPredecessora(items, it);
+  return !it.done && p && !p.done ? p : null;
+}
+
+/** `id` e tudo que depende dele (direta ou indiretamente) — não podem virar predecessoras dele. */
+function checklistCadeiaDependentes(items, id) {
+  const out = new Set([id]);
+  let mudou = true;
+  while (mudou) {
+    mudou = false;
+    for (const x of items) {
+      if (x.dependeDe && out.has(x.dependeDe) && !out.has(x.id)) {
+        out.add(x.id);
+        mudou = true;
+      }
+    }
+  }
+  return out;
+}
+
+function checklistOpcoesDependencia(items, itemId) {
+  const proibidos = itemId ? checklistCadeiaDependentes(items, itemId) : new Set();
+  return items.filter((x) => !proibidos.has(x.id));
+}
+
+function fillChecklistDepSelect(sel, items, itemId, atual) {
+  if (!sel) return;
+  const opcoes = checklistOpcoesDependencia(items, itemId);
+  sel.innerHTML =
+    '<option value="">Nenhuma — pode começar a qualquer momento</option>' +
+    opcoes.map((x) => `<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)}</option>`).join("");
+  sel.value = atual && opcoes.some((x) => x.id === atual) ? atual : "";
+}
+
+/**
+ * Empurra para frente as atividades pendentes que começariam antes do fim da predecessora,
+ * mantendo a duração. Nunca puxa datas para trás. Devolve quantas foram reagendadas.
+ */
+function propagarDependenciasChecklist() {
+  const items = normalizeChecklist(editingChecklist).map((x) => ({ ...x }));
+  const byId = new Map(items.map((x) => [x.id, x]));
+  const movidas = new Set();
+  for (let volta = 0; volta < items.length; volta++) {
+    let mudou = false;
+    for (const it of items) {
+      if (it.done) continue;
+      const p = it.dependeDe ? byId.get(it.dependeDe) : null;
+      if (!p || p.id === it.id) continue;
+      const fimP = checklistFimEfetivo(p);
+      if (!fimP) continue;
+      const ini = isoDatePart(it.dateInicio || "");
+      const fim = isoDatePart(it.date || "");
+      if (ini && ini < fimP) {
+        const dur = fim && fim >= ini ? diasEntreDatasISO(ini, fim) : 0;
+        it.dateInicio = fimP;
+        if (fim) it.date = addDaysISO(fimP, dur);
+      } else if (!ini && fim && fim < fimP) {
+        it.date = fimP;
+      } else {
+        continue;
+      }
+      movidas.add(it.id);
+      mudou = true;
+    }
+    if (!mudou) break;
+  }
+  if (movidas.size) {
+    editingChecklist = items;
+    const nomes = items.filter((x) => movidas.has(x.id)).map((x) => `“${x.name}”`);
+    toast(
+      movidas.size === 1
+        ? `${nomes[0]} foi reagendada para depois da atividade da qual depende`
+        : `${movidas.size} atividades dependentes foram reagendadas`,
+    );
+  }
+  return movidas.size;
 }
 
 /** Filtro da lista de atividades no modal (todas | pendentes | atrasadas | concluidas). */
@@ -6620,6 +6727,8 @@ function renderChecklistEditor() {
   renderChecklistProxima(items);
   const expand = document.getElementById("btnChecklistExpand");
   if (expand) expand.hidden = isReadOnlyUser();
+  const novaDep = document.getElementById("demChecklistDep");
+  fillChecklistDepSelect(novaDep, items, "", novaDep?.value || "");
   if (!list) return;
   const readOnly = isReadOnlyUser();
   list.innerHTML = "";
@@ -6720,6 +6829,14 @@ function renderChecklistEditor() {
             value: it.dateConclusao || "",
           })
         : null;
+      const depWrap = document.createElement("label");
+      depWrap.className = "field checklist-item__edit-dep";
+      const depSpan = document.createElement("span");
+      depSpan.textContent = "Depende de";
+      const depSel = document.createElement("select");
+      depSel.id = "demChecklistEditDep";
+      fillChecklistDepSelect(depSel, items, it.id, it.dependeDe);
+      depWrap.append(depSpan, depSel);
       [nameField.input, whoField.input, startField.input, endField.input, conclField?.input].filter(Boolean).forEach((input) => {
         input.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
@@ -6756,7 +6873,7 @@ function renderChecklistEditor() {
       save.addEventListener("click", () => saveChecklistItemEdit(it.id));
       foot.append(rm, dica, cancel, save);
 
-      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, ...(conclField ? [conclField.wrap] : []), descField.wrap, foot);
+      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, ...(conclField ? [conclField.wrap] : []), depWrap, descField.wrap, foot);
       li.append(icone, edit);
     } else {
       const body = document.createElement("div");
@@ -6805,6 +6922,17 @@ function renderChecklistEditor() {
         }`;
         meta.append(periodo);
       }
+      const pred = checklistPredecessora(items, it);
+      if (pred) {
+        const bloq = checklistBloqueadaPor(items, it);
+        const dep = document.createElement("span");
+        dep.className = "ck-dep" + (bloq ? " is-bloqueada" : "");
+        dep.textContent = bloq ? `⛓ Aguardando “${pred.name}”` : `⛓ Após “${pred.name}”`;
+        dep.title = bloq
+          ? `Bloqueada: “${pred.name}” ainda não foi concluída`
+          : `Depende de “${pred.name}” (já concluída)`;
+        meta.append(dep);
+      }
       body.append(meta);
 
       // Prazo (texto) + status (seletor) à direita.
@@ -6833,8 +6961,10 @@ function renderChecklistEditor() {
           sel.value = status;
           return;
         }
+        const bloq = sel.value !== "afazer" ? checklistBloqueadaPor(items, it) : null;
         applyChecklistItemPatch(it.id, { status: sel.value });
         checklistRecemConcluidaId = sel.value === "concluida" ? it.id : "";
+        if (bloq) toast(`Atenção: “${bloq.name}” (da qual esta depende) ainda não foi concluída`);
         renderChecklistEditor();
       });
 
@@ -7182,7 +7312,8 @@ function renderChecklistGantt() {
     name.textContent = it.name || "Atividade";
     name.title = it.name || "";
     const who = document.createElement("span");
-    who.textContent = `${it.who || "—"} · ${sitRow.texto}`;
+    const predGantt = checklistPredecessora(items, it);
+    who.textContent = `${it.who || "—"} · ${sitRow.texto}${predGantt ? ` · ⛓ após “${predGantt.name}”` : ""}`;
     label.append(name, who);
     if (!readOnlyGantt) {
       row.classList.add("is-clicavel");
@@ -7293,6 +7424,7 @@ function addChecklistEtapaFromForm() {
     who: "demChecklistWho",
     dateInicio: "demChecklistDateInicio",
     date: "demChecklistDate",
+    dependeDe: "demChecklistDep",
   });
   if (!validateChecklistEtapa(draft, "demChecklistDateInicio")) return;
   const selStatus = document.getElementById("demChecklistStatus");
@@ -7307,10 +7439,12 @@ function addChecklistEtapaFromForm() {
       who: draft.who,
       dateInicio: draft.dateInicio,
       date: draft.date,
+      dependeDe: draft.dependeDe || "",
       status: novoStatus,
       done: novoStatus === "concluida",
     },
   ];
+  propagarDependenciasChecklist();
   const etapa = document.getElementById("demChecklistEtapa");
   const desc = document.getElementById("demChecklistDesc");
   const resp = document.getElementById("demChecklistWho");
@@ -7322,6 +7456,8 @@ function addChecklistEtapaFromForm() {
     if (el) el.value = "";
   });
   if (selStatus) selStatus.value = "afazer";
+  const selDep = document.getElementById("demChecklistDep");
+  if (selDep) selDep.value = "";
   checklistFiltro = "todas";
   renderChecklistEditor();
   toast(`Atividade “${draft.name}” adicionada`);
