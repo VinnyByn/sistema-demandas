@@ -3461,6 +3461,10 @@ function normalizeComentario(c) {
     createdAt: c?.createdAt || new Date().toISOString(),
   };
   if (c?.editadoEm) out.editadoEm = String(c.editadoEm);
+  const mencoes = Array.isArray(c?.mencoes)
+    ? [...new Set(c.mencoes.map((e) => String(e || "").trim().toLowerCase()).filter(Boolean))]
+    : [];
+  if (mencoes.length) out.mencoes = mencoes;
   return out;
 }
 
@@ -3572,6 +3576,7 @@ const HISTORICO_ALERTAS_LIMITE = 80;
 const ALERTA_KIND_SEM_ATRIB = "sem_atribuicao";
 const ALERTA_KIND_COLUNA = "coluna";
 const ALERTA_KIND_CLICKUP_RETORNO = "clickup_retorno";
+const ALERTA_KIND_MENCAO = "mencao";
 const ALERTA_DIAS_MESMA_COLUNA = 6;
 const ALERTA_SNOOZE_DIAS_PADRAO = 4;
 
@@ -4710,6 +4715,7 @@ function buildInboxAlertasRows(list, linha) {
 let alertasFiltroKind = "";
 
 const ALERTAS_ABAS = [
+  { kind: ALERTA_KIND_MENCAO, label: "Menções", tom: "mencao" },
   { kind: ALERTA_KIND_SEM_ATRIB, label: "Sem projetista", tom: "bad" },
   { kind: ALERTA_KIND_COLUNA, label: "Parados", tom: "coluna" },
   { kind: ALERTA_KIND_CLICKUP_RETORNO, label: "Retornos", tom: "ok" },
@@ -4719,7 +4725,7 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   const el = document.getElementById("esteiraInboxAlertas");
   if (!el) return;
   const list = filteredDemandasForEsteira(linha, { rapido: false });
-  const rows = buildInboxAlertasRows(list, linha);
+  const rows = [...mencoesParaMimRows(), ...buildInboxAlertasRows(list, linha)];
   syncNotifBadge(rows);
   const canal = linha === LINHA_ESTEIRA_B2B ? "Esteira B2B" : "Esteira Projetos";
   const head = (extra = "") =>
@@ -4761,17 +4767,21 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   const items = visiveis
     .map((r) => {
       const dias =
-        r.kind === ALERTA_KIND_CLICKUP_RETORNO
+        r.kind === ALERTA_KIND_MENCAO
+          ? `<span class="alerta__dias alerta__dias--ico" aria-hidden="true">@</span>`
+          : r.kind === ALERTA_KIND_CLICKUP_RETORNO
           ? `<span class="alerta__dias alerta__dias--ico" aria-hidden="true">✓</span>`
           : `<span class="alerta__dias" title="${escapeHtml(r.msg)}"><b>${r.dias}</b><small>${r.dias === 1 ? "dia" : "dias"}</small></span>`;
-      const acao = ro
+      const acao = r.kind === ALERTA_KIND_MENCAO
+        ? `<button type="button" class="alerta__acao" data-mencao-ciente="${escapeHtml(r.cid)}" title="Marcar como lida" aria-label="Marcar menção em ${escapeHtml(r.d.titulo)} como lida"><span aria-hidden="true">✓</span> Ciente</button>`
+        : ro
         ? ""
         : r.kind === ALERTA_KIND_CLICKUP_RETORNO
           ? `<button type="button" class="alerta__acao" data-alerta-ciente="${escapeHtml(r.d.id)}" title="Marcar como ciente" aria-label="Marcar ${escapeHtml(r.d.titulo)} como ciente"><span aria-hidden="true">✓</span> Ciente</button>`
           : `<button type="button" class="alerta__acao" data-alerta-snooze="${escapeHtml(r.d.id)}" data-kind="${escapeHtml(r.kind)}" title="Registrar e silenciar por alguns dias" aria-label="Adiar alerta de ${escapeHtml(r.d.titulo)}"><span aria-hidden="true">⏰</span> Adiar</button>`;
       return (
         `<li class="alerta alerta--${r.severity}">` +
-        `<button type="button" class="alerta__abrir" data-alerta-abrir="${escapeHtml(r.d.id)}" title="Abrir projeto">` +
+        `<button type="button" class="alerta__abrir" data-alerta-abrir="${escapeHtml(r.d.id)}"${r.cid ? ` data-cid="${escapeHtml(r.cid)}"` : ""} title="Abrir projeto">` +
         dias +
         `<span class="alerta__txt"><span class="alerta__titulo" title="${escapeHtml(r.d.titulo)}">${escapeHtml(r.d.titulo)}</span>` +
         `<span class="alerta__msg">${escapeHtml(r.curta || r.msg)}</span>` +
@@ -4797,6 +4807,7 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   });
   el.querySelectorAll("[data-alerta-abrir]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (btn.dataset.cid) marcarMencaoVista(btn.dataset.cid);
       setNotifAberto(false);
       openDemandaModal(btn.dataset.alertaAbrir);
     });
@@ -4811,6 +4822,12 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   });
   el.querySelectorAll("[data-alerta-ciente]").forEach((btn) => {
     btn.addEventListener("click", () => marcarClickupRetornoCiente(btn.dataset.alertaCiente));
+  });
+  el.querySelectorAll("[data-mencao-ciente]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      marcarMencaoVista(btn.dataset.mencaoCiente);
+      renderInboxAlertas(linha);
+    });
   });
 }
 
@@ -7508,10 +7525,225 @@ function bindChecklistEditor() {
 
 /** Texto do comentário com links clicáveis (o resto escapado). */
 function comentarioTextoHtml(texto) {
-  return escapeHtml(texto).replace(
-    /(https?:\/\/[^\s<]+[^\s<.,;:!?)\]])/g,
-    (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`,
+  return destacarMencoesHtml(
+    escapeHtml(texto).replace(
+      /(https?:\/\/[^\s<]+[^\s<.,;:!?)\]])/g,
+      (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`,
+    ),
   );
+}
+
+/* ---------- @Menções nos comentários ---------- */
+const MENCOES_JANELA_DIAS = 30;
+let mencionaveisCache = { versao: -1, lista: [] };
+
+/** Usuários que podem ser mencionados: todos com acesso (não bloqueados), pelo nome de exibição. */
+function usuariosMencionaveis() {
+  const versao = typeof DemandasRoles !== "undefined" && DemandasRoles.getVersion ? DemandasRoles.getVersion() : 0;
+  if (mencionaveisCache.versao === versao && mencionaveisCache.lista.length) return mencionaveisCache.lista;
+  const mapa =
+    typeof DemandasRoles !== "undefined" ? DemandasRoles.getRolesMap() : { ...(window.DEMANDAS_ROLES_SEED || {}) };
+  const lista = Object.keys(mapa)
+    .map((e) => String(e).trim().toLowerCase())
+    .filter((e) => e && !(typeof DemandasRoles !== "undefined" && DemandasRoles.isDisabled?.(e)))
+    .map((email) => ({ email, nome: accountDisplayNameForEmail(email) || email }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  mencionaveisCache = { versao, lista };
+  return lista;
+}
+
+/** E-mails mencionados no texto (`@Nome` de um usuário conhecido). */
+function extrairMencoes(texto) {
+  const t = String(texto || "").toLowerCase();
+  const out = [];
+  for (const u of usuariosMencionaveis()) {
+    const alvo = `@${u.nome.toLowerCase()}`;
+    let i = t.indexOf(alvo);
+    while (i >= 0) {
+      const depois = t.charAt(i + alvo.length);
+      if (!depois || !/[\p{L}\d]/u.test(depois)) {
+        out.push(u.email);
+        break;
+      }
+      i = t.indexOf(alvo, i + 1);
+    }
+  }
+  return [...new Set(out)];
+}
+
+/** Destaca `@Nome` (já escapado) de usuários conhecidos — nomes mais longos primeiro. */
+function destacarMencoesHtml(html) {
+  const nomes = usuariosMencionaveis()
+    .map((u) => escapeHtml(u.nome))
+    .sort((a, b) => b.length - a.length);
+  if (!nomes.length) return html;
+  const re = new RegExp(`@(${nomes.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}\\d])`, "giu");
+  const eu = accountDisplayNameForEmail(getCurrentUserEmail()).toLowerCase();
+  return html.replace(re, (m, nome) => `<span class="mencao${eu && nome.toLowerCase() === escapeHtml(eu).toLowerCase() ? " is-eu" : ""}">${m}</span>`);
+}
+
+/* Autocompletar: aparece ao digitar "@" num campo de comentário. */
+const mencaoAc = { ta: null, inicio: -1, itens: [], ativo: 0 };
+
+function mencaoAcEl() {
+  let el = document.getElementById("mencaoAutocomplete");
+  if (!el) {
+    el = document.createElement("ul");
+    el.id = "mencaoAutocomplete";
+    el.className = "mencao-ac";
+    el.setAttribute("role", "listbox");
+    el.hidden = true;
+    el.addEventListener("mousedown", (e) => {
+      const li = e.target.closest("[data-idx]");
+      if (!li) return;
+      e.preventDefault();
+      escolherMencao(Number(li.dataset.idx));
+    });
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function fecharMencaoAc() {
+  const el = document.getElementById("mencaoAutocomplete");
+  if (el) el.hidden = true;
+  mencaoAc.ta = null;
+  mencaoAc.inicio = -1;
+  mencaoAc.itens = [];
+}
+
+function atualizarMencaoAc(ta) {
+  const pos = ta.selectionStart ?? ta.value.length;
+  const antes = ta.value.slice(0, pos);
+  const m = antes.match(/(^|\s)@([\p{L}\d .'-]{0,30})$/u);
+  if (!m || /\s{2}/.test(m[2])) return fecharMencaoAc();
+  const termo = projetistaSlug(m[2].trim());
+  const itens = usuariosMencionaveis()
+    .filter((u) => {
+      if (!termo) return true;
+      const nome = projetistaSlug(u.nome);
+      return nome.startsWith(termo) || nome.split(/\s+/).some((p) => p.startsWith(termo)) || u.email.startsWith(termo);
+    })
+    .slice(0, 6);
+  if (!itens.length) return fecharMencaoAc();
+  mencaoAc.ta = ta;
+  mencaoAc.inicio = pos - m[2].length - 1;
+  mencaoAc.itens = itens;
+  mencaoAc.ativo = Math.min(mencaoAc.ativo, itens.length - 1);
+  const el = mencaoAcEl();
+  el.innerHTML = itens
+    .map(
+      (u, i) =>
+        `<li role="option" data-idx="${i}" class="${i === mencaoAc.ativo ? "is-ativo" : ""}" aria-selected="${i === mencaoAc.ativo}">` +
+        `<span class="mencao-ac__av comment-avatar ${comentarioAvatarClass(u.nome)}">${escapeHtml(comentarioIniciais(u.nome))}</span>` +
+        `<span class="mencao-ac__txt"><strong>${escapeHtml(u.nome)}</strong><small>${escapeHtml(u.email)}</small></span></li>`,
+    )
+    .join("");
+  const r = ta.getBoundingClientRect();
+  el.hidden = false;
+  const alto = el.offsetHeight;
+  const cabeEmbaixo = r.bottom + alto + 8 < window.innerHeight;
+  el.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - el.offsetWidth - 8))}px`;
+  el.style.top = `${cabeEmbaixo ? r.bottom + 4 : Math.max(8, r.top - alto - 4)}px`;
+}
+
+function escolherMencao(idx) {
+  const ta = mencaoAc.ta;
+  const u = mencaoAc.itens[idx];
+  if (!ta || !u || mencaoAc.inicio < 0) return fecharMencaoAc();
+  const pos = ta.selectionStart ?? ta.value.length;
+  const insercao = `@${u.nome} `;
+  ta.value = ta.value.slice(0, mencaoAc.inicio) + insercao + ta.value.slice(pos);
+  const caret = mencaoAc.inicio + insercao.length;
+  ta.setSelectionRange(caret, caret);
+  fecharMencaoAc();
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+  ta.focus();
+}
+
+/** Liga o autocompletar a um textarea (o teclado tem prioridade sobre os atalhos do campo). */
+function ligarMencoesNoCampo(ta) {
+  if (!ta || ta.dataset.mencoes) return;
+  ta.dataset.mencoes = "1";
+  ta.addEventListener("input", () => {
+    mencaoAc.ativo = mencaoAc.ta === ta ? mencaoAc.ativo : 0;
+    atualizarMencaoAc(ta);
+  });
+  ta.addEventListener("click", () => atualizarMencaoAc(ta));
+  ta.addEventListener("blur", () => setTimeout(() => mencaoAc.ta === ta && fecharMencaoAc(), 120));
+  ta.addEventListener(
+    "keydown",
+    (e) => {
+      if (mencaoAc.ta !== ta || document.getElementById("mencaoAutocomplete")?.hidden) return;
+      const n = mencaoAc.itens.length;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        mencaoAc.ativo = (mencaoAc.ativo + (e.key === "ArrowDown" ? 1 : n - 1)) % n;
+        atualizarMencaoAc(ta);
+      } else if ((e.key === "Enter" && !e.ctrlKey && !e.metaKey) || e.key === "Tab") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        escolherMencao(mencaoAc.ativo);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        fecharMencaoAc();
+      }
+    },
+    true,
+  );
+}
+
+/* Menções para mim no sino: comentários recentes que me citam e que ainda não marquei como cientes. */
+function mencoesVistasChave() {
+  return `demandas.mencoesVistas.${getCurrentUserEmail() || "local"}`;
+}
+
+function mencoesVistas() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(mencoesVistasChave()) || "[]");
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function marcarMencaoVista(cid) {
+  const vistas = [...mencoesVistas(), cid].slice(-500);
+  try {
+    localStorage.setItem(mencoesVistasChave(), JSON.stringify(vistas));
+  } catch {
+    /* sem armazenamento local: a menção volta a aparecer na próxima sessão */
+  }
+}
+
+function mencoesParaMimRows() {
+  const eu = getCurrentUserEmail();
+  if (!eu) return [];
+  const meuNome = getLoggedInComentarioAutor();
+  const vistas = mencoesVistas();
+  const limite = new Date(Date.now() - MENCOES_JANELA_DIAS * 864e5).toISOString();
+  const rows = [];
+  for (const d of state.demandas || []) {
+    for (const c of d.comentarios || []) {
+      if (!Array.isArray(c.mencoes) || !c.mencoes.includes(eu)) continue;
+      if (c.autor === meuNome || vistas.has(c.id) || (c.createdAt || "") < limite) continue;
+      const trecho = c.texto.length > 90 ? `${c.texto.slice(0, 87)}…` : c.texto;
+      rows.push({
+        severity: "mencao",
+        kind: ALERTA_KIND_MENCAO,
+        d,
+        cid: c.id,
+        dias: 0,
+        at: c.createdAt,
+        msg: `${c.autor} mencionou você`,
+        curta: `${c.autor} mencionou você · ${formatComentarioRelativo(c.createdAt)}`,
+        meta: trecho,
+      });
+    }
+  }
+  return rows.sort((a, b) => String(b.at).localeCompare(String(a.at)));
 }
 
 /** Comentário em edição no painel (id) — só um por vez. */
@@ -7600,6 +7832,7 @@ function renderComentariosList() {
   });
   const ta = list.querySelector(".comment-edit__input");
   if (ta) {
+    ligarMencoesNoCampo(ta);
     const ajustar = () => {
       ta.style.height = "auto";
       ta.style.height = `${Math.min(ta.scrollHeight, 260)}px`;
@@ -7664,7 +7897,7 @@ function salvarEdicaoComentario(cid, texto) {
     return;
   }
   editingComentarios = editingComentarios.map((x) =>
-    x.id === cid ? { ...x, texto: novo, editadoEm: new Date().toISOString() } : x,
+    x.id === cid ? { ...x, texto: novo, mencoes: extrairMencoes(novo), editadoEm: new Date().toISOString() } : x,
   );
   persistComentariosDemandaAberta();
   renderComentariosList();
@@ -7687,8 +7920,8 @@ function syncComentarioCompose() {
       restante < 300
         ? `${restante} caracteres restantes · Ctrl+Enter envia`
         : existente
-          ? "Ctrl+Enter envia · salvo na hora"
-          : "Ctrl+Enter envia · salvo junto com o projeto";
+          ? "@ menciona alguém · Ctrl+Enter envia"
+          : "@ menciona alguém · Ctrl+Enter envia · salvo com o projeto";
   }
 }
 
@@ -7714,7 +7947,12 @@ function addComentarioFromForm() {
     ta.focus();
     return;
   }
-  const c = normalizeComentario({ texto, autor: getLoggedInComentarioAutor(), createdAt: new Date().toISOString() });
+  const c = normalizeComentario({
+    texto,
+    autor: getLoggedInComentarioAutor(),
+    createdAt: new Date().toISOString(),
+    mencoes: extrairMencoes(texto),
+  });
   if (c) editingComentarios.unshift(c);
   ta.value = "";
   // Projeto existente: grava na hora (como a exclusão). Projeto novo: vai junto com o Salvar.
@@ -9447,6 +9685,7 @@ document.getElementById("btnAddComentario")?.addEventListener("click", () => {
   addComentarioFromForm();
 });
 document.getElementById("demComentarioNovo")?.addEventListener("input", syncComentarioCompose);
+ligarMencoesNoCampo(document.getElementById("demComentarioNovo"));
 document.getElementById("demComentarioNovo")?.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();

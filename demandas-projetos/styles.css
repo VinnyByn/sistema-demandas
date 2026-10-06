@@ -6537,3 +6537,24 @@ html[data-theme="light"] .filtro-atalho.is-ativo { background: #eff6ff; border-c
 .ck-dep.is-bloqueada { color: #fbbf24; font-weight: 600; }
 html[data-theme="light"] .ck-dep.is-bloqueada { color: #b45309; }
 .checklist-item__edit-dep select { width: 100%; }
+
+/* ---------- @Menções ---------- */
+.alerta-aba--mencao, .alerta--mencao { --tom: 129, 140, 248; }
+html[data-theme="light"] .alerta--mencao, html[data-theme="light"] .alerta-aba--mencao { --tom: 67, 56, 202; }
+.mencao { color: #a5b4fc; font-weight: 600; background: rgba(129, 140, 248, 0.14); border-radius: 4px; padding: 0 0.15rem; }
+.mencao.is-eu { color: #fff; background: rgba(99, 102, 241, 0.55); }
+html[data-theme="light"] .mencao { color: #4338ca; background: rgba(99, 102, 241, 0.1); }
+html[data-theme="light"] .mencao.is-eu { color: #fff; background: #6366f1; }
+.mencao-ac {
+  position: fixed; z-index: 1000; list-style: none; margin: 0; padding: 0.3rem;
+  min-width: 15rem; max-width: 22rem; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.mencao-ac[hidden] { display: none; }
+.mencao-ac li { display: flex; align-items: center; gap: 0.55rem; padding: 0.35rem 0.5rem; border-radius: 7px; cursor: pointer; }
+.mencao-ac li.is-ativo, .mencao-ac li:hover { background: var(--surface2); }
+.mencao-ac li.is-ativo { box-shadow: inset 2px 0 0 var(--accent); }
+.mencao-ac__av { width: 1.7rem; height: 1.7rem; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 0.7rem; font-weight: 700; }
+.mencao-ac__txt { display: flex; flex-direction: column; min-width: 0; }
+.mencao-ac__txt strong { font-size: 0.85rem; }
+.mencao-ac__txt small { font-size: 0.72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
