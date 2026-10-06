@@ -651,6 +651,7 @@ const TIPO_DIARIA_LEGADO = "Diária";
 /** Produtos da linha B2B (ordem alfabética pt-BR). */
 const PRODUTOS_B2B = sortProjetistasNomes([
   "Evento IP",
+  "Fibra Apagada",
   "IP Dedicado",
   "IP Trânsito",
   "Lan to Lan",
@@ -13376,16 +13377,25 @@ function segmentoB2cCor(seg) {
 
 const B2B_PRODUTO_SEM = "Sem produto";
 
-/** Cores dos produtos B2B — paleta categórica validada (daltonismo), uma variação por tema. */
-const PRODUTO_B2B_CORES = {
-  "Evento IP": ["#2a78d6", "#3987e5"],
-  "IP Dedicado": ["#eb6834", "#d95926"],
-  "IP Trânsito": ["#1baf7a", "#199e70"],
-  "Lan to Lan": ["#eda100", "#c98500"],
-  "Projeto Especial": ["#e87ba4", "#d55181"],
-  "Transporte PTT": ["#008300", "#008300"],
-  Wireless: ["#4a3aa7", "#9085e9"],
-};
+/** Paleta categórica validada (daltonismo, claro/escuro): 8 slots em ordem fixa — [claro, escuro]. */
+const PALETA_CATEGORICA = [
+  ["#2a78d6", "#3987e5"],
+  ["#eb6834", "#d95926"],
+  ["#1baf7a", "#199e70"],
+  ["#eda100", "#c98500"],
+  ["#e87ba4", "#d55181"],
+  ["#008300", "#008300"],
+  ["#4a3aa7", "#9085e9"],
+  ["#e34948", "#e66767"],
+];
+
+/**
+ * Cores dos produtos B2B: um slot da paleta por produto, na mesma ordem em que aparecem (alfabética),
+ * para que vizinhos nos gráficos sempre passem na validação de contraste/daltonismo.
+ */
+const PRODUTO_B2B_CORES = Object.fromEntries(
+  PRODUTOS_B2B.map((p, i) => [p, PALETA_CATEGORICA[i % PALETA_CATEGORICA.length]]),
+);
 
 function produtoB2bCor(prod) {
   const par = PRODUTO_B2B_CORES[prod];
