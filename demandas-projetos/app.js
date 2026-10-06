@@ -5017,6 +5017,7 @@ function initAlertaSnoozeModal() {
 initAlertaSnoozeModal();
 initLixeiraModal();
 initAnexosDemanda();
+initBackupsModal();
 initLoteEsteira();
 initFiltrosSalvos();
 initMetasEtapa();
@@ -10793,6 +10794,119 @@ function initAnexosDemanda() {
   document.getElementById("demAnexosLista")?.addEventListener("click", (e) => {
     const rm = e.target.closest("[data-anexo-remover]");
     if (rm) void removerAnexo(rm.dataset.anexoRemover);
+  });
+}
+
+/* ---------- Backups automáticos na nuvem (Cloud Functions + Storage) ---------- */
+function backupNomeAmigavel(nome) {
+  const m = String(nome).match(/demandas-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})/);
+  if (!m) return nome.replace(/^backups\//, "");
+  // O nome usa o horário UTC; mostra no horário local.
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00Z`);
+  return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+async function renderBackupsModal() {
+  const lista = document.getElementById("backupsLista");
+  const ultimo = document.getElementById("backupsUltimo");
+  if (!lista || !ultimo) return;
+  if (!storageDisponivel()) {
+    ultimo.innerHTML = `<p class="muted small">Disponível só com o Firebase conectado.</p>`;
+    lista.innerHTML = "";
+    return;
+  }
+  ultimo.innerHTML = `<p class="muted small">Carregando…</p>`;
+  lista.innerHTML = "";
+  try {
+    const info = (await firebase.firestore().doc("demandasSistema/backups").get()).data()?.ultimo;
+    ultimo.innerHTML = info
+      ? `<span class="backups-ultimo__ico" aria-hidden="true">✓</span><div><strong>Último backup: ${escapeHtml(
+          new Date(info.geradoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }),
+        )}</strong><span class="muted small">${escapeHtml(String(info.totalDemandas))} projeto(s) · ${escapeHtml(
+          formatTamanhoArquivo(info.bytes),
+        )} · ${info.motivo === "manual" ? `manual (${escapeHtml(info.autor || "—")})` : "automático"}</span></div>`
+      : `<span class="backups-ultimo__ico is-pendente" aria-hidden="true">!</span><div><strong>Nenhum backup registrado ainda</strong><span class="muted small">Publique as funções (backupDiario e backupAgora) ou clique em Fazer backup agora.</span></div>`;
+  } catch (e) {
+    ultimo.innerHTML = `<p class="muted small">Não foi possível ler a situação do backup (${escapeHtml(e?.code || e?.message || "erro")}).</p>`;
+  }
+  try {
+    const res = await firebase.storage().ref("backups").listAll();
+    const itens = res.items.slice().sort((a, b) => b.name.localeCompare(a.name));
+    lista.innerHTML = itens.length
+      ? itens
+          .map(
+            (it) =>
+              `<li class="anexo"><span class="anexo__ico" aria-hidden="true">🗄</span><span class="anexo__txt"><strong>${escapeHtml(
+                backupNomeAmigavel(it.fullPath),
+              )}</strong><small>${/manual/.test(it.name) ? "Manual" : "Automático"} · ${escapeHtml(it.name)}</small></span>` +
+              `<button type="button" class="anexo__acao" data-backup-baixar="${escapeHtml(it.fullPath)}" title="Baixar" aria-label="Baixar backup">⬇</button></li>`,
+          )
+          .join("")
+      : `<li class="anexos__vazio">Nenhum arquivo de backup no Storage ainda.</li>`;
+  } catch (e) {
+    lista.innerHTML = `<li class="anexos__vazio">${escapeHtml(mensagemErroStorage(e))}</li>`;
+  }
+}
+
+function abrirBackupsModal() {
+  if (!isAdminUser()) {
+    toast("Apenas administrador acessa os backups");
+    return;
+  }
+  const dlg = document.getElementById("modalBackups");
+  if (!dlg) return;
+  if (!dlg.open) dlg.showModal();
+  void renderBackupsModal();
+}
+
+async function fazerBackupAgora() {
+  const btn = document.getElementById("btnBackupAgora");
+  if (typeof firebase === "undefined" || !firebase.functions) {
+    toast("Recarregue a página (Ctrl+F5) para carregar as funções.");
+    return;
+  }
+  const prev = btn?.textContent || "Fazer backup agora";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Gerando…";
+  }
+  try {
+    const res = await firebase.app().functions("us-central1").httpsCallable("backupAgora")({});
+    toast(`Backup gerado · ${res?.data?.totalDemandas ?? "?"} projeto(s)`);
+    await renderBackupsModal();
+  } catch (e) {
+    console.warn("backupAgora:", e);
+    toast(
+      e?.code === "functions/not-found"
+        ? "A função de backup ainda não foi publicada (firebase deploy --only functions)"
+        : e?.message || "Falha ao gerar o backup",
+    );
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
+  }
+}
+
+function initBackupsModal() {
+  document.getElementById("btnBackupsNuvem")?.addEventListener("click", () => {
+    setExportMenuOpen(false);
+    abrirBackupsModal();
+  });
+  const fechar = () => document.getElementById("modalBackups")?.close();
+  document.getElementById("modalBackupsClose")?.addEventListener("click", fechar);
+  document.getElementById("btnFecharBackups")?.addEventListener("click", fechar);
+  document.getElementById("btnBackupAgora")?.addEventListener("click", () => void fazerBackupAgora());
+  document.getElementById("backupsLista")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-backup-baixar]");
+    if (!btn) return;
+    try {
+      const url = await firebase.storage().ref(btn.dataset.backupBaixar).getDownloadURL();
+      window.open(url, "_blank", "noopener");
+    } catch (err) {
+      toast(mensagemErroStorage(err));
+    }
   });
 }
 
@@ -16679,9 +16793,14 @@ document.getElementById("inputImport")?.addEventListener("change", async (e) => 
   if (!requireWriteAccess("import")) return;
   try {
     const text = await file.text();
-    const data = JSON.parse(text);
+    // Backups da nuvem trazem cabeçalho e cópia bruta do meta — não entram no estado do app.
+    const { backup: _cabecalho, metaCompleto: _metaBruto, ...data } = JSON.parse(text);
     applyLoadedState(data);
     saveState({ importFull: true });
+    const metaFields = {};
+    if (data.metasEtapa && typeof data.metasEtapa === "object") metaFields.metasEtapa = data.metasEtapa;
+    if (data.filtrosSalvos && typeof data.filtrosSalvos === "object") metaFields.filtrosSalvos = data.filtrosSalvos;
+    if (Object.keys(metaFields).length) saveState({ metaFields });
     refreshAllViews();
     toast("Importação concluída");
   } catch {

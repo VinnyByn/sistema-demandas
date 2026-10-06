@@ -114,6 +114,7 @@
           <div class="import-menu__panel" id="exportMenuPanel" role="menu" hidden>
             <button type="button" class="import-menu__item" id="btnExportJson" role="menuitem">JSON — backup do sistema</button>
             <button type="button" class="import-menu__item" id="btnExportCsv" role="menuitem">CSV — relatório completo</button>
+            <button type="button" class="import-menu__item" id="btnBackupsNuvem" role="menuitem">Backups automáticos na nuvem…</button>
           </div>
         </div>
 
@@ -1392,6 +1393,26 @@
         <button type="button" class="btn btn--ghost btn--danger-ghost" id="btnEsvaziarLixeira" hidden>Esvaziar lixeira</button>
         <span style="flex:1"></span>
         <button type="button" class="btn btn--ghost" id="btnFecharLixeira">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal" id="modalBackups" aria-labelledby="modalBackupsTitulo">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <h2 id="modalBackupsTitulo">Backups na nuvem</h2>
+        <button type="button" class="icon-btn" id="modalBackupsClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body">
+        <p class="muted small">Todo dia às 03:10 uma cópia completa (projetos, comentários, checklists, diárias, metas e perfis) é salva no Firebase Storage. Ficam os 30 mais recentes.
+          Para restaurar, baixe o arquivo e use <strong>Importar → JSON — backup do sistema</strong>.</p>
+        <div class="backups-ultimo" id="backupsUltimo"></div>
+        <ul class="backups-lista" id="backupsLista"></ul>
+      </div>
+      <div class="modal__foot">
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn--ghost" id="btnFecharBackups">Fechar</button>
+        <button type="button" class="btn btn--primary" id="btnBackupAgora">Fazer backup agora</button>
       </div>
     </div>
   </dialog>
