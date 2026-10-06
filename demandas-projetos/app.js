@@ -5016,6 +5016,7 @@ function initAlertaSnoozeModal() {
 
 initAlertaSnoozeModal();
 initLixeiraModal();
+initAnexosDemanda();
 initLoteEsteira();
 initFiltrosSalvos();
 initMetasEtapa();
@@ -5236,6 +5237,8 @@ const CARD_ICONS = {
     '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1.2"/><path d="M2.5 12l3.5-3.5 2.5 2.5 2-2 3 3"/></svg>',
   pino:
     '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.5s4.5-4.2 4.5-7.7a4.5 4.5 0 0 0-9 0c0 3.5 4.5 7.7 4.5 7.7z"/><circle cx="8" cy="6.8" r="1.6"/></svg>',
+  clipe:
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5 5.8 9.2a1.5 1.5 0 0 0 2.1 2.1l5-5a3 3 0 0 0-4.2-4.2l-5 5a4.5 4.5 0 0 0 6.4 6.4l4.2-4.2"/></svg>',
 };
 
 /** Próxima coluna do fluxo (sem pausado/reprovado); execução regional/terceirizada são alternativas. */
@@ -5494,6 +5497,8 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   }
   if (nComent) stats.push(`<span class="card__stat" title="${nComent} comentário(s)">${CARD_ICONS.comentario}${nComent}</span>`);
   if (nImg) stats.push(`<span class="card__stat" title="${nImg} imagem(ns)">${CARD_ICONS.imagem}${nImg}</span>`);
+  const nAnexos = Array.isArray(dmCard.anexos) ? dmCard.anexos.length : 0;
+  if (nAnexos) stats.push(`<span class="card__stat" title="${nAnexos} anexo(s)">${CARD_ICONS.clipe}${nAnexos}</span>`);
 
   const proxima = cardProximaEtapa(dmCard);
   const proximaLabel = proxima ? labelStatus(proxima, dmCard.linhaEsteira) : "";
@@ -8042,6 +8047,11 @@ const DEM_SECOES = [
     icone: '<rect x="2" y="2" width="12" height="12" rx="2.5"/><path d="M5 8.2l2 2 4-4.2"/>',
   },
   {
+    key: "anexos",
+    sel: ".fieldset--anexos",
+    icone: '<path d="M10.5 4.5 5.8 9.2a1.5 1.5 0 0 0 2.1 2.1l5-5a3 3 0 0 0-4.2-4.2l-5 5a4.5 4.5 0 0 0 6.4 6.4l4.2-4.2"/>',
+  },
+  {
     key: "timeline",
     sel: ".fieldset--timeline",
     icone: '<path d="M2.5 4h6M5 8h8.5M3.5 12h5"/>',
@@ -8508,6 +8518,10 @@ function demSecaoResumo(key) {
       const feitas = editingChecklist.filter((it) => it.done).length;
       return { txt: `${feitas}/${n}`, tom: feitas === n ? "ok" : "alerta" };
     }
+    case "anexos": {
+      const n = normalizeAnexos(demandaAbertaParaAnexos()?.anexos).length;
+      return n ? { txt: `${n} arquivo(s)`, tom: "ok" } : { txt: "Nenhum", tom: "neutro" };
+    }
     case "timeline": {
       const n = document.querySelectorAll("#demTimelineTable tbody tr").length;
       return n ? { txt: `${n} fase(s)`, tom: "neutro" } : { txt: "Sem histórico", tom: "neutro" };
@@ -8583,7 +8597,11 @@ initDemNavegacao();
 
 function openDemandaModal(id) {
   comentarioEditandoId = "";
-  setTimeout(() => syncDemandaArquivadoUi(id), 0);
+  anexosEnviando.clear();
+  setTimeout(() => {
+    syncDemandaArquivadoUi(id);
+    renderAnexosDemanda();
+  }, 0);
   if (!id && isReadOnlyUser()) {
     toast("Seu perfil (Visibilidade) e somente leitura");
     return;
@@ -10541,6 +10559,240 @@ function initLoteEsteira() {
     if (e.key !== "Escape" || !selecaoEsteira.ativa) return;
     if (document.querySelector("dialog[open]")) return;
     setSelecaoEsteiraAtiva(false);
+  });
+}
+
+/* ---------- Anexos do projeto (Firebase Storage) ---------- */
+const ANEXO_TAMANHO_MAX = 25 * 1024 * 1024;
+/** Uploads em andamento no modal aberto: id → { nome, pct }. */
+const anexosEnviando = new Map();
+
+function storageDisponivel() {
+  return typeof firebase !== "undefined" && typeof firebase.storage === "function" && persistenceApi?.mode === "firebase";
+}
+
+function formatTamanhoArquivo(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0).replace(".", ",")} MB`;
+}
+
+function anexoIcone(a) {
+  const t = `${a.tipo} ${a.nome}`.toLowerCase();
+  if (/pdf/.test(t)) return "📄";
+  if (/image|\.(png|jpe?g|gif|webp|heic)$/.test(t)) return "🖼";
+  if (/sheet|excel|\.(xlsx?|csv|ods)$/.test(t)) return "📊";
+  if (/kmz|kml|dwg|dxf/.test(t)) return "🗺";
+  if (/zip|rar|7z/.test(t)) return "🗜";
+  return "📎";
+}
+
+function mensagemErroStorage(e) {
+  const code = String(e?.code || "");
+  if (code === "storage/unauthorized") return "Sem permissão no Storage — publique as regras (storage.rules) no Firebase";
+  if (code === "storage/canceled") return "Envio cancelado";
+  if (code === "storage/quota-exceeded") return "Cota do Storage esgotada";
+  if (code === "storage/retry-limit-exceeded") return "Conexão instável — tente de novo";
+  if (code === "storage/object-not-found") return "Arquivo não encontrado no Storage";
+  if (/bucket|project-not-found|unknown|no-default-bucket/.test(code)) return "O Firebase Storage não está ativado neste projeto";
+  return e?.message ? `Falha no anexo: ${e.message}` : "Falha no anexo";
+}
+
+function demandaAbertaParaAnexos() {
+  const id = (document.getElementById("demId")?.value || "").trim() || editingDemandaOpenId;
+  return id ? state.demandas.find((x) => x.id === id) || null : null;
+}
+
+function nomeArquivoSeguro(nome) {
+  return (
+    String(nome || "arquivo")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^\w.\-]+/g, "_")
+      .replace(/_+/g, "_")
+      .slice(-120) || "arquivo"
+  );
+}
+
+function salvarAnexosDemanda(dem, anexos) {
+  const now = new Date().toISOString();
+  dem.anexos = normalizeAnexos(anexos);
+  dem.updatedAt = now;
+  editingDemandaBaselineUpdatedAt = now;
+  noteOwnDemandaWrite(dem.id, now);
+  saveState({ demanda: migrateDemanda(dem) });
+  renderAnexosDemanda();
+  renderBoard();
+}
+
+async function enviarAnexos(files) {
+  if (!requireWriteAccess()) return;
+  const dem = demandaAbertaParaAnexos();
+  if (!dem) {
+    toast("Salve o projeto antes de anexar arquivos");
+    return;
+  }
+  if (!storageDisponivel()) {
+    toast("Anexos indisponíveis: o Firebase Storage não está configurado");
+    return;
+  }
+  const autor = demandaAutorAcao();
+  for (const file of [...files]) {
+    if (file.size > ANEXO_TAMANHO_MAX) {
+      toast(`“${file.name}” passa de ${formatTamanhoArquivo(ANEXO_TAMANHO_MAX)}`);
+      continue;
+    }
+    const id = uid();
+    const path = `demandas/${dem.id}/anexos/${id}_${nomeArquivoSeguro(file.name)}`;
+    anexosEnviando.set(id, { nome: file.name, pct: 0 });
+    renderAnexosDemanda();
+    try {
+      const ref = firebase.storage().ref(path);
+      const task = ref.put(file, {
+        contentType: file.type || "application/octet-stream",
+        customMetadata: { nome: file.name, enviadoPor: autor, demandaId: dem.id },
+      });
+      task.on("state_changed", (snap) => {
+        const atual = anexosEnviando.get(id);
+        if (!atual || !snap.totalBytes) return;
+        atual.pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        const barra = document.querySelector(`[data-anexo-enviando="${id}"] .anexo__progresso i`);
+        if (barra) barra.style.width = `${atual.pct}%`;
+      });
+      await task;
+      const url = await ref.getDownloadURL();
+      const atualDem = state.demandas.find((x) => x.id === dem.id) || dem;
+      const novo = {
+        id,
+        nome: file.name,
+        tipo: file.type || "",
+        tamanho: file.size,
+        path,
+        url,
+        enviadoPor: autor,
+        enviadoEm: new Date().toISOString(),
+      };
+      anexosEnviando.delete(id);
+      salvarAnexosDemanda(atualDem, [...normalizeAnexos(atualDem.anexos), novo]);
+      toast(`“${file.name}” anexado`);
+    } catch (e) {
+      console.warn("Anexo:", e);
+      anexosEnviando.delete(id);
+      renderAnexosDemanda();
+      toast(mensagemErroStorage(e));
+      if (/não está ativado|Sem permissão/.test(mensagemErroStorage(e))) break;
+    }
+  }
+}
+
+async function removerAnexo(anexoId) {
+  if (!requireWriteAccess()) return;
+  const dem = demandaAbertaParaAnexos();
+  const a = normalizeAnexos(dem?.anexos).find((x) => x.id === anexoId);
+  if (!dem || !a) return;
+  const ok = await confirmDialog({
+    title: "Remover anexo?",
+    message: `“${a.nome}” será apagado do projeto e do armazenamento.`,
+    confirmText: "Remover",
+    cancelText: "Voltar",
+    variant: "danger",
+  });
+  if (!ok) return;
+  try {
+    if (storageDisponivel()) await firebase.storage().ref(a.path).delete();
+  } catch (e) {
+    if (e?.code !== "storage/object-not-found") {
+      toast(mensagemErroStorage(e));
+      return;
+    }
+  }
+  salvarAnexosDemanda(dem, normalizeAnexos(dem.anexos).filter((x) => x.id !== anexoId));
+  toast("Anexo removido");
+}
+
+/** Usado ao excluir um projeto de vez: apaga os arquivos dele no Storage. */
+async function apagarAnexosDoStorage(d) {
+  if (!storageDisponivel()) return;
+  for (const a of normalizeAnexos(d?.anexos)) {
+    try {
+      await firebase.storage().ref(a.path).delete();
+    } catch (e) {
+      if (e?.code !== "storage/object-not-found") console.warn("Apagar anexo:", e);
+    }
+  }
+}
+
+function renderAnexosDemanda() {
+  const lista = document.getElementById("demAnexosLista");
+  const drop = document.getElementById("demAnexosDrop");
+  const dica = document.getElementById("demAnexosDica");
+  if (!lista || !drop) return;
+  const dem = demandaAbertaParaAnexos();
+  const anexos = normalizeAnexos(dem?.anexos);
+  const ro = isReadOnlyUser();
+  const disponivel = storageDisponivel();
+  drop.hidden = ro;
+  drop.classList.toggle("is-desativado", !dem || !disponivel);
+  const input = document.getElementById("demAnexosInput");
+  if (input) {
+    input.disabled = ro || !dem || !disponivel;
+    input.dataset.keepDisabled = input.disabled ? "1" : "";
+    if (!input.disabled) delete input.dataset.keepDisabled;
+  }
+  if (dica) {
+    dica.textContent = !dem
+      ? "Salve o projeto para poder anexar arquivos."
+      : !disponivel
+        ? "Anexos indisponíveis: o Firebase Storage não está configurado neste ambiente."
+        : `PDF, imagens, planilhas, KMZ… até ${formatTamanhoArquivo(ANEXO_TAMANHO_MAX)} por arquivo.`;
+  }
+  const enviando = [...anexosEnviando.entries()]
+    .map(
+      ([id, a]) =>
+        `<li class="anexo is-enviando" data-anexo-enviando="${escapeHtml(id)}"><span class="anexo__ico" aria-hidden="true">⏳</span>` +
+        `<span class="anexo__txt"><strong>${escapeHtml(a.nome)}</strong><span class="anexo__progresso"><i style="width:${a.pct}%"></i></span></span></li>`,
+    )
+    .join("");
+  const itens = anexos
+    .slice()
+    .sort((a, b) => String(b.enviadoEm).localeCompare(String(a.enviadoEm)))
+    .map(
+      (a) =>
+        `<li class="anexo"><span class="anexo__ico" aria-hidden="true">${anexoIcone(a)}</span>` +
+        `<span class="anexo__txt"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer" class="anexo__nome" title="Abrir ${escapeHtml(a.nome)}">${escapeHtml(a.nome)}</a>` +
+        `<small>${escapeHtml(formatTamanhoArquivo(a.tamanho))} · ${escapeHtml(a.enviadoPor || "—")} · ${escapeHtml(formatDataCurta(isoDatePart(a.enviadoEm)))}</small></span>` +
+        `<a class="anexo__acao" href="${escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(a.nome)}" title="Baixar" aria-label="Baixar ${escapeHtml(a.nome)}">⬇</a>` +
+        (ro ? "" : `<button type="button" class="anexo__acao anexo__remover" data-anexo-remover="${escapeHtml(a.id)}" title="Remover" aria-label="Remover ${escapeHtml(a.nome)}">🗑</button>`) +
+        `</li>`,
+    )
+    .join("");
+  lista.innerHTML = enviando + itens || `<li class="anexos__vazio">Nenhum arquivo anexado.</li>`;
+  agendarSyncDemNavegacao();
+}
+
+function initAnexosDemanda() {
+  const drop = document.getElementById("demAnexosDrop");
+  const input = document.getElementById("demAnexosInput");
+  input?.addEventListener("change", () => {
+    if (input.files?.length) void enviarAnexos(input.files);
+    input.value = "";
+  });
+  drop?.addEventListener("dragover", (e) => {
+    if (input?.disabled) return;
+    e.preventDefault();
+    drop.classList.add("is-sobre");
+  });
+  drop?.addEventListener("dragleave", () => drop.classList.remove("is-sobre"));
+  drop?.addEventListener("drop", (e) => {
+    e.preventDefault();
+    drop.classList.remove("is-sobre");
+    if (input?.disabled) return;
+    if (e.dataTransfer?.files?.length) void enviarAnexos(e.dataTransfer.files);
+  });
+  document.getElementById("demAnexosLista")?.addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-anexo-remover]");
+    if (rm) void removerAnexo(rm.dataset.anexoRemover);
   });
 }
 

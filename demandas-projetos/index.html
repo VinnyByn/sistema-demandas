@@ -1303,6 +1303,18 @@
           <ul class="checklist-list" id="demChecklistList"></ul>
         </fieldset>
 
+        <fieldset class="fieldset fieldset--segment fieldset--anexos">
+          <legend>Anexos</legend>
+          <p class="muted small">Arquivos do projeto (PDFs, fotos, planilhas, KMZ). Ficam guardados no Firebase Storage e qualquer pessoa da equipe pode baixar.</p>
+          <label class="anexos-drop" id="demAnexosDrop">
+            <input type="file" id="demAnexosInput" multiple hidden />
+            <span class="anexos-drop__ico" aria-hidden="true">⇪</span>
+            <span><strong>Arraste arquivos aqui</strong> ou clique para escolher</span>
+            <small id="demAnexosDica"></small>
+          </label>
+          <ul class="anexos-lista" id="demAnexosLista"></ul>
+        </fieldset>
+
         <fieldset class="fieldset fieldset--segment fieldset--timeline">
           <legend>Tempo na esteira</legend>
           <p class="muted small">Clique numa fase para ajustar <strong>início</strong>, <strong>fim</strong> e a <strong>atualização</strong>. Na fase em andamento, deixe o fim em branco. <strong>↑</strong> <strong>↓</strong> mudam a ordem e <strong>×</strong> exclui (mínimo uma fase). Salve a demanda para gravar.</p>
@@ -1718,6 +1730,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
   <script src="firebase-auth.js"></script>
   <script src="firebase-persist.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
