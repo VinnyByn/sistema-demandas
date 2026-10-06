@@ -10144,8 +10144,10 @@ function metasAlteracoes() {
 /** Projetos ativos (não arquivados) de cada etapa e quantos passariam da meta do rascunho. */
 function metasContagemEtapas(linha) {
   const out = {};
+  // Só etapas com meta configurável (finalizados ficam de fora, como no alerta de parado).
+  const etapas = new Set(etapasComMeta(linha).map(([k]) => k));
   for (const d of state.demandas || []) {
-    if (d.arquivadoEm || inferLinhaEsteira(d) !== linha) continue;
+    if (d.arquivadoEm || inferLinhaEsteira(d) !== linha || !etapas.has(d.status)) continue;
     const o = (out[d.status] ||= { total: 0, acima: 0 });
     o.total++;
     const meta = metaEfetivaDoRascunho(metasDraft[linha][d.status] ?? "");
