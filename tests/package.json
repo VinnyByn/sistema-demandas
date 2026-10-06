@@ -4,7 +4,7 @@
   "description": "Testes automáticos do sistema de demandas (unitários com node:test e ponta a ponta com Playwright).",
   "scripts": {
     "test": "npm run test:unit && npm run test:e2e",
-    "test:unit": "node --test \"unit/*.test.js\"",
+    "test:unit": "node --test unit/backup.test.js unit/pdf-custo.test.js",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
