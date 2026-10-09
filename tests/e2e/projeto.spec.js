@@ -39,13 +39,6 @@ test("comentário com @menção guarda quem foi citado", async ({ app: { page } 
   await expect(page.locator("#demComentariosList .mencao")).toHaveText("@Matheus Silva");
 });
 
-test("projeto aberto mostra a seção de anexos", async ({ app: { page } }) => {
-  await page.evaluate(() => openDemandaModal("p1"));
-  await expect(page.locator(".fieldset--anexos")).toBeVisible();
-  // Sem Firebase (modo local) o envio fica desativado com aviso.
-  await expect(page.locator("#demAnexosDica")).toContainText("Firebase Storage");
-});
-
 test("checklist: concluir atividade move o projeto para a coluna configurada (só avança)", async ({ app: { page } }) => {
   const r = await page.evaluate(() => {
     openDemandaModal("p1"); // está em Projetos novos

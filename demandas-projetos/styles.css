@@ -6576,19 +6576,7 @@ html[data-theme="light"] .mencao.is-eu { color: #fff; background: #6366f1; }
 .mencao-ac__txt strong { font-size: 0.85rem; }
 .mencao-ac__txt small { font-size: 0.72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ---------- Anexos ---------- */
-.anexos-drop {
-  display: flex; flex-direction: column; align-items: center; gap: 0.2rem; text-align: center;
-  padding: 0.9rem 1rem; border: 1.5px dashed var(--border); border-radius: 12px;
-  color: var(--muted); font-size: 0.86rem; cursor: pointer; transition: border-color 0.15s, background 0.15s;
-}
-.anexos-drop strong { color: var(--text); }
-.anexos-drop small { font-size: 0.75rem; }
-.anexos-drop__ico { font-size: 1.3rem; line-height: 1; color: var(--accent); }
-.anexos-drop:hover, .anexos-drop.is-sobre { border-color: var(--accent); background: rgba(59, 130, 246, 0.07); }
-.anexos-drop.is-desativado { cursor: not-allowed; opacity: 0.65; }
-.anexos-drop.is-desativado:hover { border-color: var(--border); background: none; }
-.anexos-drop[hidden] { display: none; }
+/* ---------- Lista de arquivos (backups) ---------- */
 .anexos-lista { list-style: none; margin: 0.6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
 .anexos__vazio { font-size: 0.82rem; color: var(--muted); padding: 0.2rem 0.1rem; }
 .anexo {
@@ -6605,9 +6593,6 @@ html[data-theme="light"] .mencao.is-eu { color: #fff; background: #6366f1; }
   border: 1px solid transparent; background: none; color: var(--muted); text-decoration: none; cursor: pointer; font-size: 0.9rem;
 }
 .anexo__acao:hover { color: var(--text); border-color: var(--border); background: var(--surface); }
-.anexo__remover:hover { color: #fca5a5; border-color: rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.08); }
-.anexo__progresso { display: block; height: 4px; border-radius: 99px; background: var(--border); overflow: hidden; margin-top: 0.2rem; }
-.anexo__progresso i { display: block; height: 100%; background: var(--accent); transition: width 0.2s; }
 
 /* ---------- Backups ---------- */
 #modalBackups { max-width: min(38rem, calc(100vw - 2rem)); }
