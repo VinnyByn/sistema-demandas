@@ -52,3 +52,22 @@ test("lixeira: move e desfaz", async ({ app: { page } }) => {
   await page.click("#toast .toast__acao");
   await expect(cards(page)).toHaveCount(4);
 });
+
+test("card: Concluir finaliza a atividade atual e move para a coluna configurada", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    const p1 = state.demandas.find((d) => d.id === "p1"); // em Projetos novos
+    p1.checklist = [{ id: "a", name: "Desenho", who: "V", status: "andamento", moverPara: "vistoria" }];
+    renderBoard();
+  });
+  const card = page.locator('#boardEsteira .card[data-id="p1"]');
+  await card.hover();
+  await expect(card.locator(".card__concluir")).toHaveText("✓ Concluir ▸");
+  await card.locator(".card__concluir").click();
+  await expect(page.locator("#modalDemanda")).not.toBeVisible();
+  const r = await page.evaluate(() => {
+    const d = state.demandas.find((x) => x.id === "p1");
+    return { status: d.status, atividade: d.checklist[0].status };
+  });
+  expect(r).toEqual({ status: "vistoria", atividade: "concluida" });
+  await expect(page.locator('.column[data-status="vistoria"] .card[data-id="p1"]')).toBeVisible();
+});

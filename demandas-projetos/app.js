@@ -5501,10 +5501,21 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
 
   const proxima = cardProximaEtapa(dmCard);
   const proximaLabel = proxima ? labelStatus(proxima, dmCard.linhaEsteira) : "";
-  const podeAvancar = !readOnly && proxima && normalizeResponsavel(dmCard.responsavel);
-  const avancarHtml = podeAvancar
-    ? `<button type="button" class="card__avancar" title="Mover para ${escapeHtml(proximaLabel)}">Avançar ▸</button>`
+  // Com atividade pendente, o botão conclui a atividade (e move para a coluna configurada nela);
+  // sem checklist pendente, segue avançando para a próxima coluna.
+  const atividadeConcluir = readOnly || isDemandaEncerrada(dmCard) ? null : cardAtividadeParaConcluir(dmCard);
+  const destinoConcluir = atividadeConcluir
+    ? destinoMoverValido(atividadeConcluir.moverPara, dmCard.status, dmCard.linhaEsteira)
     : "";
+  const podeAvancar = !readOnly && proxima && normalizeResponsavel(dmCard.responsavel);
+  const avancarHtml = atividadeConcluir
+    ? `<button type="button" class="card__avancar card__concluir" data-concluir="${escapeHtml(atividadeConcluir.id)}" title="${escapeHtml(
+        `Concluir “${atividadeConcluir.name}”` +
+          (destinoConcluir ? ` e mover o projeto para «${labelStatus(destinoConcluir, dmCard.linhaEsteira)}»` : ""),
+      )}">✓ Concluir${destinoConcluir ? " ▸" : ""}</button>`
+    : podeAvancar
+      ? `<button type="button" class="card__avancar" title="Mover para ${escapeHtml(proximaLabel)}">Avançar ▸</button>`
+      : "";
 
   let solicitante = (d.solicitante || "").trim();
   if (solicitante && dmCard.setorSolicitanteB2b) solicitante += ` (${dmCard.setorSolicitanteB2b})`;
@@ -5603,6 +5614,11 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   });
   el.querySelector(".card__avancar")?.addEventListener("click", (e) => {
     e.stopPropagation();
+    const btn = e.currentTarget;
+    if (btn.dataset.concluir) {
+      concluirAtividadePeloCard(d.id, btn.dataset.concluir);
+      return;
+    }
     const dem = state.demandas.find((x) => x.id === d.id);
     if (!dem) return;
     handleDemandaDrop(dem, proxima, BOARD_ATRIBUIDOS);
@@ -6511,16 +6527,24 @@ function labelEtapaProjetoAberto(status) {
  * Ao concluir uma atividade com "mover para", leva o projeto para aquela coluna no formulário
  * (gravado ao salvar, com o histórico de etapas). Só avança: nunca volta o projeto para uma coluna anterior.
  */
-function moverProjetoPelaAtividade(it) {
-  const destino = it?.moverPara;
-  const sel = document.getElementById("demStatus");
-  if (!destino || !sel || sel.value === destino) return false;
-  const ordem = etapasEsteiraProjetoAberto().map(([k]) => k);
+/** Coluna de destino válida para "mover ao concluir": existe na esteira e não volta o projeto ("" se não move). */
+function destinoMoverValido(destino, statusAtual, linha) {
+  if (!destino || destino === statusAtual) return "";
+  const cfg = getEsteiraConfig(linha);
+  const ordem = [...cfg.statusOrder, ...cfg.statusExtra].map(([k]) => k);
   const iDestino = ordem.indexOf(destino);
-  const iAtual = ordem.indexOf(sel.value);
-  if (iDestino < 0) return false;
-  const atualEhExtra = getEsteiraConfig(editingLinhaEsteira).statusExtra.some(([k]) => k === sel.value);
-  if (!atualEhExtra && iAtual >= 0 && iDestino < iAtual) return false;
+  if (iDestino < 0) return "";
+  const iAtual = ordem.indexOf(statusAtual);
+  const atualEhExtra = cfg.statusExtra.some(([k]) => k === statusAtual);
+  if (!atualEhExtra && iAtual >= 0 && iDestino < iAtual) return "";
+  return destino;
+}
+
+function moverProjetoPelaAtividade(it) {
+  const sel = document.getElementById("demStatus");
+  if (!sel) return false;
+  const destino = destinoMoverValido(it?.moverPara, sel.value, editingLinhaEsteira);
+  if (!destino) return false;
   sel.value = destino;
   sel.dispatchEvent(new Event("change", { bubbles: true }));
   agendarSyncDemNavegacao();
@@ -6530,6 +6554,70 @@ function moverProjetoPelaAtividade(it) {
       (existente ? " — clique em Salvar para confirmar" : ""),
   );
   return true;
+}
+
+/* ---------- Card: concluir a atividade atual (e mover de coluna) ---------- */
+/** Atividade que o botão do card conclui: a em andamento ou, se nenhuma, a primeira pendente. */
+function cardAtividadeParaConcluir(dm) {
+  const items = normalizeChecklist(dm.checklist);
+  const { atual } = checklistAtualEProxima(items);
+  return atual || items.find((it) => !it.done) || null;
+}
+
+/** Conclui uma atividade direto pelo card: grava na hora, reagenda dependentes e move de coluna se configurado. */
+function concluirAtividadePeloCard(demId, itemId) {
+  if (!requireWriteAccess()) return;
+  const dem = state.demandas.find((x) => x.id === demId);
+  if (!dem) return;
+  const antes = migrateDemanda({ ...dem, __isMigrated: false });
+  const desfazerDados = JSON.parse(
+    JSON.stringify({
+      checklist: dem.checklist || [],
+      status: dem.status,
+      historicoStatus: dem.historicoStatus || [],
+      ordemEsteira: dem.ordemEsteira ?? null,
+      dataTermino: dem.dataTermino || "",
+    }),
+  );
+  const lista = normalizeChecklist(dem.checklist);
+  const it = lista.find((x) => x.id === itemId);
+  if (!it || it.done) return;
+  const bloqueio = checklistBloqueadaPor(lista, it);
+  const concluida = lista.map((x) =>
+    x.id === itemId ? { ...x, status: "concluida", done: true, dateConclusao: todayISODate() } : x,
+  );
+  const { items, movidas } = reagendarDependentes(concluida);
+  dem.checklist = items;
+  const now = new Date().toISOString();
+  const linha = antes.linhaEsteira;
+  const destino = destinoMoverValido(it.moverPara, dem.status, linha);
+  if (destino) {
+    dem.status = destino;
+    dem.historicoStatus = statusHistoryPush(dem, destino, now);
+    if (isStatusConcluidoNoFormulario(destino, linha) && !dem.dataTermino) dem.dataTermino = todayISODate();
+    dem.ordemEsteira = ordemAoEntrarColuna(destino, dem.responsavel);
+  }
+  dem.updatedAt = now;
+  invalidateAlertaSnoozeIfStale(dem);
+  registrarEdicaoNoHistoricoEdicao(antes, dem);
+  noteOwnDemandaWrite(demId, now);
+  saveState({ demanda: dem });
+  renderBoard();
+  const partes = [`“${it.name}” concluída`];
+  if (destino) partes.push(`projeto movido para «${labelStatus(destino, linha)}»`);
+  if (movidas.size) partes.push(`${movidas.size} dependente(s) reagendada(s)`);
+  if (bloqueio) partes.push(`atenção: “${bloqueio.name}” ainda não foi concluída`);
+  toastComAcao(partes.join(" · "), "Desfazer", () => {
+    const d = state.demandas.find((x) => x.id === demId);
+    if (!d) return;
+    const agora = new Date().toISOString();
+    Object.assign(d, desfazerDados, { updatedAt: agora });
+    if (!desfazerDados.dataTermino) delete d.dataTermino;
+    noteOwnDemandaWrite(demId, agora);
+    saveState({ demanda: d });
+    renderBoard();
+    toast("Conclusão desfeita");
+  });
 }
 
 /* ---------- Dependências entre atividades do checklist ---------- */
@@ -6584,8 +6672,12 @@ function fillChecklistDepSelect(sel, items, itemId, atual) {
  * Empurra para frente as atividades pendentes que começariam antes do fim da predecessora,
  * mantendo a duração. Nunca puxa datas para trás. Devolve quantas foram reagendadas.
  */
-function propagarDependenciasChecklist() {
-  const items = normalizeChecklist(editingChecklist).map((x) => ({ ...x }));
+/**
+ * Empurra para frente as atividades pendentes que começariam antes do fim da predecessora,
+ * mantendo a duração. Nunca puxa datas para trás. Não altera a lista recebida.
+ */
+function reagendarDependentes(lista) {
+  const items = normalizeChecklist(lista).map((x) => ({ ...x }));
   const byId = new Map(items.map((x) => [x.id, x]));
   const movidas = new Set();
   for (let volta = 0; volta < items.length; volta++) {
@@ -6612,6 +6704,12 @@ function propagarDependenciasChecklist() {
     }
     if (!mudou) break;
   }
+  return { items, movidas };
+}
+
+/** Versão do modal: reagenda o checklist em edição e avisa. Devolve quantas foram reagendadas. */
+function propagarDependenciasChecklist() {
+  const { items, movidas } = reagendarDependentes(editingChecklist);
   if (movidas.size) {
     editingChecklist = items;
     const nomes = items.filter((x) => movidas.has(x.id)).map((x) => `“${x.name}”`);
