@@ -3789,6 +3789,7 @@ function sameChecklist(a, b) {
     if (x[i].done !== y[i].done) return false;
     if (x[i].status !== y[i].status) return false;
     if ((x[i].dependeDe || "") !== (y[i].dependeDe || "")) return false;
+    if ((x[i].moverPara || "") !== (y[i].moverPara || "")) return false;
     if ((x[i].dateConclusao || "") !== (y[i].dateConclusao || "")) return false;
   }
   return true;
@@ -3944,6 +3945,8 @@ function normalizeChecklistItem(it) {
     dateConclusao: status === "concluida" ? isoDatePart(it.dateConclusao || "") || "" : "",
     // Atividade que precisa terminar antes desta começar (id no mesmo checklist).
     dependeDe: String(it.dependeDe || "").trim(),
+    // Coluna para onde o projeto vai quando esta atividade for concluída ("" = não mover).
+    moverPara: String(it.moverPara || "").trim(),
     status,
     done: status === "concluida",
   };
@@ -6351,6 +6354,9 @@ function readChecklistEtapaDraft(ids) {
     ...(ids.dependeDe && document.getElementById(ids.dependeDe)
       ? { dependeDe: document.getElementById(ids.dependeDe).value || "" }
       : {}),
+    ...(ids.moverPara && document.getElementById(ids.moverPara)
+      ? { moverPara: document.getElementById(ids.moverPara).value || "" }
+      : {}),
   };
 }
 
@@ -6373,9 +6379,11 @@ function applyChecklistItemPatch(id, patch) {
   const p = { ...patch };
   if (p.status && CHECKLIST_STATUS_LABEL[p.status]) p.done = p.status === "concluida";
   else if (typeof p.done === "boolean") p.status = p.done ? "concluida" : "afazer";
+  let concluida = null;
   editingChecklist = normalizeChecklist(editingChecklist).map((row) => {
     if (row.id !== id) return row;
     const next = { ...row, ...p };
+    if (next.done && !row.done) concluida = next;
     // Ao concluir, registra a data real (hoje) se ainda não houver; ao reabrir, limpa.
     if (p.done === true && !row.done && !p.dateConclusao) next.dateConclusao = todayISODate();
     if (p.done === false) next.dateConclusao = "";
@@ -6383,6 +6391,7 @@ function applyChecklistItemPatch(id, patch) {
     return next;
   });
   propagarDependenciasChecklist();
+  if (concluida) moverProjetoPelaAtividade(concluida);
 }
 
 function persistOpenChecklistEdit() {
@@ -6395,6 +6404,7 @@ function persistOpenChecklistEdit() {
     date: "demChecklistEditFim",
     dateConclusao: "demChecklistEditConclusao",
     dependeDe: "demChecklistEditDep",
+    moverPara: "demChecklistEditMover",
   });
   if (!draft.name) return;
   applyChecklistItemPatch(editingChecklistItemId, draft);
@@ -6474,11 +6484,57 @@ function saveChecklistItemEdit(id) {
     date: "demChecklistEditFim",
     dateConclusao: "demChecklistEditConclusao",
     dependeDe: "demChecklistEditDep",
+    moverPara: "demChecklistEditMover",
   });
   if (!validateChecklistEtapa(draft, "demChecklistEditInicio")) return;
   applyChecklistItemPatch(id, draft);
   editingChecklistItemId = "";
   renderChecklistEditor();
+}
+
+/* ---------- Checklist: mover o projeto de coluna ao concluir uma atividade ---------- */
+/** Etapas da esteira do projeto aberto, na ordem das colunas. */
+function etapasEsteiraProjetoAberto() {
+  const cfg = getEsteiraConfig(editingLinhaEsteira);
+  return [...cfg.statusOrder, ...cfg.statusExtra];
+}
+
+function fillChecklistMoverSelect(sel, atual) {
+  if (!sel) return;
+  const etapas = etapasEsteiraProjetoAberto();
+  sel.innerHTML =
+    '<option value="">Não mover — fica na coluna atual</option>' +
+    etapas.map(([k, label]) => `<option value="${escapeHtml(k)}">${escapeHtml(label)}</option>`).join("");
+  sel.value = atual && etapas.some(([k]) => k === atual) ? atual : "";
+}
+
+function labelEtapaProjetoAberto(status) {
+  return etapasEsteiraProjetoAberto().find(([k]) => k === status)?.[1] || "";
+}
+
+/**
+ * Ao concluir uma atividade com "mover para", leva o projeto para aquela coluna no formulário
+ * (gravado ao salvar, com o histórico de etapas). Só avança: nunca volta o projeto para uma coluna anterior.
+ */
+function moverProjetoPelaAtividade(it) {
+  const destino = it?.moverPara;
+  const sel = document.getElementById("demStatus");
+  if (!destino || !sel || sel.value === destino) return false;
+  const ordem = etapasEsteiraProjetoAberto().map(([k]) => k);
+  const iDestino = ordem.indexOf(destino);
+  const iAtual = ordem.indexOf(sel.value);
+  if (iDestino < 0) return false;
+  const atualEhExtra = getEsteiraConfig(editingLinhaEsteira).statusExtra.some(([k]) => k === sel.value);
+  if (!atualEhExtra && iAtual >= 0 && iDestino < iAtual) return false;
+  sel.value = destino;
+  sel.dispatchEvent(new Event("change", { bubbles: true }));
+  agendarSyncDemNavegacao();
+  const existente = Boolean((document.getElementById("demId")?.value || "").trim());
+  toast(
+    `“${it.name}” concluída · projeto vai para «${labelEtapaProjetoAberto(destino)}»` +
+      (existente ? " — clique em Salvar para confirmar" : ""),
+  );
+  return true;
 }
 
 /* ---------- Dependências entre atividades do checklist ---------- */
@@ -6752,6 +6808,8 @@ function renderChecklistEditor() {
   if (expand) expand.hidden = isReadOnlyUser();
   const novaDep = document.getElementById("demChecklistDep");
   fillChecklistDepSelect(novaDep, items, "", novaDep?.value || "");
+  const novoMover = document.getElementById("demChecklistMover");
+  fillChecklistMoverSelect(novoMover, novoMover?.value || "");
   if (!list) return;
   const readOnly = isReadOnlyUser();
   list.innerHTML = "";
@@ -6860,6 +6918,14 @@ function renderChecklistEditor() {
       depSel.id = "demChecklistEditDep";
       fillChecklistDepSelect(depSel, items, it.id, it.dependeDe);
       depWrap.append(depSpan, depSel);
+      const moverWrap = document.createElement("label");
+      moverWrap.className = "field checklist-item__edit-mover";
+      const moverSpan = document.createElement("span");
+      moverSpan.textContent = "Ao concluir, mover projeto para";
+      const moverSel = document.createElement("select");
+      moverSel.id = "demChecklistEditMover";
+      fillChecklistMoverSelect(moverSel, it.moverPara);
+      moverWrap.append(moverSpan, moverSel);
       [nameField.input, whoField.input, startField.input, endField.input, conclField?.input].filter(Boolean).forEach((input) => {
         input.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
@@ -6896,7 +6962,7 @@ function renderChecklistEditor() {
       save.addEventListener("click", () => saveChecklistItemEdit(it.id));
       foot.append(rm, dica, cancel, save);
 
-      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, ...(conclField ? [conclField.wrap] : []), depWrap, descField.wrap, foot);
+      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, ...(conclField ? [conclField.wrap] : []), depWrap, moverWrap, descField.wrap, foot);
       li.append(icone, edit);
     } else {
       const body = document.createElement("div");
@@ -6955,6 +7021,16 @@ function renderChecklistEditor() {
           ? `Bloqueada: “${pred.name}” ainda não foi concluída`
           : `Depende de “${pred.name}” (já concluída)`;
         meta.append(dep);
+      }
+      const moverLabel = it.moverPara ? labelEtapaProjetoAberto(it.moverPara) : "";
+      if (moverLabel) {
+        const mv = document.createElement("span");
+        mv.className = "ck-mover" + (it.done ? " is-feito" : "");
+        mv.textContent = `➜ ${moverLabel}`;
+        mv.title = it.done
+          ? `Ao ser concluída, levou o projeto para «${moverLabel}»`
+          : `Ao concluir, o projeto vai para a coluna «${moverLabel}»`;
+        meta.append(mv);
       }
       body.append(meta);
 
@@ -7448,6 +7524,7 @@ function addChecklistEtapaFromForm() {
     dateInicio: "demChecklistDateInicio",
     date: "demChecklistDate",
     dependeDe: "demChecklistDep",
+    moverPara: "demChecklistMover",
   });
   if (!validateChecklistEtapa(draft, "demChecklistDateInicio")) return;
   const selStatus = document.getElementById("demChecklistStatus");
@@ -7463,6 +7540,7 @@ function addChecklistEtapaFromForm() {
       dateInicio: draft.dateInicio,
       date: draft.date,
       dependeDe: draft.dependeDe || "",
+      moverPara: draft.moverPara || "",
       status: novoStatus,
       done: novoStatus === "concluida",
     },
@@ -7481,6 +7559,8 @@ function addChecklistEtapaFromForm() {
   if (selStatus) selStatus.value = "afazer";
   const selDep = document.getElementById("demChecklistDep");
   if (selDep) selDep.value = "";
+  const selMover = document.getElementById("demChecklistMover");
+  if (selMover) selMover.value = "";
   checklistFiltro = "todas";
   renderChecklistEditor();
   toast(`Atividade “${draft.name}” adicionada`);

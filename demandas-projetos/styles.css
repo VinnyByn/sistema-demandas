@@ -6656,3 +6656,11 @@ html[data-theme="light"] .mencao.is-eu { color: #fff; background: #6366f1; }
 .comments-compose__send:disabled { cursor: default; background: var(--surface2); color: var(--muted); }
 html[data-theme="light"] .compose-card { background: #fff; border-color: #c5d0de; }
 html[data-theme="light"] .comments-compose__send:disabled { background: #eef2f7; color: #64748b; }
+.ck-mover {
+  font-size: 0.72rem; font-weight: 600; white-space: nowrap; padding: 0.05rem 0.45rem; border-radius: 999px;
+  color: #93c5fd; background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.ck-mover.is-feito { color: var(--muted); background: none; border-color: var(--border); }
+html[data-theme="light"] .ck-mover { color: #1d4ed8; }
+.checklist-item__edit-mover select { width: 100%; }
+.checklist-item__edit-dep, .checklist-item__edit-mover { grid-column: span 2; }
