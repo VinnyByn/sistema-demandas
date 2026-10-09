@@ -1312,13 +1312,10 @@
 
         <fieldset class="fieldset fieldset--segment fieldset--timeline">
           <legend>Tempo na esteira</legend>
-          <p class="muted small">Clique numa fase para ajustar <strong>início</strong>, <strong>fim</strong> e a <strong>atualização</strong>. Na fase em andamento, deixe o fim em branco. <strong>↑</strong> <strong>↓</strong> mudam a ordem e <strong>×</strong> exclui (mínimo uma fase). Salve a demanda para gravar.</p>
+          <p class="muted small tl-ajuda">Passe o mouse na barra para ver os detalhes de cada fase; a legenda destaca um setor. Clique numa fase para editar datas e atualização — vale ao salvar o projeto.</p>
           <div class="tl-resumo" id="demTimelineResumo" hidden></div>
           <div class="timeline-table-wrap">
-            <table class="timeline-table" id="demTimelineTable">
-              <thead>
-                <tr><th>Fase</th><th>Setor</th><th>Início</th><th>Fim</th><th>Duração</th><th>Atualização</th><th></th></tr>
-              </thead>
+            <table class="timeline-table tl-trilho" id="demTimelineTable" aria-label="Fases do projeto, da mais recente para a mais antiga">
               <tbody></tbody>
             </table>
           </div>
