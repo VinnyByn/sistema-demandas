@@ -30,6 +30,12 @@ test("comentário com @menção guarda quem foi citado", async ({ app: { page } 
   await page.keyboard.type("Revisar com @matheus si");
   await expect(page.locator("#mencaoAutocomplete li")).toHaveCount(1);
   await expect(page.locator("#mencaoAutocomplete li")).toContainText("Matheus Silva");
+  // A lista precisa ficar visível por cima do modal do projeto (não atrás dele).
+  const visivel = await page.evaluate(() => {
+    const r = document.querySelector("#mencaoAutocomplete li").getBoundingClientRect();
+    return !!document.elementFromPoint(r.left + 10, r.top + 10)?.closest("#mencaoAutocomplete");
+  });
+  expect(visivel).toBe(true);
   await page.keyboard.press("Enter");
   await page.keyboard.type("hoje");
   await page.keyboard.press("Control+Enter");

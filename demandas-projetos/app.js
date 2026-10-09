@@ -7720,12 +7720,23 @@ function atualizarMencaoAc(ta) {
         `<span class="mencao-ac__txt"><strong>${escapeHtml(u.nome)}</strong><small>${escapeHtml(u.email)}</small></span></li>`,
     )
     .join("");
-  const r = ta.getBoundingClientRect();
+  // Um dialog modal fica na camada superior e cobre o que está no body: a lista vai para dentro dele.
+  const host = ta.closest("dialog[open]") || document.body;
+  if (el.parentElement !== host) host.appendChild(el);
+  const r = (ta.closest(".compose-card") || ta).getBoundingClientRect();
   el.hidden = false;
   const alto = el.offsetHeight;
   const cabeEmbaixo = r.bottom + alto + 8 < window.innerHeight;
-  el.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - el.offsetWidth - 8))}px`;
-  el.style.top = `${cabeEmbaixo ? r.bottom + 4 : Math.max(8, r.top - alto - 4)}px`;
+  const alvoX = Math.max(8, Math.min(r.left, window.innerWidth - el.offsetWidth - 8));
+  const alvoY = cabeEmbaixo ? r.bottom + 4 : Math.max(8, r.top - alto - 4);
+  el.style.left = `${alvoX}px`;
+  el.style.top = `${alvoY}px`;
+  // Se o dialog cria um bloco de contenção (transform), "fixed" passa a ser relativo a ele: corrige o deslocamento.
+  const real = el.getBoundingClientRect();
+  if (Math.abs(real.left - alvoX) > 1 || Math.abs(real.top - alvoY) > 1) {
+    el.style.left = `${alvoX - (real.left - alvoX)}px`;
+    el.style.top = `${alvoY - (real.top - alvoY)}px`;
+  }
 }
 
 function escolherMencao(idx) {
