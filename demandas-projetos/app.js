@@ -9061,16 +9061,22 @@ function syncTimelineRowView(tr) {
   const ini = tr.querySelector(".tl-data--ini");
   const fim = tr.querySelector(".tl-data--fim");
   const obs = tr.querySelector(".tl-obs-txt");
-  if (ini) ini.textContent = formatTimelineDataCurta(inEl?.value) || "—";
+  if (ini) {
+    ini.textContent = formatTimelineDiaMes(inEl?.value) || "—";
+    ini.title = formatTimelineDataCurta(inEl?.value) || "";
+  }
   if (fim) {
-    const txt = formatTimelineDataCurta(fimEl?.value);
+    const txt = formatTimelineDiaMes(fimEl?.value);
+    const mesmoDia = txt && txt === formatTimelineDiaMes(inEl?.value);
     fim.textContent = txt || "em andamento";
+    fim.title = formatTimelineDataCurta(fimEl?.value) || "Fase em andamento";
     fim.classList.toggle("is-aberta", !txt);
+    tr.classList.toggle("is-mesmo-dia", Boolean(mesmoDia));
   }
   if (obs) {
     const t = (obsEl?.value || "").trim();
-    obs.textContent = t || "Sem atualização";
-    obs.classList.toggle("is-vazia", !t);
+    obs.textContent = t;
+    tr.classList.toggle("tem-nota", Boolean(t));
   }
   const a = Date.parse(datetimeLocalToIso(inEl?.value) || "");
   const b = Date.parse(datetimeLocalToIso(fimEl?.value || "") || "");
@@ -9082,6 +9088,35 @@ function syncTimelineRowView(tr) {
 
 /** Resumo do tempo na esteira: indicadores, barra interativa por fase, eixo de datas e tempo por setor. */
 let timelineSetorFiltro = "";
+/** Fases do último resumo desenhado (para o balão da barra). */
+let timelineSegsResumo = [];
+
+function mostrarBalaoTimeline(fatia) {
+  const tip = document.querySelector("#demTimelineResumo .tl-tip");
+  const x = timelineSegsResumo[Number(fatia?.dataset.tlIdx)];
+  if (!tip || !x) return;
+  const nome = labelStatus(x.status, x.linha);
+  const pct = x.total ? (x.ms / x.total) * 100 : 0;
+  const passou = x.metaMs && x.ms > x.metaMs;
+  tip.innerHTML =
+    `<div class="tl-tip__titulo"><b>${escapeHtml(nome)}</b>${x.setor ? ` <span>· ${escapeHtml(x.setor)}</span>` : ""}</div>` +
+    `<dl><dt>Início</dt><dd>${escapeHtml(formatTimelineDataCurta(isoToDatetimeLocal(x.inicio)) || "—")}</dd>` +
+    `<dt>Fim</dt><dd>${x.fim ? escapeHtml(formatTimelineDataCurta(isoToDatetimeLocal(x.fim))) : "em andamento"}</dd>` +
+    `<dt>Duração</dt><dd><b>${escapeHtml(formatDurCurta(x.ms))}</b> · ${pct.toFixed(0)}% do total</dd>` +
+    (x.metaMs
+      ? `<dt>Meta</dt><dd class="${passou ? "is-acima" : ""}">${Math.round(x.metaMs / 86400000)}d${
+          passou ? ` — passou ${escapeHtml(formatDurCurta(x.ms - x.metaMs))}` : " — dentro"
+        }</dd>`
+      : "") +
+    `</dl>`;
+  tip.hidden = false;
+  const wrap = tip.parentElement.getBoundingClientRect();
+  const r = fatia.getBoundingClientRect();
+  const larg = tip.offsetWidth;
+  const centro = r.left - wrap.left + r.width / 2;
+  tip.style.left = `${Math.max(0, Math.min(wrap.width - larg, centro - larg / 2))}px`;
+  tip.style.setProperty("--seta", `${Math.max(12, Math.min(larg - 12, centro - parseFloat(tip.style.left)))}px`);
+}
 
 function timelineCorSeg(setor, cfg) {
   return setor ? setorColorFor(setor, cfg) : "#94a3b8";
@@ -9117,17 +9152,41 @@ function renderTimelineResumo() {
   segs.forEach((x, i) => {
     const n = (passagens.get(x.status) || 0) + 1;
     passagens.set(x.status, n);
-    const bar = x.tr.querySelector(".tl-dur-bar span");
-    if (bar) {
-      bar.style.width = `${Math.max(2, (x.ms / max) * 100)}%`;
-      bar.style.background = timelineCorSeg(x.setor, cfg);
+    // Régua da duração: a escala é a maior entre a duração e a meta; o que passa da meta fica em laranja.
+    const meta = metaDiasEtapa(x.status, linha);
+    const metaMs = meta != null ? meta * 86400000 : 0;
+    x.metaMs = metaMs;
+    const escala = metaMs ? Math.max(x.ms, metaMs) : max;
+    const pctOk = escala ? (Math.min(x.ms, metaMs || x.ms) / escala) * 100 : 0;
+    const pctAcima = metaMs && x.ms > metaMs ? ((x.ms - metaMs) / escala) * 100 : 0;
+    const regua = x.tr.querySelector(".tl-regua");
+    if (regua) {
+      regua.querySelector(".tl-regua__ok").style.width = `${Math.max(x.ms ? 1.5 : 0, pctOk)}%`;
+      const acima = regua.querySelector(".tl-regua__acima");
+      acima.style.left = `${pctOk}%`;
+      acima.style.width = `${pctAcima}%`;
+      const marca = regua.querySelector(".tl-regua__meta");
+      marca.hidden = !metaMs;
+      if (metaMs) {
+        marca.style.left = `${(metaMs / escala) * 100}%`;
+        marca.dataset.l = `meta ${meta}d`;
+      }
     }
+    const instantanea = x.ms < 60000 && x.fim;
     const dur = x.tr.querySelector(".timeline-dur");
     if (dur) {
-      const instantanea = x.ms < 60000 && x.fim;
-      dur.textContent = instantanea ? "instantânea" : formatDur(x.ms);
+      dur.textContent = instantanea ? "instantânea" : formatDurCurta(x.ms);
+      dur.title = instantanea ? "" : formatDur(x.ms);
       dur.classList.toggle("is-instantanea", Boolean(instantanea));
     }
+    x.tr.classList.toggle("is-instantanea", Boolean(instantanea));
+    const metaTxt = x.tr.querySelector(".tl-meta-txt");
+    if (metaTxt) {
+      const passou = metaMs && x.ms > metaMs;
+      metaTxt.textContent = instantanea ? "" : !metaMs ? "sem meta" : passou ? `+${formatDurCurta(x.ms - metaMs)} acima da meta` : "dentro da meta";
+      metaTxt.classList.toggle("is-acima", Boolean(passou));
+    }
+    x.tr.classList.toggle("is-acima-meta", Boolean(metaMs && x.ms > metaMs));
     const extra = x.tr.querySelector(".tl-extra");
     if (extra) {
       const notas = [];
@@ -9158,6 +9217,7 @@ function renderTimelineResumo() {
   if (timelineSetorFiltro && !porSetor.has(timelineSetorFiltro)) timelineSetorFiltro = "";
 
   // Indicadores.
+  const pausadoMs = segs.filter((x) => x.status === "pausado").reduce((acc, x) => acc + x.ms, 0);
   const maior = setoresOrd[0];
   const retornos = [...passagens.entries()].filter(([, n]) => n > 1);
   let atualHtml = "";
@@ -9176,7 +9236,9 @@ function renderTimelineResumo() {
   }
   const kpis =
     `<div class="tl-kpi"><span class="tl-kpi__label">Tempo total</span><strong>${formatDurCurta(total)}</strong>` +
-    `<span class="tl-kpi__sub">${segs.length} ${segs.length === 1 ? "fase" : "fases"}</span></div>` +
+    `<span class="tl-kpi__sub">${
+      pausadoMs ? `<span title="Sem o tempo em Pausado">${formatDurCurta(total - pausadoMs)} efetivos</span> · ` : ""
+    }${segs.length} ${segs.length === 1 ? "fase" : "fases"}</span></div>` +
     atualHtml +
     (maior && total
       ? `<div class="tl-kpi"><span class="tl-kpi__label">Mais tempo em</span><strong><i class="tl-kpi__cor" style="background:${maior[1].cor}"></i>${escapeHtml(maior[0])}</strong>` +
@@ -9200,15 +9262,15 @@ function renderTimelineResumo() {
       return (
         `<button type="button" class="tl-fatia${x === atual && atualAberta ? " is-atual" : ""}${apagada ? " is-apagada" : ""}" data-tl-idx="${x.i}" ` +
         `style="flex-grow:${x.ms};background-color:${timelineCorSeg(x.setor, cfg)}" ` +
-        `title="${escapeHtml(`${nome} · ${formatDur(x.ms)} · ${pct.toFixed(1)}% — clique para ver a fase`)}">${rotulo}</button>`
+        `aria-label="${escapeHtml(`${nome} · ${formatDur(x.ms)} · ${pct.toFixed(1)}%`)}">${rotulo}</button>`
       );
     })
     .join("");
   const ini = segs.find((x) => x.inicio)?.inicio || "";
   const fimTotal = atualAberta ? "" : atual?.fim || "";
   const eixo =
-    `<div class="tl-eixo"><span>${ini ? escapeHtml(formatTimelineDataCurta(isoToDatetimeLocal(ini)).slice(0, 8)) : ""}</span>` +
-    `<span>${atualAberta ? "hoje" : escapeHtml(formatTimelineDataCurta(isoToDatetimeLocal(fimTotal)).slice(0, 8))}</span></div>`;
+    `<div class="tl-eixo"><span>${ini ? escapeHtml(formatTimelineDiaMes(isoToDatetimeLocal(ini))) : ""}</span>` +
+    `<span>${atualAberta ? "hoje" : escapeHtml(formatTimelineDiaMes(isoToDatetimeLocal(fimTotal)))}</span></div>`;
 
   const legenda = setoresOrd
     .map(([setor, o]) => {
@@ -9224,12 +9286,13 @@ function renderTimelineResumo() {
 
   host.innerHTML =
     `<div class="tl-kpis">${kpis}</div>` +
-    `<div class="tl-barra" role="group" aria-label="Distribuição do tempo por fase">${fatias}</div>` +
+    `<div class="tl-barra-wrap"><div class="tl-barra" role="group" aria-label="Distribuição do tempo por fase">${fatias}</div><div class="tl-tip" hidden></div></div>` +
     eixo +
     `<div class="tl-legenda">${legenda}${
       timelineSetorFiltro ? `<button type="button" class="tl-legenda__limpar" data-tl-setor="">✕ Mostrar todas</button>` : ""
     }</div>`;
 
+  timelineSegsResumo = segs.map((x) => ({ ...x, total, linha }));
   // Destaque das linhas pelo setor escolhido na legenda.
   segs.forEach((x) => {
     const apagada = timelineSetorFiltro && (x.setor || labelStatus(x.status, linha)) !== timelineSetorFiltro;
@@ -9267,11 +9330,34 @@ function initTimelineResumoInterativo() {
   });
   host?.addEventListener("mouseover", (e) => {
     const f = e.target.closest(".tl-fatia");
-    if (f) destacarFaseTimeline(f.dataset.tlIdx, true);
+    if (!f) return;
+    destacarFaseTimeline(f.dataset.tlIdx, true);
+    mostrarBalaoTimeline(f);
   });
   host?.addEventListener("mouseout", (e) => {
     const f = e.target.closest(".tl-fatia");
-    if (f) destacarFaseTimeline(f.dataset.tlIdx, false);
+    if (!f) return;
+    destacarFaseTimeline(f.dataset.tlIdx, false);
+    const tip = host.querySelector(".tl-tip");
+    if (tip && !f.contains(e.relatedTarget)) tip.hidden = true;
+  });
+  host?.addEventListener("focusin", (e) => {
+    const f = e.target.closest(".tl-fatia");
+    if (f) mostrarBalaoTimeline(f);
+  });
+  host?.addEventListener("focusout", () => {
+    const tip = host.querySelector(".tl-tip");
+    if (tip) tip.hidden = true;
+  });
+  // Fecha o menu ⋯ das fases ao clicar fora ou com Esc.
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest?.(".tl-menu")) fecharMenusTimeline();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && document.querySelector("#demTimelineTable .tl-menu.is-aberto")) {
+      e.preventDefault();
+      fecharMenusTimeline();
+    }
   });
   tbody?.addEventListener("mouseover", (e) => {
     const tr = e.target.closest("tr[data-tl-idx]");
@@ -9296,9 +9382,27 @@ function refreshTimelineRowDur(tr) {
   if (!inEl || !durEl) return;
   const inicio = datetimeLocalToIso(inEl.value) || inEl.value;
   const fim = datetimeLocalToIso(fimEl?.value || "") || "";
-  durEl.textContent = formatDur(timelineSegmentMs({ inicio, fim: fim || "" }));
+  durEl.textContent = formatDurCurta(timelineSegmentMs({ inicio, fim: fim || "" }));
   syncTimelineRowView(tr);
   renderTimelineResumo();
+}
+
+const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+/** "2026-08-29T10:08" → "29 ago" (com o ano só quando não é o ano atual). */
+function formatTimelineDiaMes(val) {
+  const m = String(val || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "";
+  const ano = Number(m[1]) !== new Date().getFullYear() ? ` ${m[1]}` : "";
+  return `${Number(m[3])} ${MESES_CURTOS[Number(m[2]) - 1]}${ano}`;
+}
+
+function fecharMenusTimeline(exceto = null) {
+  document.querySelectorAll("#demTimelineTable .tl-menu.is-aberto").forEach((menu) => {
+    if (menu === exceto) return;
+    menu.classList.remove("is-aberto");
+    menu.querySelector(".tl-menu__btn")?.setAttribute("aria-expanded", "false");
+  });
 }
 
 function renderTimeline(d) {
@@ -9311,6 +9415,7 @@ function renderTimeline(d) {
   const linha = dm.linhaEsteira;
   const hist = dm.historicoStatus || [];
   const statusAtual = dm.status;
+  const ro = isReadOnlyUser();
   hist.forEach((seg, idx) => {
     const tr = document.createElement("tr");
     tr.dataset.histIdx = String(idx);
@@ -9318,124 +9423,146 @@ function renderTimeline(d) {
     const isLast = idx === hist.length - 1;
     const faseAtual = isLast && seg.status === statusAtual;
     if (faseAtual && !seg.fim) tr.classList.add("is-atual");
+    const setor = setorForStatusDemanda(seg.status, linha);
+    const cfg = normalizeLinhaEsteira(linha) === LINHA_ESTEIRA_B2B ? DASH_TEMPO_CFG_B2B : DASH_TEMPO_CFG_OP;
+    tr.style.setProperty("--tl-cor", timelineCorSeg(setor, cfg));
     tr.innerHTML = `
-      <td class="timeline-table__fase"><span class="tl-fase"><strong>${escapeHtml(labelStatus(seg.status, linha))}</strong>${
-        faseAtual && !seg.fim ? '<span class="tl-atual">Atual</span>' : ""
-      }</span><span class="tl-aviso" hidden>Fim antes do início</span><span class="tl-extra" hidden></span></td>
-      <td class="timeline-table__setor">${timelineSetorHtml(seg.status, linha)}</td>
-      <td class="timeline-table__date"><span class="tl-data tl-data--ini"></span></td>
-      <td class="timeline-table__date"><span class="tl-data tl-data--fim"></span></td>
-      <td class="timeline-table__dur"><span class="timeline-dur">${formatDur(timelineSegmentMs(seg))}</span><span class="tl-dur-bar"><span></span></span></td>
-      <td class="timeline-table__obs"><span class="tl-obs-txt"></span></td>
-      <td class="timeline-table__actions"></td>
+      <td class="tl-c-info">
+        <div class="tl-fase"><strong>${escapeHtml(labelStatus(seg.status, linha))}</strong>${
+          faseAtual && !seg.fim ? '<span class="tl-atual">Atual</span>' : ""
+        }<span class="tl-extra" hidden></span></div>
+        <div class="tl-sub">${setor ? `<span class="tl-setor">${escapeHtml(setor)}</span>` : ""}<span class="tl-periodo"><span class="tl-data tl-data--ini"></span><span class="tl-seta">→</span><span class="tl-data tl-data--fim"></span></span></div>
+        <span class="tl-aviso" hidden>Fim antes do início</span>
+        <div class="tl-edit">
+          <label class="field"><span>Início</span></label>
+          <label class="field"><span>Fim <small>(em branco = em andamento)</small></span></label>
+          <label class="field tl-edit__obs"><span>Atualização</span></label>
+        </div>
+        <div class="tl-nota"><span class="tl-obs-txt"></span></div>
+      </td>
+      <td class="tl-c-dur">
+        <div class="tl-dur-topo"><span class="timeline-dur">${formatDurCurta(timelineSegmentMs(seg))}</span><span class="tl-meta-txt"></span></div>
+        <div class="tl-regua"><span class="tl-regua__ok"></span><span class="tl-regua__acima"></span><span class="tl-regua__meta"></span></div>
+      </td>
+      <td class="tl-c-acoes"></td>
     `;
+    const campos = tr.querySelectorAll(".tl-edit .field");
     const inInput = document.createElement("input");
     inInput.type = "datetime-local";
     inInput.className = "timeline-inicio";
     inInput.value = isoToDatetimeLocal(seg.inicio);
     inInput.title = "Data e hora de início nesta fase";
     inInput.required = true;
-
     const fimInput = document.createElement("input");
     fimInput.type = "datetime-local";
     fimInput.className = "timeline-fim";
     fimInput.value = isoToDatetimeLocal(seg.fim);
-    fimInput.title = faseAtual
-      ? "Deixe em branco enquanto a fase estiver em andamento"
-      : "Data e hora de fim nesta fase";
+    fimInput.title = faseAtual ? "Deixe em branco enquanto a fase estiver em andamento" : "Data e hora de fim nesta fase";
     if (!faseAtual && seg.fim) fimInput.required = true;
-
-    const onDateChange = () => {
-      refreshTimelineRowDur(tr);
-    };
-    inInput.addEventListener("input", onDateChange);
-    inInput.addEventListener("change", onDateChange);
-    fimInput.addEventListener("input", onDateChange);
-    fimInput.addEventListener("change", onDateChange);
-
-    const dateCells = tr.querySelectorAll(".timeline-table__date");
-    dateCells[0]?.appendChild(inInput);
-    dateCells[1]?.appendChild(fimInput);
-
     const ta = document.createElement("textarea");
     ta.className = "timeline-obs";
     ta.rows = 2;
     ta.maxLength = 2000;
     ta.placeholder = "Ex.: vistoria agendada, aguardando retorno do regional…";
     ta.value = seg.observacao || "";
-    tr.querySelector(".timeline-table__obs").appendChild(ta);
+    campos[0].appendChild(inInput);
+    campos[1].appendChild(fimInput);
+    campos[2].appendChild(ta);
+    const onDateChange = () => refreshTimelineRowDur(tr);
+    [inInput, fimInput].forEach((el) => {
+      el.addEventListener("input", onDateChange);
+      el.addEventListener("change", onDateChange);
+    });
     ta.addEventListener("input", () => syncTimelineRowView(tr));
 
-    const actionsCell = tr.querySelector(".timeline-table__actions");
-
-    // Leitura por padrão; clicar na linha (ou no ✎) abre a edição das datas e da atualização.
-    const alternarEdicao = (abrir) => {
+    // Leitura por padrão; clicar na fase (ou em Editar no menu) abre datas e atualização.
+    const fecharEdicao = document.createElement("button");
+    fecharEdicao.type = "button";
+    fecharEdicao.className = "btn btn--primary btn--sm tl-edit__ok";
+    fecharEdicao.textContent = "Concluir edição";
+    tr.querySelector(".tl-edit").appendChild(fecharEdicao);
+    const alternarEdicao = (abrir, foco = inInput) => {
       if (isReadOnlyUser()) return;
       const on = abrir ?? !tr.classList.contains("is-editing");
       tr.classList.toggle("is-editing", on);
-      btnEdit.textContent = on ? "✓" : "✎";
-      btnEdit.title = on ? "Concluir edição" : "Editar datas e atualização";
-      btnEdit.setAttribute("aria-label", btnEdit.title);
-      if (on) inInput.focus({ preventScroll: true });
+      if (on) foco.focus({ preventScroll: true });
     };
-    const btnEdit = document.createElement("button");
-    btnEdit.type = "button";
-    btnEdit.className = "timeline-edit";
-    btnEdit.textContent = "✎";
-    btnEdit.title = "Editar datas e atualização";
-    btnEdit.setAttribute("aria-label", btnEdit.title);
-    btnEdit.addEventListener("click", (e) => {
+    fecharEdicao.addEventListener("click", (e) => {
       e.stopPropagation();
-      alternarEdicao();
+      alternarEdicao(false);
     });
-    if (!isReadOnlyUser()) actionsCell?.appendChild(btnEdit);
     tr.addEventListener("click", (e) => {
       const alvo = e.target instanceof Element ? e.target : null;
-      if (!alvo || alvo.closest("input, textarea, button, select")) return;
+      if (!alvo || alvo.closest("input, textarea, button, select, .tl-menu")) return;
       if (!tr.classList.contains("is-editing")) alternarEdicao(true);
     });
 
-    const btnUp = document.createElement("button");
-    btnUp.type = "button";
-    btnUp.className = "timeline-move-up";
-    btnUp.setAttribute("aria-label", "Mover fase para cima");
-    btnUp.textContent = "↑";
-    btnUp.addEventListener("click", () => {
-      swapTimelineRowUp(tr);
-      toast("Ordem ajustada — salve a demanda para confirmar");
-    });
-    actionsCell?.appendChild(btnUp);
+    const nota = tr.querySelector(".tl-nota");
+    if (!ro) {
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "tl-nota__add";
+      add.textContent = "+ adicionar atualização";
+      add.addEventListener("click", (e) => {
+        e.stopPropagation();
+        alternarEdicao(true, ta);
+      });
+      nota.appendChild(add);
+    }
 
-    const btnDown = document.createElement("button");
-    btnDown.type = "button";
-    btnDown.className = "timeline-move-down";
-    btnDown.setAttribute("aria-label", "Mover fase para baixo");
-    btnDown.textContent = "↓";
-    btnDown.addEventListener("click", () => {
-      swapTimelineRowDown(tr);
-      toast("Ordem ajustada — salve a demanda para confirmar");
-    });
-    actionsCell?.appendChild(btnDown);
-
-    const btnDel = document.createElement("button");
-    btnDel.type = "button";
-    btnDel.className = "timeline-remove";
-    btnDel.setAttribute("aria-label", "Excluir fase");
-    btnDel.textContent = "×";
-    btnDel.addEventListener("click", async () => {
-      const rowCount = tb.querySelectorAll("tr").length;
-      if (rowCount <= 1) {
-        toast("Mantenha pelo menos uma fase no histórico");
-        return;
-      }
-      if (!(await confirmExcluirFaseTimeline(seg))) return;
-      tr.remove();
-      syncDemStatusFromTimeline();
-      refreshTimelineDeleteButtons();
-      refreshTimelineMoveButtons();
-      toast("Fase removida — salve a demanda para confirmar");
-    });
-    actionsCell?.appendChild(btnDel);
+    // Menu ⋯: editar, mover e excluir (os botões mantêm as classes usadas pelas regras de ordem/exclusão).
+    const acoes = tr.querySelector(".tl-c-acoes");
+    if (!ro) {
+      const menu = document.createElement("div");
+      menu.className = "tl-menu";
+      menu.innerHTML =
+        `<button type="button" class="tl-menu__btn" aria-haspopup="menu" aria-expanded="false" aria-label="Ações da fase" title="Ações da fase">⋯</button>` +
+        `<div class="tl-menu__lista" role="menu">` +
+        `<button type="button" role="menuitem" class="timeline-edit">✎ Editar datas e atualização</button>` +
+        `<button type="button" role="menuitem" class="timeline-move-up">↑ Mover para antes</button>` +
+        `<button type="button" role="menuitem" class="timeline-move-down">↓ Mover para depois</button>` +
+        `<button type="button" role="menuitem" class="timeline-remove">🗑 Excluir fase</button></div>`;
+      acoes.appendChild(menu);
+      const btnMenu = menu.querySelector(".tl-menu__btn");
+      btnMenu.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const abrir = !menu.classList.contains("is-aberto");
+        fecharMenusTimeline(menu);
+        menu.classList.toggle("is-aberto", abrir);
+        btnMenu.setAttribute("aria-expanded", abrir ? "true" : "false");
+      });
+      menu.querySelector(".timeline-edit").addEventListener("click", (e) => {
+        e.stopPropagation();
+        fecharMenusTimeline();
+        alternarEdicao(true);
+      });
+      menu.querySelector(".timeline-move-up").addEventListener("click", (e) => {
+        e.stopPropagation();
+        fecharMenusTimeline();
+        swapTimelineRowUp(tr);
+        toast("Ordem ajustada — salve o projeto para confirmar");
+      });
+      menu.querySelector(".timeline-move-down").addEventListener("click", (e) => {
+        e.stopPropagation();
+        fecharMenusTimeline();
+        swapTimelineRowDown(tr);
+        toast("Ordem ajustada — salve o projeto para confirmar");
+      });
+      menu.querySelector(".timeline-remove").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        fecharMenusTimeline();
+        if (tb.querySelectorAll("tr").length <= 1) {
+          toast("Mantenha pelo menos uma fase no histórico");
+          return;
+        }
+        if (!(await confirmExcluirFaseTimeline(seg))) return;
+        tr.remove();
+        syncDemStatusFromTimeline();
+        refreshTimelineDeleteButtons();
+        refreshTimelineMoveButtons();
+        toast("Fase removida — salve o projeto para confirmar");
+      });
+    }
     tb.appendChild(tr);
     syncTimelineRowView(tr);
   });
