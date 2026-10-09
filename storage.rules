@@ -17,13 +17,6 @@ service firebase.storage {
         || firestore.get(/databases/(default)/documents/demandasSistema/meta).data.roles[userEmail()] == 'admin';
     }
 
-    // Anexos dos projetos: qualquer usuário logado lê, envia (até 25 MB) e apaga.
-    match /demandas/{demandaId}/anexos/{arquivo} {
-      allow read: if signedIn();
-      allow create: if signedIn() && request.resource.size < 25 * 1024 * 1024;
-      allow delete: if signedIn();
-    }
-
     // Backups automáticos: gravados só pelas Cloud Functions (Admin SDK); só administradores baixam.
     match /backups/{arquivo=**} {
       allow read: if isAdmin();

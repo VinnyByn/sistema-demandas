@@ -1290,6 +1290,12 @@
                   <option value="">Nenhuma — pode começar a qualquer momento</option>
                 </select>
               </label>
+              <label class="field">
+                <span>Ao concluir, mover projeto para</span>
+                <select id="demChecklistMover">
+                  <option value="">Não mover — fica na coluna atual</option>
+                </select>
+              </label>
               <label class="field field--span">
                 <span>Descrição</span>
                 <textarea id="demChecklistDesc" maxlength="160" rows="2" placeholder="O que esta atividade entrega"></textarea>
@@ -1302,18 +1308,6 @@
           </div>
           <div id="demChecklistGantt" class="checklist-gantt" hidden></div>
           <ul class="checklist-list" id="demChecklistList"></ul>
-        </fieldset>
-
-        <fieldset class="fieldset fieldset--segment fieldset--anexos">
-          <legend>Anexos</legend>
-          <p class="muted small">Arquivos do projeto (PDFs, fotos, planilhas, KMZ). Ficam guardados no Firebase Storage e qualquer pessoa da equipe pode baixar.</p>
-          <label class="anexos-drop" id="demAnexosDrop">
-            <input type="file" id="demAnexosInput" multiple hidden />
-            <span class="anexos-drop__ico" aria-hidden="true">⇪</span>
-            <span><strong>Arraste arquivos aqui</strong> ou clique para escolher</span>
-            <small id="demAnexosDica"></small>
-          </label>
-          <ul class="anexos-lista" id="demAnexosLista"></ul>
         </fieldset>
 
         <fieldset class="fieldset fieldset--segment fieldset--timeline">
@@ -1338,9 +1332,17 @@
             </button>
             <div class="comments-panel__body" id="commentsPanelBody">
               <div class="comments-compose">
-                <textarea id="demComentarioNovo" rows="2" maxlength="4000" placeholder="Escreva um comentário… use @ para mencionar" aria-label="Novo comentário"></textarea>
-                <button type="button" class="comments-compose__send" id="btnAddComentario" title="Enviar comentário (Ctrl+Enter)" aria-label="Enviar comentário" disabled>&#8593;</button>
-                <p class="comments-compose__hint" id="demComentarioHint">Ctrl+Enter envia</p>
+                <div class="compose-card">
+                  <textarea id="demComentarioNovo" rows="2" maxlength="4000" placeholder="Escreva um comentário…" aria-label="Novo comentário"></textarea>
+                  <div class="compose-card__barra">
+                    <button type="button" class="compose-card__mencao" id="btnComentarioMencao" title="Mencionar alguém (@)" aria-label="Mencionar alguém">@</button>
+                    <span class="comments-compose__hint" id="demComentarioHint">Ctrl+Enter envia</span>
+                    <button type="button" class="comments-compose__send" id="btnAddComentario" title="Enviar comentário (Ctrl+Enter)" disabled>
+                      Enviar
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+                    </button>
+                  </div>
+                </div>
               </div>
               <div class="comments-feed" id="demComentariosList" role="feed"></div>
             </div>

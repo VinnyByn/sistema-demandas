@@ -3789,6 +3789,7 @@ function sameChecklist(a, b) {
     if (x[i].done !== y[i].done) return false;
     if (x[i].status !== y[i].status) return false;
     if ((x[i].dependeDe || "") !== (y[i].dependeDe || "")) return false;
+    if ((x[i].moverPara || "") !== (y[i].moverPara || "")) return false;
     if ((x[i].dateConclusao || "") !== (y[i].dateConclusao || "")) return false;
   }
   return true;
@@ -3944,6 +3945,8 @@ function normalizeChecklistItem(it) {
     dateConclusao: status === "concluida" ? isoDatePart(it.dateConclusao || "") || "" : "",
     // Atividade que precisa terminar antes desta começar (id no mesmo checklist).
     dependeDe: String(it.dependeDe || "").trim(),
+    // Coluna para onde o projeto vai quando esta atividade for concluída ("" = não mover).
+    moverPara: String(it.moverPara || "").trim(),
     status,
     done: status === "concluida",
   };
@@ -5016,7 +5019,6 @@ function initAlertaSnoozeModal() {
 
 initAlertaSnoozeModal();
 initLixeiraModal();
-initAnexosDemanda();
 initBackupsModal();
 initLoteEsteira();
 initFiltrosSalvos();
@@ -5238,8 +5240,6 @@ const CARD_ICONS = {
     '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1.2"/><path d="M2.5 12l3.5-3.5 2.5 2.5 2-2 3 3"/></svg>',
   pino:
     '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.5s4.5-4.2 4.5-7.7a4.5 4.5 0 0 0-9 0c0 3.5 4.5 7.7 4.5 7.7z"/><circle cx="8" cy="6.8" r="1.6"/></svg>',
-  clipe:
-    '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5 5.8 9.2a1.5 1.5 0 0 0 2.1 2.1l5-5a3 3 0 0 0-4.2-4.2l-5 5a4.5 4.5 0 0 0 6.4 6.4l4.2-4.2"/></svg>',
 };
 
 /** Próxima coluna do fluxo (sem pausado/reprovado); execução regional/terceirizada são alternativas. */
@@ -5498,8 +5498,6 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   }
   if (nComent) stats.push(`<span class="card__stat" title="${nComent} comentário(s)">${CARD_ICONS.comentario}${nComent}</span>`);
   if (nImg) stats.push(`<span class="card__stat" title="${nImg} imagem(ns)">${CARD_ICONS.imagem}${nImg}</span>`);
-  const nAnexos = Array.isArray(dmCard.anexos) ? dmCard.anexos.length : 0;
-  if (nAnexos) stats.push(`<span class="card__stat" title="${nAnexos} anexo(s)">${CARD_ICONS.clipe}${nAnexos}</span>`);
 
   const proxima = cardProximaEtapa(dmCard);
   const proximaLabel = proxima ? labelStatus(proxima, dmCard.linhaEsteira) : "";
@@ -6351,6 +6349,9 @@ function readChecklistEtapaDraft(ids) {
     ...(ids.dependeDe && document.getElementById(ids.dependeDe)
       ? { dependeDe: document.getElementById(ids.dependeDe).value || "" }
       : {}),
+    ...(ids.moverPara && document.getElementById(ids.moverPara)
+      ? { moverPara: document.getElementById(ids.moverPara).value || "" }
+      : {}),
   };
 }
 
@@ -6373,9 +6374,11 @@ function applyChecklistItemPatch(id, patch) {
   const p = { ...patch };
   if (p.status && CHECKLIST_STATUS_LABEL[p.status]) p.done = p.status === "concluida";
   else if (typeof p.done === "boolean") p.status = p.done ? "concluida" : "afazer";
+  let concluida = null;
   editingChecklist = normalizeChecklist(editingChecklist).map((row) => {
     if (row.id !== id) return row;
     const next = { ...row, ...p };
+    if (next.done && !row.done) concluida = next;
     // Ao concluir, registra a data real (hoje) se ainda não houver; ao reabrir, limpa.
     if (p.done === true && !row.done && !p.dateConclusao) next.dateConclusao = todayISODate();
     if (p.done === false) next.dateConclusao = "";
@@ -6383,6 +6386,7 @@ function applyChecklistItemPatch(id, patch) {
     return next;
   });
   propagarDependenciasChecklist();
+  if (concluida) moverProjetoPelaAtividade(concluida);
 }
 
 function persistOpenChecklistEdit() {
@@ -6395,6 +6399,7 @@ function persistOpenChecklistEdit() {
     date: "demChecklistEditFim",
     dateConclusao: "demChecklistEditConclusao",
     dependeDe: "demChecklistEditDep",
+    moverPara: "demChecklistEditMover",
   });
   if (!draft.name) return;
   applyChecklistItemPatch(editingChecklistItemId, draft);
@@ -6474,11 +6479,57 @@ function saveChecklistItemEdit(id) {
     date: "demChecklistEditFim",
     dateConclusao: "demChecklistEditConclusao",
     dependeDe: "demChecklistEditDep",
+    moverPara: "demChecklistEditMover",
   });
   if (!validateChecklistEtapa(draft, "demChecklistEditInicio")) return;
   applyChecklistItemPatch(id, draft);
   editingChecklistItemId = "";
   renderChecklistEditor();
+}
+
+/* ---------- Checklist: mover o projeto de coluna ao concluir uma atividade ---------- */
+/** Etapas da esteira do projeto aberto, na ordem das colunas. */
+function etapasEsteiraProjetoAberto() {
+  const cfg = getEsteiraConfig(editingLinhaEsteira);
+  return [...cfg.statusOrder, ...cfg.statusExtra];
+}
+
+function fillChecklistMoverSelect(sel, atual) {
+  if (!sel) return;
+  const etapas = etapasEsteiraProjetoAberto();
+  sel.innerHTML =
+    '<option value="">Não mover — fica na coluna atual</option>' +
+    etapas.map(([k, label]) => `<option value="${escapeHtml(k)}">${escapeHtml(label)}</option>`).join("");
+  sel.value = atual && etapas.some(([k]) => k === atual) ? atual : "";
+}
+
+function labelEtapaProjetoAberto(status) {
+  return etapasEsteiraProjetoAberto().find(([k]) => k === status)?.[1] || "";
+}
+
+/**
+ * Ao concluir uma atividade com "mover para", leva o projeto para aquela coluna no formulário
+ * (gravado ao salvar, com o histórico de etapas). Só avança: nunca volta o projeto para uma coluna anterior.
+ */
+function moverProjetoPelaAtividade(it) {
+  const destino = it?.moverPara;
+  const sel = document.getElementById("demStatus");
+  if (!destino || !sel || sel.value === destino) return false;
+  const ordem = etapasEsteiraProjetoAberto().map(([k]) => k);
+  const iDestino = ordem.indexOf(destino);
+  const iAtual = ordem.indexOf(sel.value);
+  if (iDestino < 0) return false;
+  const atualEhExtra = getEsteiraConfig(editingLinhaEsteira).statusExtra.some(([k]) => k === sel.value);
+  if (!atualEhExtra && iAtual >= 0 && iDestino < iAtual) return false;
+  sel.value = destino;
+  sel.dispatchEvent(new Event("change", { bubbles: true }));
+  agendarSyncDemNavegacao();
+  const existente = Boolean((document.getElementById("demId")?.value || "").trim());
+  toast(
+    `“${it.name}” concluída · projeto vai para «${labelEtapaProjetoAberto(destino)}»` +
+      (existente ? " — clique em Salvar para confirmar" : ""),
+  );
+  return true;
 }
 
 /* ---------- Dependências entre atividades do checklist ---------- */
@@ -6752,6 +6803,8 @@ function renderChecklistEditor() {
   if (expand) expand.hidden = isReadOnlyUser();
   const novaDep = document.getElementById("demChecklistDep");
   fillChecklistDepSelect(novaDep, items, "", novaDep?.value || "");
+  const novoMover = document.getElementById("demChecklistMover");
+  fillChecklistMoverSelect(novoMover, novoMover?.value || "");
   if (!list) return;
   const readOnly = isReadOnlyUser();
   list.innerHTML = "";
@@ -6860,6 +6913,14 @@ function renderChecklistEditor() {
       depSel.id = "demChecklistEditDep";
       fillChecklistDepSelect(depSel, items, it.id, it.dependeDe);
       depWrap.append(depSpan, depSel);
+      const moverWrap = document.createElement("label");
+      moverWrap.className = "field checklist-item__edit-mover";
+      const moverSpan = document.createElement("span");
+      moverSpan.textContent = "Ao concluir, mover projeto para";
+      const moverSel = document.createElement("select");
+      moverSel.id = "demChecklistEditMover";
+      fillChecklistMoverSelect(moverSel, it.moverPara);
+      moverWrap.append(moverSpan, moverSel);
       [nameField.input, whoField.input, startField.input, endField.input, conclField?.input].filter(Boolean).forEach((input) => {
         input.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
@@ -6896,7 +6957,7 @@ function renderChecklistEditor() {
       save.addEventListener("click", () => saveChecklistItemEdit(it.id));
       foot.append(rm, dica, cancel, save);
 
-      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, ...(conclField ? [conclField.wrap] : []), depWrap, descField.wrap, foot);
+      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, ...(conclField ? [conclField.wrap] : []), depWrap, moverWrap, descField.wrap, foot);
       li.append(icone, edit);
     } else {
       const body = document.createElement("div");
@@ -6955,6 +7016,16 @@ function renderChecklistEditor() {
           ? `Bloqueada: “${pred.name}” ainda não foi concluída`
           : `Depende de “${pred.name}” (já concluída)`;
         meta.append(dep);
+      }
+      const moverLabel = it.moverPara ? labelEtapaProjetoAberto(it.moverPara) : "";
+      if (moverLabel) {
+        const mv = document.createElement("span");
+        mv.className = "ck-mover" + (it.done ? " is-feito" : "");
+        mv.textContent = `➜ ${moverLabel}`;
+        mv.title = it.done
+          ? `Ao ser concluída, levou o projeto para «${moverLabel}»`
+          : `Ao concluir, o projeto vai para a coluna «${moverLabel}»`;
+        meta.append(mv);
       }
       body.append(meta);
 
@@ -7448,6 +7519,7 @@ function addChecklistEtapaFromForm() {
     dateInicio: "demChecklistDateInicio",
     date: "demChecklistDate",
     dependeDe: "demChecklistDep",
+    moverPara: "demChecklistMover",
   });
   if (!validateChecklistEtapa(draft, "demChecklistDateInicio")) return;
   const selStatus = document.getElementById("demChecklistStatus");
@@ -7463,6 +7535,7 @@ function addChecklistEtapaFromForm() {
       dateInicio: draft.dateInicio,
       date: draft.date,
       dependeDe: draft.dependeDe || "",
+      moverPara: draft.moverPara || "",
       status: novoStatus,
       done: novoStatus === "concluida",
     },
@@ -7481,6 +7554,8 @@ function addChecklistEtapaFromForm() {
   if (selStatus) selStatus.value = "afazer";
   const selDep = document.getElementById("demChecklistDep");
   if (selDep) selDep.value = "";
+  const selMover = document.getElementById("demChecklistMover");
+  if (selMover) selMover.value = "";
   checklistFiltro = "todas";
   renderChecklistEditor();
   toast(`Atividade “${draft.name}” adicionada`);
@@ -7922,12 +7997,13 @@ function syncComentarioCompose() {
   if (hint) {
     const restante = ta.maxLength - ta.value.length;
     const existente = Boolean((document.getElementById("demId")?.value || "").trim());
+    hint.classList.toggle("is-limite", restante < 300);
     hint.textContent =
       restante < 300
-        ? `${restante} caracteres restantes · Ctrl+Enter envia`
+        ? `${restante} caracteres restantes`
         : existente
-          ? "@ menciona alguém · Ctrl+Enter envia"
-          : "@ menciona alguém · Ctrl+Enter envia · salvo com o projeto";
+          ? "Ctrl+Enter envia"
+          : "Vai junto ao salvar o projeto";
   }
 }
 
@@ -8008,6 +8084,8 @@ function setDemandaFormReadOnly(readOnly) {
   if (title && readOnly && title.textContent === "Editar demanda") {
     title.textContent = "Visualizar demanda";
   }
+  // O laço acima reabilita todos os botões; o envio de comentário só vale com texto.
+  syncComentarioCompose();
 }
 
 /* ---------- Modal demanda: seções recolhíveis com resumo ---------- */
@@ -8046,11 +8124,6 @@ const DEM_SECOES = [
     key: "checklist",
     sel: ".fieldset--checklist",
     icone: '<rect x="2" y="2" width="12" height="12" rx="2.5"/><path d="M5 8.2l2 2 4-4.2"/>',
-  },
-  {
-    key: "anexos",
-    sel: ".fieldset--anexos",
-    icone: '<path d="M10.5 4.5 5.8 9.2a1.5 1.5 0 0 0 2.1 2.1l5-5a3 3 0 0 0-4.2-4.2l-5 5a4.5 4.5 0 0 0 6.4 6.4l4.2-4.2"/>',
   },
   {
     key: "timeline",
@@ -8519,10 +8592,6 @@ function demSecaoResumo(key) {
       const feitas = editingChecklist.filter((it) => it.done).length;
       return { txt: `${feitas}/${n}`, tom: feitas === n ? "ok" : "alerta" };
     }
-    case "anexos": {
-      const n = normalizeAnexos(demandaAbertaParaAnexos()?.anexos).length;
-      return n ? { txt: `${n} arquivo(s)`, tom: "ok" } : { txt: "Nenhum", tom: "neutro" };
-    }
     case "timeline": {
       const n = document.querySelectorAll("#demTimelineTable tbody tr").length;
       return n ? { txt: `${n} fase(s)`, tom: "neutro" } : { txt: "Sem histórico", tom: "neutro" };
@@ -8598,11 +8667,7 @@ initDemNavegacao();
 
 function openDemandaModal(id) {
   comentarioEditandoId = "";
-  anexosEnviando.clear();
-  setTimeout(() => {
-    syncDemandaArquivadoUi(id);
-    renderAnexosDemanda();
-  }, 0);
+  setTimeout(() => syncDemandaArquivadoUi(id), 0);
   if (!id && isReadOnlyUser()) {
     toast("Seu perfil (Visibilidade) e somente leitura");
     return;
@@ -9705,6 +9770,20 @@ document.getElementById("btnAddComentario")?.addEventListener("click", () => {
 });
 document.getElementById("demComentarioNovo")?.addEventListener("input", syncComentarioCompose);
 ligarMencoesNoCampo(document.getElementById("demComentarioNovo"));
+// Botão "@": insere o marcador no cursor e abre a lista de pessoas.
+document.getElementById("btnComentarioMencao")?.addEventListener("click", () => {
+  const ta = document.getElementById("demComentarioNovo");
+  if (!ta || ta.readOnly || ta.disabled) return;
+  const ini = ta.selectionStart ?? ta.value.length;
+  const fim = ta.selectionEnd ?? ini;
+  const antes = ta.value.slice(0, ini);
+  const marcador = antes && !/\s$/.test(antes) ? " @" : "@";
+  ta.value = antes + marcador + ta.value.slice(fim);
+  const caret = ini + marcador.length;
+  ta.focus();
+  ta.setSelectionRange(caret, caret);
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+});
 document.getElementById("demComentarioNovo")?.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
@@ -10725,11 +10804,7 @@ function initLoteEsteira() {
   });
 }
 
-/* ---------- Anexos do projeto (Firebase Storage) ---------- */
-const ANEXO_TAMANHO_MAX = 25 * 1024 * 1024;
-/** Uploads em andamento no modal aberto: id → { nome, pct }. */
-const anexosEnviando = new Map();
-
+/* ---------- Firebase Storage (usado pelos backups) ---------- */
 function storageDisponivel() {
   return typeof firebase !== "undefined" && typeof firebase.storage === "function" && persistenceApi?.mode === "firebase";
 }
@@ -10741,16 +10816,6 @@ function formatTamanhoArquivo(bytes) {
   return `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0).replace(".", ",")} MB`;
 }
 
-function anexoIcone(a) {
-  const t = `${a.tipo} ${a.nome}`.toLowerCase();
-  if (/pdf/.test(t)) return "📄";
-  if (/image|\.(png|jpe?g|gif|webp|heic)$/.test(t)) return "🖼";
-  if (/sheet|excel|\.(xlsx?|csv|ods)$/.test(t)) return "📊";
-  if (/kmz|kml|dwg|dxf/.test(t)) return "🗺";
-  if (/zip|rar|7z/.test(t)) return "🗜";
-  return "📎";
-}
-
 function mensagemErroStorage(e) {
   const code = String(e?.code || "");
   if (code === "storage/unauthorized") return "Sem permissão no Storage — publique as regras (storage.rules) no Firebase";
@@ -10759,204 +10824,7 @@ function mensagemErroStorage(e) {
   if (code === "storage/retry-limit-exceeded") return "Conexão instável — tente de novo";
   if (code === "storage/object-not-found") return "Arquivo não encontrado no Storage";
   if (/bucket|project-not-found|unknown|no-default-bucket/.test(code)) return "O Firebase Storage não está ativado neste projeto";
-  return e?.message ? `Falha no anexo: ${e.message}` : "Falha no anexo";
-}
-
-function demandaAbertaParaAnexos() {
-  const id = (document.getElementById("demId")?.value || "").trim() || editingDemandaOpenId;
-  return id ? state.demandas.find((x) => x.id === id) || null : null;
-}
-
-function nomeArquivoSeguro(nome) {
-  return (
-    String(nome || "arquivo")
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
-      .replace(/[^\w.\-]+/g, "_")
-      .replace(/_+/g, "_")
-      .slice(-120) || "arquivo"
-  );
-}
-
-function salvarAnexosDemanda(dem, anexos) {
-  const now = new Date().toISOString();
-  dem.anexos = normalizeAnexos(anexos);
-  dem.updatedAt = now;
-  editingDemandaBaselineUpdatedAt = now;
-  noteOwnDemandaWrite(dem.id, now);
-  saveState({ demanda: migrateDemanda(dem) });
-  renderAnexosDemanda();
-  renderBoard();
-}
-
-async function enviarAnexos(files) {
-  if (!requireWriteAccess()) return;
-  const dem = demandaAbertaParaAnexos();
-  if (!dem) {
-    toast("Salve o projeto antes de anexar arquivos");
-    return;
-  }
-  if (!storageDisponivel()) {
-    toast("Anexos indisponíveis: o Firebase Storage não está configurado");
-    return;
-  }
-  const autor = demandaAutorAcao();
-  for (const file of [...files]) {
-    if (file.size > ANEXO_TAMANHO_MAX) {
-      toast(`“${file.name}” passa de ${formatTamanhoArquivo(ANEXO_TAMANHO_MAX)}`);
-      continue;
-    }
-    const id = uid();
-    const path = `demandas/${dem.id}/anexos/${id}_${nomeArquivoSeguro(file.name)}`;
-    anexosEnviando.set(id, { nome: file.name, pct: 0 });
-    renderAnexosDemanda();
-    try {
-      const ref = firebase.storage().ref(path);
-      const task = ref.put(file, {
-        contentType: file.type || "application/octet-stream",
-        customMetadata: { nome: file.name, enviadoPor: autor, demandaId: dem.id },
-      });
-      task.on("state_changed", (snap) => {
-        const atual = anexosEnviando.get(id);
-        if (!atual || !snap.totalBytes) return;
-        atual.pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-        const barra = document.querySelector(`[data-anexo-enviando="${id}"] .anexo__progresso i`);
-        if (barra) barra.style.width = `${atual.pct}%`;
-      });
-      await task;
-      const url = await ref.getDownloadURL();
-      const atualDem = state.demandas.find((x) => x.id === dem.id) || dem;
-      const novo = {
-        id,
-        nome: file.name,
-        tipo: file.type || "",
-        tamanho: file.size,
-        path,
-        url,
-        enviadoPor: autor,
-        enviadoEm: new Date().toISOString(),
-      };
-      anexosEnviando.delete(id);
-      salvarAnexosDemanda(atualDem, [...normalizeAnexos(atualDem.anexos), novo]);
-      toast(`“${file.name}” anexado`);
-    } catch (e) {
-      console.warn("Anexo:", e);
-      anexosEnviando.delete(id);
-      renderAnexosDemanda();
-      toast(mensagemErroStorage(e));
-      if (/não está ativado|Sem permissão/.test(mensagemErroStorage(e))) break;
-    }
-  }
-}
-
-async function removerAnexo(anexoId) {
-  if (!requireWriteAccess()) return;
-  const dem = demandaAbertaParaAnexos();
-  const a = normalizeAnexos(dem?.anexos).find((x) => x.id === anexoId);
-  if (!dem || !a) return;
-  const ok = await confirmDialog({
-    title: "Remover anexo?",
-    message: `“${a.nome}” será apagado do projeto e do armazenamento.`,
-    confirmText: "Remover",
-    cancelText: "Voltar",
-    variant: "danger",
-  });
-  if (!ok) return;
-  try {
-    if (storageDisponivel()) await firebase.storage().ref(a.path).delete();
-  } catch (e) {
-    if (e?.code !== "storage/object-not-found") {
-      toast(mensagemErroStorage(e));
-      return;
-    }
-  }
-  salvarAnexosDemanda(dem, normalizeAnexos(dem.anexos).filter((x) => x.id !== anexoId));
-  toast("Anexo removido");
-}
-
-/** Usado ao excluir um projeto de vez: apaga os arquivos dele no Storage. */
-async function apagarAnexosDoStorage(d) {
-  if (!storageDisponivel()) return;
-  for (const a of normalizeAnexos(d?.anexos)) {
-    try {
-      await firebase.storage().ref(a.path).delete();
-    } catch (e) {
-      if (e?.code !== "storage/object-not-found") console.warn("Apagar anexo:", e);
-    }
-  }
-}
-
-function renderAnexosDemanda() {
-  const lista = document.getElementById("demAnexosLista");
-  const drop = document.getElementById("demAnexosDrop");
-  const dica = document.getElementById("demAnexosDica");
-  if (!lista || !drop) return;
-  const dem = demandaAbertaParaAnexos();
-  const anexos = normalizeAnexos(dem?.anexos);
-  const ro = isReadOnlyUser();
-  const disponivel = storageDisponivel();
-  drop.hidden = ro;
-  drop.classList.toggle("is-desativado", !dem || !disponivel);
-  const input = document.getElementById("demAnexosInput");
-  if (input) {
-    input.disabled = ro || !dem || !disponivel;
-    input.dataset.keepDisabled = input.disabled ? "1" : "";
-    if (!input.disabled) delete input.dataset.keepDisabled;
-  }
-  if (dica) {
-    dica.textContent = !dem
-      ? "Salve o projeto para poder anexar arquivos."
-      : !disponivel
-        ? "Anexos indisponíveis: o Firebase Storage não está configurado neste ambiente."
-        : `PDF, imagens, planilhas, KMZ… até ${formatTamanhoArquivo(ANEXO_TAMANHO_MAX)} por arquivo.`;
-  }
-  const enviando = [...anexosEnviando.entries()]
-    .map(
-      ([id, a]) =>
-        `<li class="anexo is-enviando" data-anexo-enviando="${escapeHtml(id)}"><span class="anexo__ico" aria-hidden="true">⏳</span>` +
-        `<span class="anexo__txt"><strong>${escapeHtml(a.nome)}</strong><span class="anexo__progresso"><i style="width:${a.pct}%"></i></span></span></li>`,
-    )
-    .join("");
-  const itens = anexos
-    .slice()
-    .sort((a, b) => String(b.enviadoEm).localeCompare(String(a.enviadoEm)))
-    .map(
-      (a) =>
-        `<li class="anexo"><span class="anexo__ico" aria-hidden="true">${anexoIcone(a)}</span>` +
-        `<span class="anexo__txt"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer" class="anexo__nome" title="Abrir ${escapeHtml(a.nome)}">${escapeHtml(a.nome)}</a>` +
-        `<small>${escapeHtml(formatTamanhoArquivo(a.tamanho))} · ${escapeHtml(a.enviadoPor || "—")} · ${escapeHtml(formatDataCurta(isoDatePart(a.enviadoEm)))}</small></span>` +
-        `<a class="anexo__acao" href="${escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(a.nome)}" title="Baixar" aria-label="Baixar ${escapeHtml(a.nome)}">⬇</a>` +
-        (ro ? "" : `<button type="button" class="anexo__acao anexo__remover" data-anexo-remover="${escapeHtml(a.id)}" title="Remover" aria-label="Remover ${escapeHtml(a.nome)}">🗑</button>`) +
-        `</li>`,
-    )
-    .join("");
-  lista.innerHTML = enviando + itens || `<li class="anexos__vazio">Nenhum arquivo anexado.</li>`;
-  agendarSyncDemNavegacao();
-}
-
-function initAnexosDemanda() {
-  const drop = document.getElementById("demAnexosDrop");
-  const input = document.getElementById("demAnexosInput");
-  input?.addEventListener("change", () => {
-    if (input.files?.length) void enviarAnexos(input.files);
-    input.value = "";
-  });
-  drop?.addEventListener("dragover", (e) => {
-    if (input?.disabled) return;
-    e.preventDefault();
-    drop.classList.add("is-sobre");
-  });
-  drop?.addEventListener("dragleave", () => drop.classList.remove("is-sobre"));
-  drop?.addEventListener("drop", (e) => {
-    e.preventDefault();
-    drop.classList.remove("is-sobre");
-    if (input?.disabled) return;
-    if (e.dataTransfer?.files?.length) void enviarAnexos(e.dataTransfer.files);
-  });
-  document.getElementById("demAnexosLista")?.addEventListener("click", (e) => {
-    const rm = e.target.closest("[data-anexo-remover]");
-    if (rm) void removerAnexo(rm.dataset.anexoRemover);
-  });
+  return e?.message ? `Falha no Storage: ${e.message}` : "Falha no Storage";
 }
 
 /* ---------- Backups automáticos na nuvem (Cloud Functions + Storage) ---------- */
@@ -11145,7 +11013,6 @@ async function excluirDefinitivamente(ids) {
   for (const id of ids) {
     const d = (state.lixeira || []).find((x) => x.id === id);
     if (!d) continue;
-    if (typeof apagarAnexosDoStorage === "function") await apagarAnexosDoStorage(d).catch(() => {});
     state.lixeira = state.lixeira.filter((x) => x.id !== id);
     markDemandaPendingDelete(id);
     saveState({ deleteDemandaId: id });
@@ -11309,7 +11176,7 @@ function initLixeiraModal() {
       const d = (state.lixeira || []).find((x) => x.id === b.dataset.lxApagar);
       const ok = await confirmDialog({
         title: "Excluir de vez?",
-        message: `«${d?.titulo || "Projeto"}» e seus anexos serão apagados permanentemente. Não dá para desfazer.`,
+        message: `«${d?.titulo || "Projeto"}» será apagado permanentemente. Não dá para desfazer.`,
         confirmText: "Excluir de vez",
         variant: "danger",
       });
@@ -11321,7 +11188,7 @@ function initLixeiraModal() {
     if (!ids.length) return;
     const ok = await confirmDialog({
       title: "Esvaziar a lixeira?",
-      message: `${ids.length} projeto(s) e seus anexos serão apagados permanentemente. Não dá para desfazer.`,
+      message: `${ids.length} projeto(s) serão apagados permanentemente. Não dá para desfazer.`,
       confirmText: "Esvaziar lixeira",
       variant: "danger",
     });

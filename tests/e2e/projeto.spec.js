@@ -39,9 +39,18 @@ test("comentário com @menção guarda quem foi citado", async ({ app: { page } 
   await expect(page.locator("#demComentariosList .mencao")).toHaveText("@Matheus Silva");
 });
 
-test("projeto aberto mostra a seção de anexos", async ({ app: { page } }) => {
-  await page.evaluate(() => openDemandaModal("p1"));
-  await expect(page.locator(".fieldset--anexos")).toBeVisible();
-  // Sem Firebase (modo local) o envio fica desativado com aviso.
-  await expect(page.locator("#demAnexosDica")).toContainText("Firebase Storage");
+test("checklist: concluir atividade move o projeto para a coluna configurada (só avança)", async ({ app: { page } }) => {
+  const r = await page.evaluate(() => {
+    openDemandaModal("p1"); // está em Projetos novos
+    editingChecklist = [
+      { id: "a", name: "Desenho", who: "V", status: "andamento", moverPara: "vistoria" },
+      { id: "b", name: "Rever", who: "V", status: "afazer", moverPara: "novo" },
+    ];
+    renderChecklistEditor();
+    applyChecklistItemPatch("a", { status: "concluida" });
+    const aposA = document.getElementById("demStatus").value;
+    applyChecklistItemPatch("b", { status: "concluida" });
+    return { aposA, aposB: document.getElementById("demStatus").value };
+  });
+  expect(r).toEqual({ aposA: "vistoria", aposB: "vistoria" });
 });
