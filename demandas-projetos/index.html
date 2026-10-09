@@ -921,8 +921,9 @@
         <div class="modal__split">
           <div class="modal__form-col" id="demFormCol">
             <fieldset class="fieldset fieldset--segment fieldset--chegada">
-              <legend>Chegada da demanda</legend>
-              <p class="muted small">Nome, tipo, data de chegada e descrição do projeto.</p>
+              <legend>Dados do projeto</legend>
+              <p class="muted small">Identificação, prazos e etapa na esteira, e os códigos do projeto em outros sistemas.</p>
+              <h4 class="dados-sub">Identificação</h4>
               <div class="form-grid">
                 <label class="field">
                   <span class="field-label--required">Nome do projeto</span>
@@ -961,6 +962,51 @@
                 <span class="field-label--required">Descrição do projeto</span>
                 <textarea id="demDescricao" rows="5" maxlength="8000" required placeholder="Resumo do escopo, contexto e observações iniciais"></textarea>
               </label>
+              <h4 class="dados-sub">Prazos e etapa</h4>
+
+          <div class="form-grid">
+            <div class="field-stack">
+              <label class="field">
+                <span>Data finalização prevista</span>
+                <input type="date" id="demDataFimPrevista" />
+              </label>
+              <label class="field" id="fieldDataFimAtualizada">
+                <span>Data finalização atualizada</span>
+                <input type="date" id="demDataFimAtualizada" />
+                <span class="muted small">Informe quando o prazo previsto não for cumprido (nova previsão, opcional).</span>
+              </label>
+            </div>
+            <label class="field">
+              <span>Data de término</span>
+              <input type="date" id="demDataTermino" title="Preencha ao concluir o projeto" />
+            </label>
+            <label class="field">
+              <span>Status (esteira)</span>
+              <select id="demStatus"></select>
+            </label>
+          </div>
+          <p class="dias-aberto-resumo" id="demDiasAbertoResumo" hidden aria-live="polite"></p>
+              <h4 class="dados-sub">Referências externas</h4>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Chamado Ocomon</span>
+              <input id="demChamadoOcomon" maxlength="80" placeholder="Número do chamado Ocomon" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Nº O.S. Aniel</span>
+              <input id="demOsAniel" maxlength="80" placeholder="Número da O.S. do Aniel" autocomplete="off" />
+            </label>
+            <div class="field field--clickup" id="fieldDemClickup">
+              <span>ClickUp (Operação)</span>
+              <div class="clickup-ref">
+                <p class="muted small clickup-ref__hint" id="demClickupHint" hidden></p>
+                <button type="button" class="btn btn--primary btn--sm" id="btnEnviarClickup">Enviar à Operação</button>
+                <a class="btn btn--ghost btn--sm clickup-ref__link" id="demClickupLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Abrir no ClickUp</a>
+                <button type="button" class="btn btn--danger btn--sm" id="btnCancelarClickup" hidden>Cancelar envio</button>
+              </div>
+            </div>
+          </div>
             </fieldset>
 
         <fieldset class="fieldset fieldset--segment fieldset--atribuicao">
@@ -1032,32 +1078,6 @@
           </div>
         </fieldset>
 
-        <fieldset class="fieldset fieldset--segment fieldset--esteira-form">
-          <legend>Esteira</legend>
-          <p class="muted small">Prazo previsto, dias aberto e atraso na esteira. <strong>Status atual</strong> é um texto livre sobre a situação do projeto; <strong>Status (esteira)</strong> é a fase no fluxo.</p>
-          <div class="form-grid">
-            <div class="field-stack">
-              <label class="field">
-                <span>Data finalização prevista</span>
-                <input type="date" id="demDataFimPrevista" />
-              </label>
-              <label class="field" id="fieldDataFimAtualizada">
-                <span>Data finalização atualizada</span>
-                <input type="date" id="demDataFimAtualizada" />
-                <span class="muted small">Informe quando o prazo previsto não for cumprido (nova previsão, opcional).</span>
-              </label>
-            </div>
-            <label class="field">
-              <span>Data de término</span>
-              <input type="date" id="demDataTermino" title="Preencha ao concluir o projeto" />
-            </label>
-            <label class="field">
-              <span>Status (esteira)</span>
-              <select id="demStatus"></select>
-            </label>
-          </div>
-          <p class="dias-aberto-resumo" id="demDiasAbertoResumo" hidden aria-live="polite"></p>
-        </fieldset>
 
         <fieldset class="fieldset fieldset--segment fieldset--atraso" id="fieldsetMotivosAtraso" hidden>
           <legend>Motivos do atraso</legend>
@@ -1203,29 +1223,6 @@
           </div>
         </fieldset>
 
-        <fieldset class="fieldset fieldset--segment fieldset--referencias">
-          <legend>Referências externas</legend>
-          <p class="muted small">Identificadores do projeto em outros sistemas.</p>
-          <div class="form-grid">
-            <label class="field">
-              <span>Chamado Ocomon</span>
-              <input id="demChamadoOcomon" maxlength="80" placeholder="Número do chamado Ocomon" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>Nº O.S. Aniel</span>
-              <input id="demOsAniel" maxlength="80" placeholder="Número da O.S. do Aniel" autocomplete="off" />
-            </label>
-            <div class="field field--clickup" id="fieldDemClickup">
-              <span>ClickUp (Operação)</span>
-              <div class="clickup-ref">
-                <p class="muted small clickup-ref__hint" id="demClickupHint" hidden></p>
-                <button type="button" class="btn btn--primary btn--sm" id="btnEnviarClickup">Enviar à Operação</button>
-                <a class="btn btn--ghost btn--sm clickup-ref__link" id="demClickupLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Abrir no ClickUp</a>
-                <button type="button" class="btn btn--danger btn--sm" id="btnCancelarClickup" hidden>Cancelar envio</button>
-              </div>
-            </div>
-          </div>
-        </fieldset>
 
         <fieldset class="fieldset fieldset--segment fieldset--checklist">
           <legend>Checklist das tarefas do projeto</legend>

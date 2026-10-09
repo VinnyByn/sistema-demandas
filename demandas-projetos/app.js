@@ -8203,18 +8203,14 @@ const DEM_SECOES = [
   {
     key: "chegada",
     sel: ".fieldset--chegada",
-    icone: '<path d="M2.5 9.5h3l1 2h3l1-2h3"/><path d="M2.5 9.5 4.5 3.5h7l2 6v3h-11z"/>',
+    icone: '<rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3"/>',
   },
   {
     key: "atribuicao",
     sel: ".fieldset--atribuicao",
     icone: '<circle cx="8" cy="5.5" r="2.5"/><path d="M3 13.5c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"/>',
   },
-  {
-    key: "esteira",
-    sel: ".fieldset--esteira-form",
-    icone: '<circle cx="8" cy="8.5" r="5.5"/><path d="M8 5.5v3l2 1.5"/>',
-  },
+
   {
     key: "atraso",
     sel: "#fieldsetMotivosAtraso",
@@ -8225,11 +8221,7 @@ const DEM_SECOES = [
     sel: "#fieldsetCusto",
     icone: '<rect x="2" y="4" width="12" height="8.5" rx="1.5"/><circle cx="8" cy="8.2" r="1.8"/>',
   },
-  {
-    key: "referencias",
-    sel: ".fieldset--referencias",
-    icone: '<path d="M6.5 9.5 9.5 6.5"/><path d="M7 4.5 8.5 3a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5 7.5 13A2.5 2.5 0 0 1 4 9.5L5.5 8"/>',
-  },
+
   {
     key: "checklist",
     sel: ".fieldset--checklist",
@@ -8287,7 +8279,7 @@ function expandirTodasSecoes() {
 
 /* ---------- Seções do modal: modo leitura (resumo visual) + edição sob demanda ---------- */
 /** Seções com leitura/edição (checklist e tempo na esteira já têm interação própria). */
-const DEM_SECOES_LEITURA = ["chegada", "atribuicao", "esteira", "atraso", "custo", "referencias"];
+const DEM_SECOES_LEITURA = ["chegada", "atribuicao", "atraso", "custo"];
 
 function lvVal(id) {
   return (document.getElementById(id)?.value || "").trim();
@@ -8367,9 +8359,11 @@ function demSecaoLeituraHtml(key) {
         `<div class="seg-lv-hero"><p class="seg-lv-hero__titulo">${escapeHtml(lvVal("demTitulo")) || lvVazio("Sem nome")}</p>` +
         `<div class="seg-lv-hero__tags"><span class="badge ${tipoBadgeClass(tipo)}">${escapeHtml(tipo)}</span>` +
         (extraTipo ? `<span class="badge badge--segmento-b2c">${escapeHtml(extraTipo)}</span>` : "") +
+        `<span class="seg-lv-etapa">${escapeHtml(labelStatus(lvVal("demStatus"), editingLinhaEsteira))}</span>` +
         `</div></div>` +
-        `<div class="seg-lv-grid">${lvPar("Chegada", lvData(lvVal("demDataChegada"), { relativo: true }))}</div>` +
-        `<div class="seg-lv-texto">${desc ? escapeHtml(desc) : lvVazio("Sem descrição")}</div>`
+        `<div class="seg-lv-texto">${desc ? escapeHtml(desc) : lvVazio("Sem descrição")}</div>` +
+        `<div class="dados-lv__bloco"><span class="dados-lv__titulo">Prazos</span>${demSecaoLeituraHtml("esteira")}</div>` +
+        `<div class="dados-lv__bloco dados-lv__bloco--refs"><span class="dados-lv__titulo">Referências externas</span>${demSecaoLeituraHtml("referencias")}</div>`
       );
     }
     case "atribuicao": {
@@ -8407,9 +8401,6 @@ function demSecaoLeituraHtml(key) {
           `<p class="card__prazo-txt">${escapeHtml(prazo.texto)}</p></div>`
         : `<p class="seg-lv__vazio seg-lv-prazo">Sem finalização prevista</p>`;
       return (
-        `<div class="seg-lv-hero seg-lv-hero--linha"><span class="seg-lv-etapa">${escapeHtml(
-          labelStatus(lvVal("demStatus"), editingLinhaEsteira),
-        )}</span></div>` +
         prazoHtml +
         `<div class="seg-lv-grid">` +
         lvPar("Chegada", lvData(prev.dataChegada)) +
@@ -8666,7 +8657,12 @@ function demSecaoResumo(key) {
     case "chegada": {
       const falta = !val("demTitulo") || !val("demDescricao") || !val("demDataChegada");
       if (falta) return { txt: "Faltam dados", tom: "alerta" };
-      return { txt: `${val("demTipo")} · chegou ${formatDataCurta(val("demDataChegada")).slice(0, 5)}`, tom: "ok" };
+      const etapa = labelStatus(val("demStatus"), editingLinhaEsteira);
+      const prazo = cardPrazoInfo(demandaPreviewFromForm());
+      return {
+        txt: [val("demTipo"), etapa, prazo ? prazo.texto : `chegou ${formatDataCurta(val("demDataChegada")).slice(0, 5)}`].filter(Boolean).join(" · "),
+        tom: prazo && prazo.tom !== "ok" ? prazo.tom : "ok",
+      };
     }
     case "atribuicao": {
       const resp = normalizeResponsavel(val("demResponsavel"));
@@ -8725,6 +8721,10 @@ function syncDemSecoesResumo() {
 function syncDemNavegacao() {
   demNavSyncRaf = 0;
   syncDemSecoesResumo();
+  // Seções em modo leitura acompanham mudanças feitas em outras partes (ex.: etapa movida pelo checklist).
+  for (const sec of DEM_SECOES) {
+    if (DEM_SECOES_LEITURA.includes(sec.key) && demSecaoEl(sec)?.classList.contains("is-leitura")) renderDemSecaoLeitura(sec);
+  }
   syncDemandaSujaUi();
 }
 
