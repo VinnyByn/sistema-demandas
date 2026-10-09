@@ -7922,12 +7922,13 @@ function syncComentarioCompose() {
   if (hint) {
     const restante = ta.maxLength - ta.value.length;
     const existente = Boolean((document.getElementById("demId")?.value || "").trim());
+    hint.classList.toggle("is-limite", restante < 300);
     hint.textContent =
       restante < 300
-        ? `${restante} caracteres restantes · Ctrl+Enter envia`
+        ? `${restante} caracteres restantes`
         : existente
-          ? "@ menciona alguém · Ctrl+Enter envia"
-          : "@ menciona alguém · Ctrl+Enter envia · salvo com o projeto";
+          ? "Ctrl+Enter envia"
+          : "Vai junto ao salvar o projeto";
   }
 }
 
@@ -8008,6 +8009,8 @@ function setDemandaFormReadOnly(readOnly) {
   if (title && readOnly && title.textContent === "Editar demanda") {
     title.textContent = "Visualizar demanda";
   }
+  // O laço acima reabilita todos os botões; o envio de comentário só vale com texto.
+  syncComentarioCompose();
 }
 
 /* ---------- Modal demanda: seções recolhíveis com resumo ---------- */
@@ -9705,6 +9708,20 @@ document.getElementById("btnAddComentario")?.addEventListener("click", () => {
 });
 document.getElementById("demComentarioNovo")?.addEventListener("input", syncComentarioCompose);
 ligarMencoesNoCampo(document.getElementById("demComentarioNovo"));
+// Botão "@": insere o marcador no cursor e abre a lista de pessoas.
+document.getElementById("btnComentarioMencao")?.addEventListener("click", () => {
+  const ta = document.getElementById("demComentarioNovo");
+  if (!ta || ta.readOnly || ta.disabled) return;
+  const ini = ta.selectionStart ?? ta.value.length;
+  const fim = ta.selectionEnd ?? ini;
+  const antes = ta.value.slice(0, ini);
+  const marcador = antes && !/\s$/.test(antes) ? " @" : "@";
+  ta.value = antes + marcador + ta.value.slice(fim);
+  const caret = ini + marcador.length;
+  ta.focus();
+  ta.setSelectionRange(caret, caret);
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+});
 document.getElementById("demComentarioNovo")?.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
