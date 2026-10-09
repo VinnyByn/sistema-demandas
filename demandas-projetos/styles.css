@@ -6834,3 +6834,17 @@ html[data-theme="light"] .tl-regua__acima { background: #f97316; }
   #demTimelineTable.tl-trilho tbody tr > .tl-c-dur { grid-column: 1 / 2; grid-row: 2; }
   #demTimelineTable.tl-trilho tbody tr > .tl-c-acoes { grid-row: 1; grid-column: 2; }
 }
+
+/* ---------- Dados do projeto (identificação + prazos + referências) ---------- */
+.dados-sub {
+  display: flex; align-items: center; gap: 0.6rem; margin: 1.1rem 0 0.55rem;
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted);
+}
+.dados-sub::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.fieldset--chegada > .dados-sub:first-of-type { margin-top: 0.4rem; }
+.dados-lv__bloco { margin-top: 0.85rem; padding-top: 0.7rem; border-top: 1px dashed var(--border); }
+.dados-lv__titulo { display: block; margin-bottom: 0.45rem; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.seg-lv-hero__tags .seg-lv-etapa { margin-left: 0.15rem; }
+.dados-lv__bloco .seg-lv-prazo { margin-bottom: 0.7rem; }
+.dados-lv__bloco--refs .seg-lv-grid { grid-template-columns: repeat(auto-fit, minmax(10rem, max-content)); column-gap: 2rem; }
+.dados-lv__bloco--refs .seg-lv__codigo { white-space: nowrap; }
