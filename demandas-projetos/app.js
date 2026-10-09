@@ -5020,6 +5020,7 @@ function initAlertaSnoozeModal() {
 initAlertaSnoozeModal();
 initLixeiraModal();
 initBackupsModal();
+initTimelineResumoInterativo();
 initLoteEsteira();
 initFiltrosSalvos();
 initMetasEtapa();
@@ -9079,9 +9080,16 @@ function syncTimelineRowView(tr) {
   if (aviso) aviso.hidden = !erro;
 }
 
-/** Resumo acima da tabela: tempo total, fase atual, barra proporcional por fase e soma por setor. */
+/** Resumo do tempo na esteira: indicadores, barra interativa por fase, eixo de datas e tempo por setor. */
+let timelineSetorFiltro = "";
+
+function timelineCorSeg(setor, cfg) {
+  return setor ? setorColorFor(setor, cfg) : "#94a3b8";
+}
+
 function renderTimelineResumo() {
   const host = document.getElementById("demTimelineResumo");
+  const table = document.getElementById("demTimelineTable");
   const rows = [...document.querySelectorAll("#demTimelineTable tbody tr")];
   if (!host) return;
   if (!rows.length) {
@@ -9091,62 +9099,194 @@ function renderTimelineResumo() {
   host.hidden = false;
   const linha = editingLinhaEsteira;
   const cfg = normalizeLinhaEsteira(linha) === LINHA_ESTEIRA_B2B ? DASH_TEMPO_CFG_B2B : DASH_TEMPO_CFG_OP;
-  const segs = rows.map((tr) => {
+  const segs = rows.map((tr, i) => {
     const inicio = datetimeLocalToIso(tr.querySelector(".timeline-inicio")?.value) || "";
     const fim = datetimeLocalToIso(tr.querySelector(".timeline-fim")?.value || "") || "";
     const status = tr.dataset.status;
     const setor = setorForStatusDemanda(status, linha);
-    return { tr, status, setor, fim, ms: timelineSegmentMs({ inicio, fim }) };
+    tr.dataset.tlIdx = String(i);
+    return { tr, i, status, setor, inicio, fim, ms: timelineSegmentMs({ inicio, fim }) };
   });
   const total = segs.reduce((acc, x) => acc + x.ms, 0);
   const max = Math.max(1, ...segs.map((x) => x.ms));
-  // Barrinha de duração em cada linha (comparação entre fases).
-  segs.forEach((x) => {
+  const atual = segs[segs.length - 1];
+  const atualAberta = atual && !atual.fim;
+
+  // Por linha: barra de duração, "Nª passagem", intervalo/sobreposição com a fase anterior.
+  const passagens = new Map();
+  segs.forEach((x, i) => {
+    const n = (passagens.get(x.status) || 0) + 1;
+    passagens.set(x.status, n);
     const bar = x.tr.querySelector(".tl-dur-bar span");
     if (bar) {
       bar.style.width = `${Math.max(2, (x.ms / max) * 100)}%`;
-      bar.style.background = x.setor ? setorColorFor(x.setor, cfg) : "#94a3b8";
+      bar.style.background = timelineCorSeg(x.setor, cfg);
+    }
+    const dur = x.tr.querySelector(".timeline-dur");
+    if (dur) {
+      const instantanea = x.ms < 60000 && x.fim;
+      dur.textContent = instantanea ? "instantânea" : formatDur(x.ms);
+      dur.classList.toggle("is-instantanea", Boolean(instantanea));
+    }
+    const extra = x.tr.querySelector(".tl-extra");
+    if (extra) {
+      const notas = [];
+      if (n > 1) notas.push(`<span class="tl-volta" title="Esta é a ${n}ª vez que o projeto passa por esta fase">↺ ${n}ª passagem</span>`);
+      const ant = segs[i - 1];
+      if (ant?.fim && x.inicio) {
+        const gap = Date.parse(x.inicio) - Date.parse(ant.fim);
+        if (gap > 3600000) {
+          notas.push(`<span class="tl-gap" title="Período entre o fim da fase anterior e o início desta">⋯ intervalo de ${formatDurCurta(gap)}</span>`);
+        } else if (gap < -60000) {
+          notas.push(`<span class="tl-gap is-sobreposta" title="Começa antes de a fase anterior terminar">⚠ sobrepõe ${formatDurCurta(-gap)}</span>`);
+        }
+      }
+      extra.innerHTML = notas.join("");
+      extra.hidden = !notas.length;
     }
   });
-  const atual = segs[segs.length - 1];
-  const atualAberta = atual && !atual.fim;
+
+  // Tempo por setor (fases sem setor, como Pausado, entram pelo próprio nome).
   const porSetor = new Map();
   segs.forEach((x) => {
-    // Fases sem setor (ex.: Pausado) aparecem pelo próprio nome.
     const k = x.setor || labelStatus(x.status, linha);
-    porSetor.set(k, (porSetor.get(k) || 0) + x.ms);
+    const o = porSetor.get(k) || { ms: 0, cor: timelineCorSeg(x.setor, cfg) };
+    o.ms += x.ms;
+    porSetor.set(k, o);
   });
+  const setoresOrd = [...porSetor.entries()].sort((a, b) => b[1].ms - a[1].ms);
+  if (timelineSetorFiltro && !porSetor.has(timelineSetorFiltro)) timelineSetorFiltro = "";
+
+  // Indicadores.
+  const maior = setoresOrd[0];
+  const retornos = [...passagens.entries()].filter(([, n]) => n > 1);
+  let atualHtml = "";
+  if (atual) {
+    const meta = atualAberta ? metaDiasEtapa(atual.status, linha) : null;
+    const dias = atual.ms / 86400000;
+    const estourou = meta != null && dias >= meta;
+    atualHtml =
+      `<div class="tl-kpi${estourou ? " is-alerta" : ""}"><span class="tl-kpi__label">${atualAberta ? "Fase atual" : "Última fase"}</span>` +
+      `<strong>${escapeHtml(labelStatus(atual.status, linha))}</strong>` +
+      `<span class="tl-kpi__sub">${
+        atualAberta
+          ? `há <b class="tl-ao-vivo">${escapeHtml(formatDurCurta(atual.ms))}</b>${meta != null ? ` · meta ${meta}d${estourou ? " — passou" : ""}` : ""}`
+          : "encerrada"
+      }</span></div>`;
+  }
+  const kpis =
+    `<div class="tl-kpi"><span class="tl-kpi__label">Tempo total</span><strong>${formatDurCurta(total)}</strong>` +
+    `<span class="tl-kpi__sub">${segs.length} ${segs.length === 1 ? "fase" : "fases"}</span></div>` +
+    atualHtml +
+    (maior && total
+      ? `<div class="tl-kpi"><span class="tl-kpi__label">Mais tempo em</span><strong><i class="tl-kpi__cor" style="background:${maior[1].cor}"></i>${escapeHtml(maior[0])}</strong>` +
+        `<span class="tl-kpi__sub">${Math.round((maior[1].ms / total) * 100)}% do total · ${formatDurCurta(maior[1].ms)}</span></div>`
+      : "") +
+    `<div class="tl-kpi${retornos.length ? " is-aviso" : ""}"><span class="tl-kpi__label">Retornos</span><strong>${retornos.length ? retornos.reduce((s, [, n]) => s + n - 1, 0) : "Nenhum"}</strong>` +
+    `<span class="tl-kpi__sub">${
+      retornos.length
+        ? escapeHtml(retornos.map(([st, n]) => `${labelStatus(st, linha)} ${n}×`).join(" · "))
+        : "fluxo sem voltas"
+    }</span></div>`;
+
+  // Barra interativa: cada fatia é uma fase; passar o mouse destaca a linha, clicar leva até ela.
   const fatias = segs
     .filter((x) => x.ms > 0)
     .map((x) => {
-      const cor = x.setor ? setorColorFor(x.setor, cfg) : "#94a3b8";
       const pct = total ? (x.ms / total) * 100 : 0;
+      const nome = labelStatus(x.status, linha);
+      const rotulo = pct >= 11 ? `<span class="tl-fatia__txt">${escapeHtml(nome)} · ${escapeHtml(formatDurCurta(x.ms))}</span>` : "";
+      const apagada = timelineSetorFiltro && (x.setor || nome) !== timelineSetorFiltro;
       return (
-        `<span class="tl-resumo__fatia${x === atual && atualAberta ? " is-atual" : ""}" style="flex-grow:${x.ms};background:${cor}" ` +
-        `title="${escapeHtml(`${labelStatus(x.status, linha)} · ${formatDur(x.ms)} · ${pct.toFixed(1)}%`)}"></span>`
+        `<button type="button" class="tl-fatia${x === atual && atualAberta ? " is-atual" : ""}${apagada ? " is-apagada" : ""}" data-tl-idx="${x.i}" ` +
+        `style="flex-grow:${x.ms};background-color:${timelineCorSeg(x.setor, cfg)}" ` +
+        `title="${escapeHtml(`${nome} · ${formatDur(x.ms)} · ${pct.toFixed(1)}% — clique para ver a fase`)}">${rotulo}</button>`
       );
     })
     .join("");
-  const chips = [...porSetor.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([setor, ms]) => {
-      const ehSetor = segs.some((x) => x.setor === setor);
-      const cor = ehSetor ? setorColorFor(setor, cfg) : "#94a3b8";
-      return `<span class="tl-resumo__chip"><i style="background:${cor}"></i>${escapeHtml(setor)} <b>${formatDurCurta(ms)}</b></span>`;
+  const ini = segs.find((x) => x.inicio)?.inicio || "";
+  const fimTotal = atualAberta ? "" : atual?.fim || "";
+  const eixo =
+    `<div class="tl-eixo"><span>${ini ? escapeHtml(formatTimelineDataCurta(isoToDatetimeLocal(ini)).slice(0, 8)) : ""}</span>` +
+    `<span>${atualAberta ? "hoje" : escapeHtml(formatTimelineDataCurta(isoToDatetimeLocal(fimTotal)).slice(0, 8))}</span></div>`;
+
+  const legenda = setoresOrd
+    .map(([setor, o]) => {
+      const pct = total ? Math.round((o.ms / total) * 100) : 0;
+      const ativo = timelineSetorFiltro === setor;
+      return (
+        `<button type="button" class="tl-legenda__item${ativo ? " is-ativo" : ""}" data-tl-setor="${escapeHtml(setor)}" aria-pressed="${ativo}" ` +
+        `title="${ativo ? "Mostrar todas as fases" : `Destacar as fases de ${escapeHtml(setor)}`}">` +
+        `<i style="background:${o.cor}"></i>${escapeHtml(setor)} <b>${formatDurCurta(o.ms)}</b><span class="tl-legenda__pct">${pct}%</span></button>`
+      );
     })
     .join("");
+
   host.innerHTML =
-    `<div class="tl-resumo__head">` +
-    `<div><span class="tl-resumo__label">Tempo total</span><strong>${formatDurCurta(total)}</strong></div>` +
-    (atual
-      ? `<div><span class="tl-resumo__label">${atualAberta ? "Fase atual" : "Última fase"}</span><strong>${escapeHtml(
-          labelStatus(atual.status, linha),
-        )}</strong> <span class="muted small">${atualAberta ? `há ${formatDurCurta(atual.ms)}` : "encerrada"}</span></div>`
-      : "") +
-    `<div><span class="tl-resumo__label">Fases</span><strong>${segs.length}</strong></div>` +
-    `</div>` +
-    `<div class="tl-resumo__barra" role="img" aria-label="Distribuição do tempo por fase">${fatias}</div>` +
-    `<div class="tl-resumo__chips">${chips}</div>`;
+    `<div class="tl-kpis">${kpis}</div>` +
+    `<div class="tl-barra" role="group" aria-label="Distribuição do tempo por fase">${fatias}</div>` +
+    eixo +
+    `<div class="tl-legenda">${legenda}${
+      timelineSetorFiltro ? `<button type="button" class="tl-legenda__limpar" data-tl-setor="">✕ Mostrar todas</button>` : ""
+    }</div>`;
+
+  // Destaque das linhas pelo setor escolhido na legenda.
+  segs.forEach((x) => {
+    const apagada = timelineSetorFiltro && (x.setor || labelStatus(x.status, linha)) !== timelineSetorFiltro;
+    x.tr.classList.toggle("is-apagada", Boolean(apagada));
+  });
+  table?.classList.toggle("is-filtrada", Boolean(timelineSetorFiltro));
+}
+
+function destacarFaseTimeline(idx, on) {
+  document.querySelectorAll(`#demTimelineTable tbody tr[data-tl-idx="${idx}"]`).forEach((tr) => tr.classList.toggle("is-destaque", on));
+  document.querySelectorAll(`#demTimelineResumo .tl-fatia[data-tl-idx="${idx}"]`).forEach((f) => f.classList.toggle("is-destaque", on));
+}
+
+function initTimelineResumoInterativo() {
+  const host = document.getElementById("demTimelineResumo");
+  const tbody = document.querySelector("#demTimelineTable tbody");
+  host?.addEventListener("click", (e) => {
+    const fatia = e.target.closest(".tl-fatia");
+    if (fatia) {
+      const tr = document.querySelector(`#demTimelineTable tbody tr[data-tl-idx="${fatia.dataset.tlIdx}"]`);
+      if (tr) {
+        tr.scrollIntoView({ block: "center", behavior: "smooth" });
+        tr.classList.remove("is-piscando");
+        void tr.offsetWidth;
+        tr.classList.add("is-piscando");
+      }
+      return;
+    }
+    const leg = e.target.closest("[data-tl-setor]");
+    if (leg) {
+      const setor = leg.dataset.tlSetor;
+      timelineSetorFiltro = setor && timelineSetorFiltro !== setor ? setor : "";
+      renderTimelineResumo();
+    }
+  });
+  host?.addEventListener("mouseover", (e) => {
+    const f = e.target.closest(".tl-fatia");
+    if (f) destacarFaseTimeline(f.dataset.tlIdx, true);
+  });
+  host?.addEventListener("mouseout", (e) => {
+    const f = e.target.closest(".tl-fatia");
+    if (f) destacarFaseTimeline(f.dataset.tlIdx, false);
+  });
+  tbody?.addEventListener("mouseover", (e) => {
+    const tr = e.target.closest("tr[data-tl-idx]");
+    if (tr) destacarFaseTimeline(tr.dataset.tlIdx, true);
+  });
+  tbody?.addEventListener("mouseout", (e) => {
+    const tr = e.target.closest("tr[data-tl-idx]");
+    if (tr && !tr.contains(e.relatedTarget)) destacarFaseTimeline(tr.dataset.tlIdx, false);
+  });
+  // A fase em andamento segue contando enquanto o projeto está aberto.
+  setInterval(() => {
+    if (!modalDemanda?.open) return;
+    const ultima = document.querySelector("#demTimelineTable tbody tr:last-child");
+    if (ultima && !(ultima.querySelector(".timeline-fim")?.value || "")) refreshTimelineRowDur(ultima);
+  }, 60000);
 }
 
 function refreshTimelineRowDur(tr) {
@@ -9156,9 +9296,7 @@ function refreshTimelineRowDur(tr) {
   if (!inEl || !durEl) return;
   const inicio = datetimeLocalToIso(inEl.value) || inEl.value;
   const fim = datetimeLocalToIso(fimEl?.value || "") || "";
-  durEl.textContent = formatDur(
-    timelineSegmentMs({ inicio, fim: fim || "" }),
-  );
+  durEl.textContent = formatDur(timelineSegmentMs({ inicio, fim: fim || "" }));
   syncTimelineRowView(tr);
   renderTimelineResumo();
 }
@@ -9167,6 +9305,7 @@ function renderTimeline(d) {
   const tb = document.querySelector("#demTimelineTable tbody");
   if (!tb) return;
   tb.innerHTML = "";
+  timelineSetorFiltro = "";
   if (!d) return;
   const dm = migrateDemanda(d);
   const linha = dm.linhaEsteira;
@@ -9182,7 +9321,7 @@ function renderTimeline(d) {
     tr.innerHTML = `
       <td class="timeline-table__fase"><span class="tl-fase"><strong>${escapeHtml(labelStatus(seg.status, linha))}</strong>${
         faseAtual && !seg.fim ? '<span class="tl-atual">Atual</span>' : ""
-      }</span><span class="tl-aviso" hidden>Fim antes do início</span></td>
+      }</span><span class="tl-aviso" hidden>Fim antes do início</span><span class="tl-extra" hidden></span></td>
       <td class="timeline-table__setor">${timelineSetorHtml(seg.status, linha)}</td>
       <td class="timeline-table__date"><span class="tl-data tl-data--ini"></span></td>
       <td class="timeline-table__date"><span class="tl-data tl-data--fim"></span></td>
