@@ -3791,6 +3791,7 @@ function sameChecklist(a, b) {
     if ((x[i].dependeDe || "") !== (y[i].dependeDe || "")) return false;
     if ((x[i].moverPara || "") !== (y[i].moverPara || "")) return false;
     if ((x[i].dateConclusao || "") !== (y[i].dateConclusao || "")) return false;
+    if ((x[i].dateNova || "") !== (y[i].dateNova || "")) return false;
   }
   return true;
 }
@@ -3943,6 +3944,8 @@ function normalizeChecklistItem(it) {
     date: String(it.date || it.dateFim || "").trim(),
     // Data real em que a atividade foi concluída (para comparar com o término previsto).
     dateConclusao: status === "concluida" ? isoDatePart(it.dateConclusao || "") || "" : "",
+    // Nova data de término quando o prazo passou; `date` continua sendo o término original.
+    dateNova: isoDatePart(it.dateNova || "") || "",
     // Atividade que precisa terminar antes desta começar (id no mesmo checklist).
     dependeDe: String(it.dependeDe || "").trim(),
     // Coluna para onde o projeto vai quando esta atividade for concluída ("" = não mover).
@@ -5307,11 +5310,14 @@ function checklistAtualEProxima(checklist) {
 function cardAtividadeDatasHtml(it) {
   const ini = it.dateInicio ? formatDataCurta(it.dateInicio).slice(0, 5) : "";
   const fim = it.date ? formatDataCurta(it.date).slice(0, 5) : "";
+  const nova = checklistNovaData(it) ? formatDataCurta(it.dateNova).slice(0, 5) : "";
   if (!ini && !fim) return `<span class="card__agora-datas"><span>Sem datas previstas</span></span>`;
-  return (
-    `<span class="card__agora-datas">${ini ? `<span>Início <b>${escapeHtml(ini)}</b></span>` : ""}` +
-    `${fim ? `<span>Fim <b>${escapeHtml(fim)}</b></span>` : ""}</span>`
-  );
+  const fimHtml = nova
+    ? `<span title="Término original ${escapeHtml(fim)} · nova data ${escapeHtml(nova)}">Fim <s>${escapeHtml(fim)}</s> <b>${escapeHtml(nova)}</b></span>`
+    : fim
+      ? `<span>Fim <b>${escapeHtml(fim)}</b></span>`
+      : "";
+  return `<span class="card__agora-datas">${ini ? `<span>Início <b>${escapeHtml(ini)}</b></span>` : ""}${fimHtml}</span>`;
 }
 
 function cardAtividadeTitulo(prefixo, it) {
@@ -5321,6 +5327,7 @@ function cardAtividadeTitulo(prefixo, it) {
     (it.who || "").trim() ? `Responsável: ${it.who.trim()}` : "",
     it.dateInicio ? `Início previsto: ${formatDataCurta(it.dateInicio)}` : "",
     it.date ? `Fim previsto: ${formatDataCurta(it.date)}` : "",
+    checklistNovaData(it) ? `Nova data de término: ${formatDataCurta(it.dateNova)}` : "",
     sit.texto,
   ]
     .filter(Boolean)
@@ -6363,6 +6370,9 @@ function readChecklistEtapaDraft(ids) {
     ...(ids.dateConclusao && document.getElementById(ids.dateConclusao)
       ? { dateConclusao: (document.getElementById(ids.dateConclusao).value || "").trim() }
       : {}),
+    ...(ids.dateNova && document.getElementById(ids.dateNova)
+      ? { dateNova: (document.getElementById(ids.dateNova).value || "").trim() }
+      : {}),
     ...(ids.dependeDe && document.getElementById(ids.dependeDe)
       ? { dependeDe: document.getElementById(ids.dependeDe).value || "" }
       : {}),
@@ -6381,6 +6391,15 @@ function validateChecklistEtapa(draft, focusId) {
   if (draft.dateInicio && draft.date && draft.dateInicio > draft.date) {
     toast("A previsão de início deve ser anterior ou igual ao término.");
     if (focusId) document.getElementById(focusId)?.focus();
+    return false;
+  }
+  if (draft.dateNova && (!draft.date || draft.dateNova <= draft.date)) {
+    toast(
+      draft.date
+        ? `A nova data deve ser depois do término original (${formatDataCurta(draft.date)}).`
+        : "Preencha o término original antes de definir uma nova data.",
+    );
+    document.getElementById("demChecklistEditNova")?.focus();
     return false;
   }
   return true;
@@ -6415,6 +6434,7 @@ function persistOpenChecklistEdit() {
     dateInicio: "demChecklistEditInicio",
     date: "demChecklistEditFim",
     dateConclusao: "demChecklistEditConclusao",
+    dateNova: "demChecklistEditNova",
     dependeDe: "demChecklistEditDep",
     moverPara: "demChecklistEditMover",
   });
@@ -6495,6 +6515,7 @@ function saveChecklistItemEdit(id) {
     dateInicio: "demChecklistEditInicio",
     date: "demChecklistEditFim",
     dateConclusao: "demChecklistEditConclusao",
+    dateNova: "demChecklistEditNova",
     dependeDe: "demChecklistEditDep",
     moverPara: "demChecklistEditMover",
   });
@@ -6630,7 +6651,20 @@ function checklistPredecessora(items, it) {
 
 /** Fim real da atividade: data de conclusão (se concluída) ou término previsto. */
 function checklistFimEfetivo(it) {
-  return (it.done && isoDatePart(it.dateConclusao || "")) || isoDatePart(it.date || "") || "";
+  return (it.done && isoDatePart(it.dateConclusao || "")) || checklistNovaData(it) || isoDatePart(it.date || "") || "";
+}
+
+/** Nova data de término (reprogramação), só se for depois do término original; "" se não houver. */
+function checklistNovaData(it) {
+  const nova = isoDatePart(it?.dateNova || "");
+  const fim = isoDatePart(it?.date || "");
+  return nova && fim && nova > fim ? nova : "";
+}
+
+/** Atividade pendente que passou do término original — pode ganhar uma nova data. */
+function checklistPodeReprogramar(it) {
+  const fim = isoDatePart(it?.date || "");
+  return !!(it && !it.done && fim && todayISODate() > fim);
 }
 
 /** Predecessora ainda não concluída de uma atividade pendente (null se liberada). */
@@ -6700,6 +6734,8 @@ function reagendarDependentes(lista) {
       } else {
         continue;
       }
+      // A nova data deixa de valer se o término empurrado já passou dela.
+      if (it.dateNova && it.dateNova <= it.date) it.dateNova = "";
       movidas.add(it.id);
       mudou = true;
     }
@@ -6742,13 +6778,32 @@ function checklistItemPrazo(it) {
   let end = checklistGanttItemEnd(it);
   if (start && end && start > end) [start, end] = [end, start];
   const hoje = todayISODate();
+  const nova = checklistNovaData(it);
   if (it.done) {
     const concl = it.dateConclusao || "";
     if (concl && end && concl > end) {
       const n = diasEntreDatasISO(end, concl);
-      return { atrasada: false, diasAtrasoConclusao: n, texto: `Concluída com ${n === 1 ? "1 dia" : `${n} dias`} de atraso` };
+      const naNova = nova && concl <= nova ? " (na nova data)" : "";
+      return {
+        atrasada: false,
+        diasAtrasoConclusao: n,
+        texto: `Concluída com ${n === 1 ? "1 dia" : `${n} dias`} de atraso${naNova}`,
+      };
     }
     return { atrasada: false, texto: concl ? `Concluída em ${formatDataCurta(concl).slice(0, 5)}` : "" };
+  }
+  if (nova) {
+    // Reprogramada: o prazo passa a contar da nova data (o término original fica de histórico).
+    if (hoje > nova) {
+      const n = diasEntreDatasISO(nova, hoje);
+      return { atrasada: true, reprogramada: true, texto: `Atrasada ${n === 1 ? "1 dia" : `${n} dias`} da nova data` };
+    }
+    const n = diasEntreDatasISO(hoje, nova);
+    return {
+      atrasada: false,
+      reprogramada: true,
+      texto: `Nova data · ${n === 0 ? "termina hoje" : n === 1 ? "termina amanhã" : `termina em ${n} dias`}`,
+    };
   }
   if (end && hoje > end) {
     const n = diasEntreDatasISO(end, hoje);
@@ -7004,6 +7059,30 @@ function renderChecklistEditor() {
             value: it.dateConclusao || "",
           })
         : null;
+      // Prazo vencido sem concluir: nova data de término, mantendo o término original de histórico.
+      const novaField =
+        it.date && (checklistPodeReprogramar(it) || it.dateNova)
+          ? createChecklistField({
+              id: "demChecklistEditNova",
+              label: "Nova data de término",
+              type: "date",
+              value: it.dateNova || "",
+            })
+          : null;
+      let novaBox = null;
+      if (novaField) {
+        novaField.input.min = addDaysISO(it.date, 1) || "";
+        novaBox = document.createElement("div");
+        novaBox.className = "checklist-item__edit-nova";
+        const info = document.createElement("p");
+        info.className = "checklist-item__edit-nova-info";
+        const atraso = diasEntreDatasISO(it.date, it.done ? it.dateConclusao || todayISODate() : todayISODate());
+        info.innerHTML =
+          `<strong>Término original: ${escapeHtml(formatDataCurta(it.date))}</strong>` +
+          (!it.done && atraso > 0 ? ` · passou há ${atraso === 1 ? "1 dia" : `${atraso} dias`}` : "") +
+          `<span>A data original fica guardada; o prazo passa a contar da nova data. Deixe em branco para manter o original.</span>`;
+        novaBox.append(novaField.wrap, info);
+      }
       const depWrap = document.createElement("label");
       depWrap.className = "field checklist-item__edit-dep";
       const depSpan = document.createElement("span");
@@ -7020,7 +7099,7 @@ function renderChecklistEditor() {
       moverSel.id = "demChecklistEditMover";
       fillChecklistMoverSelect(moverSel, it.moverPara);
       moverWrap.append(moverSpan, moverSel);
-      [nameField.input, whoField.input, startField.input, endField.input, conclField?.input].filter(Boolean).forEach((input) => {
+      [nameField.input, whoField.input, startField.input, endField.input, conclField?.input, novaField?.input].filter(Boolean).forEach((input) => {
         input.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -7056,7 +7135,18 @@ function renderChecklistEditor() {
       save.addEventListener("click", () => saveChecklistItemEdit(it.id));
       foot.append(rm, dica, cancel, save);
 
-      edit.append(nameField.wrap, whoField.wrap, startField.wrap, endField.wrap, ...(conclField ? [conclField.wrap] : []), depWrap, moverWrap, descField.wrap, foot);
+      edit.append(
+        nameField.wrap,
+        whoField.wrap,
+        startField.wrap,
+        endField.wrap,
+        ...(novaBox ? [novaBox] : []),
+        ...(conclField ? [conclField.wrap] : []),
+        depWrap,
+        moverWrap,
+        descField.wrap,
+        foot,
+      );
       li.append(icone, edit);
     } else {
       const body = document.createElement("div");
@@ -7105,6 +7195,17 @@ function renderChecklistEditor() {
         }`;
         meta.append(periodo);
       }
+      const novaData = checklistNovaData(it);
+      if (novaData) {
+        const nv = document.createElement("span");
+        nv.className = "ck-nova-data";
+        nv.textContent = `↻ Nova data ${formatDataCurta(novaData).slice(0, 5)}`;
+        nv.title = `Término original ${formatDataCurta(it.date)} · nova data ${formatDataCurta(novaData)} (+${diasEntreDatasISO(
+          it.date,
+          novaData,
+        )} dia(s))`;
+        meta.append(nv);
+      }
       const pred = checklistPredecessora(items, it);
       if (pred) {
         const bloq = checklistBloqueadaPor(items, it);
@@ -7137,6 +7238,27 @@ function renderChecklistEditor() {
         (prazo.diasAtrasoConclusao ? " is-concl-atraso" : "") +
         (!prazo.texto ? " is-vazio" : "");
       prazoEl.textContent = prazo.texto;
+      if (prazo.atrasada && !readOnly) {
+        const novaBtn = document.createElement("button");
+        novaBtn.type = "button";
+        novaBtn.className = "ck-nova-data-btn";
+        novaBtn.textContent = "📅 Nova data";
+        novaBtn.title = `Definir uma nova data de término para “${it.name}”`;
+        novaBtn.addEventListener("click", () => {
+          if (!requireWriteAccess()) return;
+          persistOpenChecklistEdit();
+          editingChecklistItemId = it.id;
+          renderChecklistEditor();
+          const inp = document.getElementById("demChecklistEditNova");
+          inp?.focus();
+          try {
+            inp?.showPicker?.();
+          } catch {
+            /* showPicker exige gesto do usuário em alguns navegadores */
+          }
+        });
+        prazoEl.append(novaBtn);
+      }
 
       const sel = document.createElement("select");
       sel.className = `ck-status ck-status--${status}`;
@@ -7219,8 +7341,9 @@ function checklistGanttRange(items) {
     const start = checklistGanttItemStart(it);
     const end = checklistGanttItemEnd(it);
     const concl = it.done ? isoDatePart(it.dateConclusao || "") : "";
+    const nova = it.done ? "" : checklistNovaData(it);
     const a = start || end;
-    const b = [end || start, concl].filter(Boolean).sort().pop() || "";
+    const b = [end || start, concl, nova].filter(Boolean).sort().pop() || "";
     if (a && (!min || a < min)) min = a;
     if (b && (!max || b > max)) max = b;
   }
@@ -7350,6 +7473,14 @@ function renderChecklistGanttToolbar(host, items) {
     item.innerHTML = `<i aria-hidden="true"></i>${label} <b>${conta[tom]}</b>`;
     legenda.appendChild(item);
   });
+  const reprogramadas = items.filter((it) => !it.done && checklistNovaData(it)).length;
+  if (reprogramadas) {
+    const item = document.createElement("span");
+    item.className = "checklist-gantt__leg is-nova";
+    item.title = "Trecho entre o término original e a nova data";
+    item.innerHTML = `<i aria-hidden="true"></i>Nova data <b>${reprogramadas}</b>`;
+    legenda.appendChild(item);
+  }
   const escala = document.createElement("div");
   escala.className = "checklist-gantt__escala";
   escala.setAttribute("role", "group");
@@ -7563,6 +7694,25 @@ function renderChecklistGantt() {
         mark.style.left = `${((idx + 0.5) / days.length) * 100}%`;
         mark.title = `${it.name} · ${checklistGanttToneLabel(tone)} · ${end ? "Término" : "Início"} ${formatDataCurta(pin)}`;
         track.appendChild(mark);
+      }
+    }
+    // Reprogramada (ainda pendente): trecho tracejado do término original até a nova data.
+    const novaGantt = it.done ? "" : checklistNovaData(it);
+    if (novaGantt && end) {
+      const iA = days.indexOf(addDaysISO(end, 1));
+      const iB = days.indexOf(novaGantt);
+      if (iA >= 0 && iB >= iA) {
+        const ext = document.createElement("div");
+        ext.className = "checklist-gantt__bar checklist-gantt__nova" + (tone === "late" ? " is-late" : "");
+        ext.style.left = `${(iA / days.length) * 100}%`;
+        ext.style.width = `${((iB - iA + 1) / days.length) * 100}%`;
+        const n = diasEntreDatasISO(end, novaGantt);
+        ext.title = `${it.name} · término original ${formatDataCurta(end)} · nova data ${formatDataCurta(novaGantt)} (+${n} dia(s))`;
+        if ((iB - iA + 1) * colPx >= 34) {
+          ext.textContent = `+${n}d`;
+          ext.classList.add("has-txt");
+        }
+        track.appendChild(ext);
       }
     }
     // Concluída depois do previsto: trecho vermelho do término previsto até a conclusão real.
