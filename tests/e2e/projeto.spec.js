@@ -60,3 +60,46 @@ test("checklist: concluir atividade move o projeto para a coluna configurada (s�
   });
   expect(r).toEqual({ aposA: "vistoria", aposB: "vistoria" });
 });
+
+test("checklist: atividade atrasada ganha nova data sem perder o término original", async ({ app: { page } }) => {
+  const d = await page.evaluate(() => {
+    const d = (n) => addDaysISO(todayISODate(), n);
+    openDemandaModal("p1");
+    editingChecklist = [
+      { id: "a", name: "Aprovação do projeto", who: "Thiago", status: "andamento", dateInicio: d(-6), date: d(-3) },
+      { id: "b", name: "Materiais", who: "V", status: "afazer", dateInicio: d(-2), date: d(1), dependeDe: "a" },
+    ];
+    renderChecklistEditor();
+    return { original: d(-3), nova: d(4), cedo: d(-4), bInicio: d(4), bFim: d(7) };
+  });
+  const linha = page.locator("#demChecklistList .checklist-item").first();
+  await expect(linha.locator(".ck-prazo")).toContainText("Atrasada 3 dias");
+  await linha.locator(".ck-nova-data-btn").click();
+  await expect(page.locator(".checklist-item__edit-nova")).toContainText("Término original");
+
+  // Antes do término original não vale.
+  await page.fill("#demChecklistEditNova", d.cedo);
+  await page.click(".checklist-item__save");
+  await expect(page.locator("#demChecklistEditNova")).toBeVisible();
+
+  await page.fill("#demChecklistEditNova", d.nova);
+  await page.click(".checklist-item__save");
+  const r = await page.evaluate(() => {
+    const g = (id) => editingChecklist.find((x) => x.id === id);
+    return { a: g("a"), b: g("b"), prazo: checklistItemPrazo(g("a")).texto };
+  });
+  expect(r.a.date).toBe(d.original);
+  expect(r.a.dateNova).toBe(d.nova);
+  expect(r.prazo).toBe("Nova data · termina em 4 dias");
+  // A dependente passa a começar depois da nova data.
+  expect([r.b.dateInicio, r.b.date]).toEqual([d.bInicio, d.bFim]);
+  await expect(linha.locator(".ck-nova-data")).toBeVisible();
+  await expect(linha.locator(".ck-nova-data-btn")).toHaveCount(0);
+  await page.click("#btnChecklistGantt");
+  await expect(page.locator(".checklist-gantt__nova")).toHaveCount(1);
+
+  // Concluindo, o atraso continua contado do término original.
+  await page.evaluate(() => applyChecklistItemPatch("a", { status: "concluida" }));
+  const fim = await page.evaluate(() => checklistItemPrazo(editingChecklist[0]).texto);
+  expect(fim).toBe("Concluída com 3 dias de atraso (na nova data)");
+});
