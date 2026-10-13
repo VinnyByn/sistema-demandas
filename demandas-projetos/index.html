@@ -1317,25 +1317,6 @@
             </table>
           </div>
         </fieldset>
-
-        <fieldset class="fieldset fieldset--segment fieldset--arquivos" id="fieldsetArquivos" hidden>
-          <legend>Arquivos</legend>
-          <div class="arq" id="demArquivos">
-            <div class="arq__abas" role="tablist" aria-label="Tipo de arquivo">
-              <button type="button" role="tab" class="arq__aba is-ativa" data-arq-aba="pdf" aria-selected="true">PDF <span class="arq__n" data-arq-n="pdf">0</span></button>
-              <button type="button" role="tab" class="arq__aba" data-arq-aba="kmz" aria-selected="false">KMZ <span class="arq__n" data-arq-n="kmz">0</span></button>
-              <button type="button" role="tab" class="arq__aba" data-arq-aba="foto" aria-selected="false">Fotos <span class="arq__n" data-arq-n="foto">0</span></button>
-            </div>
-            <label class="arq__drop" id="demArquivosDrop">
-              <input type="file" id="demArquivosInput" multiple accept=".pdf,.kmz,.kml,image/*" />
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0-4 4m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-              <span class="arq__drop-txt"><strong>Arraste arquivos aqui</strong> ou clique para escolher</span>
-              <small class="arq__drop-dica">PDF, KMZ/KML e fotos · até 50 MB cada · ficam salvos na hora</small>
-            </label>
-            <p class="arq__status" id="demArquivosStatus" role="status" hidden></p>
-            <div class="arq__lista" id="demArquivosLista"></div>
-          </div>
-        </fieldset>
           </div>
 
           <aside class="comments-panel" aria-label="Comentários do projeto">
@@ -1773,20 +1754,6 @@
     </div>
   </div>
 
-  <dialog class="arq-visor" id="dlgArquivoFoto" aria-label="Foto do projeto">
-    <div class="arq-visor__topo">
-      <span class="arq-visor__nome" id="arqVisorNome"></span>
-      <span class="arq-visor__pos" id="arqVisorPos"></span>
-      <button type="button" class="btn btn--ghost btn--sm" id="arqVisorBaixar">Baixar</button>
-      <button type="button" class="arq-visor__fechar" id="arqVisorFechar" aria-label="Fechar">×</button>
-    </div>
-    <div class="arq-visor__palco">
-      <button type="button" class="arq-visor__nav" id="arqVisorAnt" aria-label="Foto anterior">‹</button>
-      <img id="arqVisorImg" alt="" />
-      <button type="button" class="arq-visor__nav" id="arqVisorProx" aria-label="Próxima foto">›</button>
-    </div>
-  </dialog>
-
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="firebase-config.js"></script>
@@ -1795,10 +1762,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
-  <script src="supabase-config.js"></script>
-  <script src="supabase-auth.js"></script>
-  <script src="supabase-persist.js"></script>
-  <script src="arquivos.js"></script>
   <script src="firebase-auth.js"></script>
   <script src="firebase-persist.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

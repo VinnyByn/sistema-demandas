@@ -25,7 +25,7 @@ jobs:
 
       - name: Verificar sintaxe dos scripts
         run: |
-          for f in demandas-projetos/*.js functions/*.js supabase/migracao/*.mjs; do node --check "$f"; done
+          for f in demandas-projetos/*.js functions/*.js; do node --check "$f"; done
 
       - name: Instalar dependências
         run: |
@@ -53,32 +53,3 @@ jobs:
           name: playwright-report
           path: tests/playwright-report
           retention-days: 7
-
-  banco:
-    # Regras de acesso (RLS) e funções da migração do Supabase num Postgres 16.
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      PGHOST: localhost
-      PGUSER: postgres
-      PGPASSWORD: postgres
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Migração + testes das regras
-        run: |
-          psql -v ON_ERROR_STOP=1 -q -f supabase/tests/supabase-simulado.sql
-          for f in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$f"; done
-          psql -v ON_ERROR_STOP=1 -q -t -f supabase/tests/regras.test.sql

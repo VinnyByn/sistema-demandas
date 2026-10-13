@@ -1,7 +1,7 @@
 /**
  * Login e-mail/senha — Firebase Authentication.
  */
-const DemandasAuth = window.DemandasSupabaseAuth || (function () {
+const DemandasAuth = (function () {
   let auth = null;
   let onUserCallback = () => {};
 

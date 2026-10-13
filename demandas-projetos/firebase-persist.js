@@ -3,7 +3,7 @@
  * Diárias e projetistas em `demandasSistema/meta`.
  * Legado: `demandasSistema/state` (payload) — só leitura + migração manual.
  */
-const DemandasFirebase = window.DemandasSupabasePersist || (function () {
+const DemandasFirebase = (function () {
   const STORAGE_KEY = "demandasProjetos_v1";
   const COL_DEMANDAS = "demandas";
   const COL_SYSTEM = "demandasSistema";
