@@ -11,8 +11,9 @@
  * do arquivo supabase/migrations. A service_role key NUNCA entra aqui.
  */
 window.SUPABASE_CONFIG = {
-  url: "",
-  anonKey: "",
+  url: "https://fcvyssnaruyyprecedan.supabase.co",
+  anonKey:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjdnlzc25hcnV5eXByZWNlZGFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5MDkwMTIsImV4cCI6MjEwNzQ4NTAxMn0.E-P5-yCSefdqvmQXIfWh_DFEkM_Uuy2ZoxN9QgBGABM",
 };
 
 window.DEMANDAS_BACKEND = (function () {
