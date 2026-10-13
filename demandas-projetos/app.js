@@ -3424,6 +3424,7 @@ function closeDemandaModal() {
   if (id) releaseDemandaEditing(id);
   editingDemandaOpenId = null;
   editingDemandaBaselineUpdatedAt = "";
+  fecharArquivosDoProjeto();
   clickupUiOverride = null;
   ownClickupSyncId = "";
   ownWriteGraceUntil = 0;
@@ -5689,6 +5690,10 @@ async function enviarDemandaClickup(id, btn, instrucoes) {
     toast("Informe as instruções do que deverá ser feito.");
     return;
   }
+  if (persistenceApi?.mode === "supabase") {
+    toast("A integração com o ClickUp ainda não foi migrada para o Supabase.");
+    return;
+  }
   if (typeof firebase === "undefined" || !firebase.functions) {
     toast("Recarregue a página (Ctrl+F5) para carregar o ClickUp.");
     return;
@@ -5761,6 +5766,10 @@ async function enviarDemandaClickup(id, btn, instrucoes) {
 
 async function cancelarDemandaClickup(id) {
   if (!requireWriteAccess()) return;
+  if (persistenceApi?.mode === "supabase") {
+    toast("A integração com o ClickUp ainda não foi migrada para o Supabase.");
+    return;
+  }
   if (typeof firebase === "undefined" || !firebase.functions) {
     toast("Recarregue a página (Ctrl+F5) para carregar o ClickUp.");
     return;
@@ -8232,6 +8241,11 @@ const DEM_SECOES = [
     sel: ".fieldset--timeline",
     icone: '<path d="M2.5 4h6M5 8h8.5M3.5 12h5"/>',
   },
+  {
+    key: "arquivos",
+    sel: "#fieldsetArquivos",
+    icone: '<path d="M13 7.5 8.2 12.3a3 3 0 0 1-4.3-4.2l5-5a2 2 0 0 1 2.9 2.8L6.9 10.8a1 1 0 0 1-1.4-1.4L10 4.9"/>',
+  },
 ];
 const DEM_SECOES_COLAPSADAS_KEY = "demandas.secoesColapsadas";
 let demNavSyncRaf = 0;
@@ -8530,9 +8544,11 @@ function demSecaoLeituraHtml(key) {
           custoLvBloco(
             "📄",
             "PDF do levantamento",
-            editingPdfLevantamento.dataUrl
-              ? `<a href="${editingPdfLevantamento.dataUrl}" download="${nome}" target="_blank" rel="noopener" class="custo-lv__pdf" data-lv-acao="1">⬇ ${nome}</a>`
-              : `<p class="custo-lv__pdf">${nome}</p>`,
+            editingPdfLevantamento.caminho
+              ? `<a href="#" class="custo-lv__pdf" data-lv-acao="1" data-pdf-caminho="${escapeHtml(editingPdfLevantamento.caminho)}">⬇ ${nome}</a>`
+              : editingPdfLevantamento.dataUrl
+                ? `<a href="${editingPdfLevantamento.dataUrl}" download="${nome}" target="_blank" rel="noopener" class="custo-lv__pdf" data-lv-acao="1">⬇ ${nome}</a>`
+                : `<p class="custo-lv__pdf">${nome}</p>`,
             "",
           ),
         );
@@ -8701,6 +8717,11 @@ function demSecaoResumo(key) {
     case "timeline": {
       const n = document.querySelectorAll("#demTimelineTable tbody tr").length;
       return n ? { txt: `${n} fase(s)`, tom: "neutro" } : { txt: "Sem histórico", tom: "neutro" };
+    }
+    case "arquivos": {
+      if (!arquivosProjetoSalvo()) return { txt: "Salve o projeto antes", tom: "neutro" };
+      const n = arquivosLista.length;
+      return n ? { txt: `${n} arquivo(s)`, tom: "ok" } : { txt: "Nenhum", tom: "neutro" };
     }
     default:
       return { txt: "", tom: "neutro" };
@@ -8882,6 +8903,7 @@ function openDemandaModal(id) {
   syncComentarioCompose();
   renderPdfLevantamentoPreview();
   renderTimeline(d);
+  abrirArquivosDoProjeto(d?.id || "");
   bindMotivosAtrasoUi();
   syncDemConclusaoFields();
   syncMotivosAtrasoField();
@@ -9576,12 +9598,15 @@ function normalizePdfLevantamento(v) {
   const name = String(v.name || "").trim();
   if (!name) return null;
   const dataUrl = typeof v.dataUrl === "string" ? v.dataUrl : "";
-  return {
+  const out = {
     id: v.id || uid(),
     name,
     dataUrl: dataUrl.length > 0 && dataUrl.length < 900000 ? dataUrl : "",
     uploadedAt: v.uploadedAt || "",
   };
+  // No Supabase o PDF fica no Storage (sem limite de tamanho) e aqui só o caminho.
+  if (typeof v.caminho === "string" && v.caminho) out.caminho = v.caminho;
+  return out;
 }
 
 function formatBr() {
@@ -9851,9 +9876,11 @@ function renderPdfLevantamentoPreview() {
     ? `<p class="pdf-rev__faltando"><strong>Não encontrados no PDF</strong> (preencha à mão se houver): ${escapeHtml(faltando.join(" · "))}</p>`
     : "";
 
-  const pdfLink = editingPdfLevantamento.dataUrl
-    ? `<a class="btn btn--ghost btn--sm" href="${editingPdfLevantamento.dataUrl}" download="${escapeHtml(editingPdfLevantamento.name)}" target="_blank" rel="noopener">Abrir PDF</a>`
-    : `<span class="muted small">(arquivo salvo sem cópia local — envie de novo para reler)</span>`;
+  const pdfLink = editingPdfLevantamento.caminho
+    ? `<a class="btn btn--ghost btn--sm" href="#" data-pdf-caminho="${escapeHtml(editingPdfLevantamento.caminho)}">Abrir PDF</a>`
+    : editingPdfLevantamento.dataUrl
+      ? `<a class="btn btn--ghost btn--sm" href="${editingPdfLevantamento.dataUrl}" download="${escapeHtml(editingPdfLevantamento.name)}" target="_blank" rel="noopener">Abrir PDF</a>`
+      : `<span class="muted small">(arquivo salvo sem cópia local — envie de novo para reler)</span>`;
 
   wrap.innerHTML =
     `<div class="pdf-custo-preview__file">` +
@@ -9894,6 +9921,32 @@ function renderPdfLevantamentoPreview() {
   });
 }
 
+/**
+ * Guarda o arquivo do PDF do levantamento: no Supabase vai para o Storage (aparece também
+ * em Arquivos → PDF); sem Supabase, ou em projeto ainda não salvo, fica embutido (até ~650 KB).
+ */
+async function guardarPdfLevantamento(file) {
+  const base = { id: uid(), name: file.name, dataUrl: "", uploadedAt: new Date().toISOString() };
+  if (arquivosAtivos() && arquivosProjetoSalvo()) {
+    try {
+      const row = await DemandasArquivos.enviar(arquivosDemandaId, file, { levantamento: true });
+      if (!arquivosLista.some((a) => a.id === row.id)) arquivosLista.unshift(row);
+      renderArquivos();
+      return { ...base, id: row.id, caminho: row.caminho };
+    } catch (e) {
+      console.warn("PDF do levantamento no Storage:", e);
+      toast(`PDF lido, mas não foi salvo nos arquivos: ${e.message}`);
+    }
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+  return { ...base, dataUrl: String(dataUrl).length < 900000 ? dataUrl : "" };
+}
+
 async function handleDemPdfUpload(file) {
   const api = window.DemandasPdfCusto;
   if (!api) {
@@ -9913,18 +9966,7 @@ async function handleDemPdfUpload(file) {
     const extracted = await api.extractTextFromPdfFile(file);
     lastPdfParseResult = api.parseCustoText(extracted);
     iniciarSelecaoPdf(lastPdfParseResult);
-    const dataUrl = await new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(fr.result);
-      fr.onerror = reject;
-      fr.readAsDataURL(file);
-    });
-    editingPdfLevantamento = {
-      id: uid(),
-      name: file.name,
-      dataUrl: String(dataUrl).length < 900000 ? dataUrl : "",
-      uploadedAt: new Date().toISOString(),
-    };
+    editingPdfLevantamento = await guardarPdfLevantamento(file);
     renderPdfLevantamentoPreview();
     const itens = pdfItensRevisao(lastPdfParseResult);
     const semTrecho = itens.filter((it) => !it.trecho).length;
@@ -11179,6 +11221,399 @@ function initLoteEsteira() {
   });
 }
 
+/* ---------- Arquivos do projeto: PDF, KMZ e fotos (Supabase Storage) ---------- */
+let arquivosDemandaId = "";
+let arquivosLista = [];
+let arquivosAba = "pdf";
+/** caminho → URL assinada das fotos (miniaturas e visor). */
+let arquivosFotosUrls = {};
+let arquivosCarregando = false;
+let arquivosErro = "";
+/** Envio em andamento: { feitos, total }. */
+let arquivosEnvio = null;
+let arquivosPararObservar = () => {};
+let arquivosVisorIdx = 0;
+
+const ARQ_VAZIO = { pdf: "Nenhum PDF ainda.", kmz: "Nenhum KMZ ainda.", foto: "Nenhuma foto ainda." };
+
+function arquivosAtivos() {
+  return persistenceApi?.mode === "supabase" && !!window.DemandasArquivos?.disponivel?.();
+}
+
+function arquivosProjetoSalvo() {
+  return !!arquivosDemandaId && state.demandas.some((d) => d.id === arquivosDemandaId);
+}
+
+function abrirArquivosDoProjeto(id) {
+  arquivosPararObservar();
+  arquivosPararObservar = () => {};
+  arquivosDemandaId = id || "";
+  arquivosLista = [];
+  arquivosFotosUrls = {};
+  arquivosErro = "";
+  arquivosEnvio = null;
+  arquivosCarregando = false;
+  const fs = document.getElementById("fieldsetArquivos");
+  if (!fs) return;
+  fs.hidden = !arquivosAtivos();
+  if (fs.hidden) return;
+  renderArquivos();
+  if (!arquivosProjetoSalvo()) return;
+  void recarregarArquivos();
+  arquivosPararObservar = DemandasArquivos.observar(arquivosDemandaId, (idExcluido) => {
+    if (idExcluido && !arquivosLista.some((a) => a.id === idExcluido)) return;
+    void recarregarArquivos();
+  });
+}
+
+function fecharArquivosDoProjeto() {
+  arquivosPararObservar();
+  arquivosPararObservar = () => {};
+  arquivosDemandaId = "";
+  document.getElementById("dlgArquivoFoto")?.close();
+}
+
+async function recarregarArquivos() {
+  const id = arquivosDemandaId;
+  if (!id) return;
+  arquivosCarregando = true;
+  renderArquivos();
+  try {
+    const lista = await DemandasArquivos.listar(id);
+    if (id !== arquivosDemandaId) return;
+    arquivosLista = lista;
+    arquivosErro = "";
+    await carregarUrlsFotos();
+  } catch (e) {
+    if (id === arquivosDemandaId) arquivosErro = e.message || "Não foi possível carregar os arquivos.";
+  } finally {
+    if (id === arquivosDemandaId) {
+      arquivosCarregando = false;
+      renderArquivos();
+      agendarSyncDemNavegacao();
+    }
+  }
+}
+
+async function carregarUrlsFotos() {
+  const faltam = arquivosLista.filter((a) => a.tipo === "foto" && !arquivosFotosUrls[a.caminho]).map((a) => a.caminho);
+  if (!faltam.length) return;
+  Object.assign(arquivosFotosUrls, await DemandasArquivos.urlsAssinadas(faltam));
+}
+
+function arquivoMetaTxt(a) {
+  const quem = a.criado_por ? accountDisplayNameForEmail(a.criado_por) : "";
+  const quando = a.criado_em ? new Date(a.criado_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "";
+  return [formatTamanhoArquivo(a.tamanho), quem, quando].filter(Boolean).join(" · ");
+}
+
+function renderArquivos() {
+  const box = document.getElementById("demArquivos");
+  if (!box) return;
+  const salvo = arquivosProjetoSalvo();
+  const podeEditar = salvo && !isReadOnlyUser();
+  for (const tipo of ["pdf", "kmz", "foto"]) {
+    const n = arquivosLista.filter((a) => a.tipo === tipo).length;
+    const el = box.querySelector(`[data-arq-n="${tipo}"]`);
+    if (el) {
+      el.textContent = String(n);
+      el.hidden = !n;
+    }
+  }
+  box.querySelectorAll("[data-arq-aba]").forEach((b) => {
+    const ativa = b.dataset.arqAba === arquivosAba;
+    b.classList.toggle("is-ativa", ativa);
+    b.setAttribute("aria-selected", String(ativa));
+  });
+  const drop = document.getElementById("demArquivosDrop");
+  if (drop) {
+    drop.hidden = !podeEditar;
+    drop.classList.toggle("is-enviando", !!arquivosEnvio);
+    const inp = document.getElementById("demArquivosInput");
+    if (inp) inp.disabled = !podeEditar || !!arquivosEnvio;
+  }
+  const status = document.getElementById("demArquivosStatus");
+  if (status) {
+    const txt = arquivosEnvio
+      ? `Enviando ${Math.min(arquivosEnvio.feitos + 1, arquivosEnvio.total)} de ${arquivosEnvio.total}…`
+      : arquivosErro;
+    status.textContent = txt;
+    status.hidden = !txt;
+    status.classList.toggle("is-erro", !arquivosEnvio && !!arquivosErro);
+  }
+  const lista = document.getElementById("demArquivosLista");
+  if (!lista) return;
+  if (!salvo) {
+    lista.innerHTML = `<p class="arq__vazio">Salve o projeto para anexar arquivos.</p>`;
+    return;
+  }
+  const itens = arquivosLista.filter((a) => a.tipo === arquivosAba);
+  if (!itens.length) {
+    lista.innerHTML = `<p class="arq__vazio">${arquivosCarregando ? "Carregando…" : ARQ_VAZIO[arquivosAba]}</p>`;
+    return;
+  }
+  const excluirBtn = (a) =>
+    podeEditar
+      ? `<button type="button" class="arq-acao arq-acao--perigo" data-arq-excluir="${escapeHtml(a.id)}" title="Excluir" aria-label="Excluir ${escapeHtml(a.nome)}">` +
+        `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/></svg></button>`
+      : "";
+  if (arquivosAba === "foto") {
+    lista.innerHTML =
+      `<ul class="arq-fotos">` +
+      itens
+        .map((a) => {
+          const url = arquivosFotosUrls[a.caminho];
+          return (
+            `<li class="arq-foto">` +
+            `<button type="button" class="arq-foto__ver" data-arq-ver="${escapeHtml(a.id)}" title="${escapeHtml(a.nome)}">` +
+            (url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(a.nome)}" loading="lazy" />` : `<span class="arq-foto__sem">…</span>`) +
+            `</button>` +
+            `<span class="arq-foto__rodape"><span class="arq-foto__nome">${escapeHtml(a.nome)}</span>${excluirBtn(a)}</span>` +
+            `</li>`
+          );
+        })
+        .join("") +
+      `</ul>`;
+    return;
+  }
+  lista.innerHTML =
+    `<ul class="arq-itens">` +
+    itens
+      .map((a) => {
+        const ext = (/\.([a-z0-9]+)$/i.exec(a.nome)?.[1] || a.tipo).toUpperCase();
+        const abrir =
+          a.tipo === "pdf"
+            ? `<button type="button" class="btn btn--ghost btn--sm" data-arq-abrir="${escapeHtml(a.id)}">Abrir</button>`
+            : "";
+        return (
+          `<li class="arq-item arq-item--${escapeHtml(a.tipo)}">` +
+          `<span class="arq-item__ico" aria-hidden="true">${escapeHtml(ext.slice(0, 4))}</span>` +
+          `<span class="arq-item__info"><span class="arq-item__nome">${escapeHtml(a.nome)}` +
+          (a.levantamento ? ` <span class="arq-item__tag">Levantamento</span>` : "") +
+          `</span><small class="arq-item__meta">${escapeHtml(arquivoMetaTxt(a))}</small></span>` +
+          `<span class="arq-item__acoes">${abrir}` +
+          `<button type="button" class="btn btn--ghost btn--sm" data-arq-baixar="${escapeHtml(a.id)}">Baixar</button>` +
+          excluirBtn(a) +
+          `</span></li>`
+        );
+      })
+      .join("") +
+    `</ul>`;
+}
+
+async function enviarArquivosProjeto(files) {
+  if (!requireWriteAccess()) return;
+  const id = arquivosDemandaId;
+  if (!arquivosProjetoSalvo()) {
+    toast("Salve o projeto para anexar arquivos.");
+    return;
+  }
+  const todos = [...(files || [])];
+  const aceitos = todos.filter((f) => DemandasArquivos.tipoDoArquivo(f));
+  const recusados = todos.filter((f) => !DemandasArquivos.tipoDoArquivo(f));
+  if (recusados.length) toast(`Ignorado(s): ${recusados.map((f) => f.name).join(", ")} — use PDF, KMZ/KML ou imagem`);
+  if (!aceitos.length) return;
+  arquivosEnvio = { feitos: 0, total: aceitos.length };
+  arquivosErro = "";
+  renderArquivos();
+  const falhas = [];
+  let ultimoTipo = "";
+  for (const f of aceitos) {
+    try {
+      const row = await DemandasArquivos.enviar(id, f);
+      if (id !== arquivosDemandaId) return;
+      if (!arquivosLista.some((a) => a.id === row.id)) arquivosLista.unshift(row);
+      ultimoTipo = row.tipo;
+    } catch (e) {
+      falhas.push(`${f.name}: ${e.message}`);
+    }
+    if (arquivosEnvio) arquivosEnvio.feitos += 1;
+    renderArquivos();
+  }
+  arquivosEnvio = null;
+  if (ultimoTipo) arquivosAba = ultimoTipo;
+  try {
+    await carregarUrlsFotos();
+  } catch (_) {
+    /* miniaturas voltam na próxima leitura */
+  }
+  arquivosErro = falhas.join(" · ");
+  renderArquivos();
+  agendarSyncDemNavegacao();
+  const ok = aceitos.length - falhas.length;
+  if (ok) toast(ok === 1 ? "Arquivo salvo" : `${ok} arquivos salvos`);
+  else toast("Nenhum arquivo foi enviado");
+}
+
+async function excluirArquivoProjeto(arqId) {
+  if (!requireWriteAccess()) return;
+  const a = arquivosLista.find((x) => x.id === arqId);
+  if (!a) return;
+  const ok = await confirmDialog({
+    title: "Excluir arquivo?",
+    message: `«${a.nome}» será apagado para todos. Não dá para desfazer.`,
+    confirmText: "Excluir",
+    variant: "danger",
+  });
+  if (!ok) return;
+  try {
+    await DemandasArquivos.excluir(a);
+    arquivosLista = arquivosLista.filter((x) => x.id !== arqId);
+    delete arquivosFotosUrls[a.caminho];
+    document.getElementById("dlgArquivoFoto")?.close();
+    renderArquivos();
+    agendarSyncDemNavegacao();
+    toast("Arquivo excluído");
+  } catch (e) {
+    toast(e.message || "Não foi possível excluir");
+  }
+}
+
+/** Abre uma URL assinada em nova aba (a aba abre antes do await para o navegador não bloquear). */
+async function abrirArquivoEmNovaAba(caminho) {
+  const aba = window.open("", "_blank");
+  try {
+    const url = await DemandasArquivos.urlAssinada(caminho);
+    if (aba) aba.location.href = url;
+    else window.location.href = url;
+  } catch (e) {
+    aba?.close();
+    toast(e.message || "Não foi possível abrir o arquivo");
+  }
+}
+
+async function baixarArquivo(caminho, nome) {
+  try {
+    const url = await DemandasArquivos.urlAssinada(caminho, { baixarComo: nome });
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = nome || "";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (e) {
+    toast(e.message || "Não foi possível baixar o arquivo");
+  }
+}
+
+function fotosDaLista() {
+  return arquivosLista.filter((a) => a.tipo === "foto");
+}
+
+function mostrarFotoNoVisor(idx) {
+  const fotos = fotosDaLista();
+  if (!fotos.length) return;
+  arquivosVisorIdx = (idx + fotos.length) % fotos.length;
+  const a = fotos[arquivosVisorIdx];
+  const img = document.getElementById("arqVisorImg");
+  if (img) {
+    img.src = arquivosFotosUrls[a.caminho] || "";
+    img.alt = a.nome;
+  }
+  document.getElementById("arqVisorNome").textContent = a.nome;
+  document.getElementById("arqVisorPos").textContent = fotos.length > 1 ? `${arquivosVisorIdx + 1} de ${fotos.length}` : "";
+  document.getElementById("arqVisorAnt").hidden = fotos.length < 2;
+  document.getElementById("arqVisorProx").hidden = fotos.length < 2;
+}
+
+function abrirVisorFoto(arqId) {
+  const idx = fotosDaLista().findIndex((a) => a.id === arqId);
+  if (idx < 0) return;
+  const dlg = document.getElementById("dlgArquivoFoto");
+  if (!dlg) return;
+  mostrarFotoNoVisor(idx);
+  if (!dlg.open) dlg.showModal();
+}
+
+function initArquivosProjeto() {
+  const box = document.getElementById("demArquivos");
+  if (!box || box.dataset.inited) return;
+  box.dataset.inited = "1";
+  box.addEventListener("click", (e) => {
+    const alvo = e.target instanceof Element ? e.target : null;
+    if (!alvo) return;
+    const aba = alvo.closest("[data-arq-aba]");
+    if (aba) {
+      arquivosAba = aba.dataset.arqAba;
+      renderArquivos();
+      return;
+    }
+    const porId = (attr) => arquivosLista.find((a) => a.id === alvo.closest(`[${attr}]`)?.getAttribute(attr));
+    if (alvo.closest("[data-arq-excluir]")) {
+      void excluirArquivoProjeto(alvo.closest("[data-arq-excluir]").getAttribute("data-arq-excluir"));
+      return;
+    }
+    const abrir = porId("data-arq-abrir");
+    if (abrir) {
+      void abrirArquivoEmNovaAba(abrir.caminho);
+      return;
+    }
+    const baixar = porId("data-arq-baixar");
+    if (baixar) {
+      void baixarArquivo(baixar.caminho, baixar.nome);
+      return;
+    }
+    const ver = alvo.closest("[data-arq-ver]");
+    if (ver) abrirVisorFoto(ver.getAttribute("data-arq-ver"));
+  });
+  const input = document.getElementById("demArquivosInput");
+  input?.addEventListener("change", () => {
+    const files = [...(input.files || [])];
+    input.value = "";
+    if (files.length) void enviarArquivosProjeto(files);
+  });
+  const drop = document.getElementById("demArquivosDrop");
+  if (drop) {
+    const temArquivos = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+    drop.addEventListener("dragenter", (e) => {
+      if (!temArquivos(e)) return;
+      e.preventDefault();
+      drop.classList.add("is-sobre");
+    });
+    drop.addEventListener("dragover", (e) => {
+      if (!temArquivos(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    });
+    drop.addEventListener("dragleave", (e) => {
+      if (!drop.contains(e.relatedTarget)) drop.classList.remove("is-sobre");
+    });
+    drop.addEventListener("drop", (e) => {
+      if (!temArquivos(e)) return;
+      e.preventDefault();
+      drop.classList.remove("is-sobre");
+      if (!input?.disabled) void enviarArquivosProjeto(e.dataTransfer.files);
+    });
+  }
+  const dlg = document.getElementById("dlgArquivoFoto");
+  document.getElementById("arqVisorFechar")?.addEventListener("click", () => dlg?.close());
+  document.getElementById("arqVisorAnt")?.addEventListener("click", () => mostrarFotoNoVisor(arquivosVisorIdx - 1));
+  document.getElementById("arqVisorProx")?.addEventListener("click", () => mostrarFotoNoVisor(arquivosVisorIdx + 1));
+  document.getElementById("arqVisorBaixar")?.addEventListener("click", () => {
+    const a = fotosDaLista()[arquivosVisorIdx];
+    if (a) void baixarArquivo(a.caminho, a.nome);
+  });
+  dlg?.addEventListener("click", (e) => {
+    if (e.target === dlg) dlg.close();
+  });
+  dlg?.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft") mostrarFotoNoVisor(arquivosVisorIdx - 1);
+    if (e.key === "ArrowRight") mostrarFotoNoVisor(arquivosVisorIdx + 1);
+  });
+}
+
+initArquivosProjeto();
+
+// Links para PDFs guardados no Storage (PDF do levantamento).
+document.addEventListener("click", (e) => {
+  const link = e.target instanceof Element ? e.target.closest("[data-pdf-caminho]") : null;
+  if (!link) return;
+  e.preventDefault();
+  e.stopPropagation();
+  void abrirArquivoEmNovaAba(link.getAttribute("data-pdf-caminho"));
+});
+
 /* ---------- Firebase Storage (usado pelos backups) ---------- */
 function storageDisponivel() {
   return typeof firebase !== "undefined" && typeof firebase.storage === "function" && persistenceApi?.mode === "firebase";
@@ -11266,6 +11701,10 @@ function abrirBackupsModal() {
 
 async function fazerBackupAgora() {
   const btn = document.getElementById("btnBackupAgora");
+  if (persistenceApi?.mode === "supabase") {
+    toast("O backup automático ainda não foi migrado para o Supabase.");
+    return;
+  }
   if (typeof firebase === "undefined" || !firebase.functions) {
     toast("Recarregue a página (Ctrl+F5) para carregar as funções.");
     return;
@@ -11374,8 +11813,9 @@ function restaurarDaLixeira(ids) {
   return n;
 }
 
-/** Valor que apaga um campo no Firestore (ou some na cópia local). */
+/** Valor que apaga um campo na nuvem: FieldValue.delete no Firestore; no Supabase e na cópia local, undefined. */
 function firebaseCampoApagar() {
+  if (persistenceApi?.mode !== "firebase") return undefined;
   return typeof firebase !== "undefined" && firebase.firestore?.FieldValue ? firebase.firestore.FieldValue.delete() : undefined;
 }
 
@@ -17893,6 +18333,11 @@ document.getElementById("formNovoUsuario")?.addEventListener("submit", async (e)
   }
 });
 
+/** Dados ligados à nuvem (Firebase ou Supabase), e não só à cópia deste navegador. */
+function nuvemConectada() {
+  return !!persistenceApi && persistenceApi.mode !== "local";
+}
+
 async function bootstrap() {
   setSyncStatus("connecting");
   const loader = document.getElementById("appLoader");
@@ -17924,9 +18369,9 @@ async function bootstrap() {
         if (usuariosModalAberto()) renderUsuariosPanel();
       },
     });
-    persistenceReady = persistenceApi.mode === "firebase";
+    persistenceReady = nuvemConectada();
     flushPendingCloudSave();
-    if (persistenceApi.mode === "firebase") {
+    if (nuvemConectada()) {
       toast("Conectado à nuvem");
     } else {
       toast(window.__demandasSyncHint || "Dados só neste navegador");
@@ -17945,7 +18390,7 @@ async function bootstrap() {
     hideAppLoader();
     refreshAllViews();
     updateEsteiraStatusLine();
-    if (persistenceApi?.mode === "firebase") {
+    if (nuvemConectada()) {
       /* emitToUi já chama synced; fallback se ainda vazio */
     } else if (!persistenceApi) {
       setSyncStatus(window.__demandasSyncHint ? "error" : "local");
@@ -18112,7 +18557,7 @@ async function ensureDataAfterLogin(user) {
     if (!persistenceApi) return;
   }
   if (!state.demandas.length) {
-    setSyncStatus(persistenceApi?.mode === "firebase" ? "empty" : "local");
+    setSyncStatus(nuvemConectada() ? "empty" : "local");
   }
   refreshAllViews();
 }
