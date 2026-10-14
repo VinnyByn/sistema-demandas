@@ -110,3 +110,53 @@ test("bibliotecas pesadas não são baixadas na abertura", async ({ app: { page 
   await expect.poll(() => page.evaluate(() => window.__pediuChart)).toBeGreaterThan(0);
   await expect(page.locator("#kpiGeral")).toContainText("Não atribuídas");
 });
+
+test("desfazer: arrastar card e Ctrl+Z volta para a coluna anterior", async ({ app: { page } }) => {
+  await page.evaluate(() => handleDemandaDrop(state.demandas.find((d) => d.id === "p1"), "custo", BOARD_ATRIBUIDOS));
+  await expect(page.locator("#toast")).toContainText("movido para");
+  await expect(page.locator('.column[data-status="custo"] .card[data-id="p1"]')).toBeVisible();
+  await page.locator("body").click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press("Control+z");
+  await expect(page.locator('.column[data-status="novo"] .card[data-id="p1"]')).toBeVisible();
+  const d = await page.evaluate(() => {
+    const p = state.demandas.find((x) => x.id === "p1");
+    return { status: p.status, hist: p.historicoStatus.length };
+  });
+  expect(d).toEqual({ status: "novo", hist: 1 });
+});
+
+test("desfazer: ação em lote volta todos os projetos", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    selecaoEsteira.ids = new Set(["p3", "p4"]);
+    loteAtribuirProjetista("__none__");
+  });
+  expect(await page.evaluate(() => ["p3", "p4"].map((id) => state.demandas.find((d) => d.id === id).responsavel))).toEqual(["", ""]);
+  await page.click("#toast .toast__acao");
+  expect(await page.evaluate(() => ["p3", "p4"].map((id) => state.demandas.find((d) => d.id === id).responsavel))).toEqual([
+    "Matheus",
+    "Vinicius",
+  ]);
+});
+
+test("desfazer: salvar projeto e excluir comentário", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    state.demandas.find((d) => d.id === "p1").cidade = "Betim - BET";
+    openDemandaModal("p1");
+  });
+  await page.evaluate(() => {
+    document.getElementById("demTitulo").value = "Rota trocada";
+  });
+  await page.click("#btnSalvarDemanda");
+  await expect(page.locator("#toast")).toContainText("Demanda salva");
+  await page.click("#toast .toast__acao");
+  expect(await page.evaluate(() => state.demandas.find((d) => d.id === "p1").titulo)).toBe("Rota IJA x SRS");
+
+  await page.evaluate(() => openDemandaModal("p1"));
+  await page.fill("#demComentarioNovo", "primeiro");
+  await page.keyboard.press("Control+Enter");
+  await page.locator(".comment-del").first().click();
+  expect(await page.evaluate(() => (state.demandas.find((d) => d.id === "p1").comentarios || []).length)).toBe(0);
+  await page.click("#toast .toast__acao");
+  expect(await page.evaluate(() => state.demandas.find((d) => d.id === "p1").comentarios.map((c) => c.texto))).toEqual(["primeiro"]);
+  await expect(page.locator("#demComentariosList")).toContainText("primeiro");
+});

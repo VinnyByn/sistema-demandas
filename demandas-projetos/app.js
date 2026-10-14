@@ -4546,6 +4546,7 @@ function moveDemandaOrdemEsteira(demId, delta) {
   const idx = peers.findIndex((d) => d.id === demId);
   const target = idx + delta;
   if (idx < 0 || target < 0 || target >= peers.length) return;
+  const fotos = fotografarDemandas(peers.map((d) => d.id));
   const ordered = peers.slice();
   const [item] = ordered.splice(idx, 1);
   ordered.splice(target, 0, item);
@@ -4553,7 +4554,7 @@ function moveDemandaOrdemEsteira(demId, delta) {
   for (const d of ordered) applyCloudPatch({ demanda: migrateDemanda(d) });
   saveState();
   renderBoard();
-  toast(delta < 0 ? "Card movido para cima" : "Card movido para baixo");
+  oferecerDesfazer(delta < 0 ? "Card movido para cima" : "Card movido para baixo", () => restaurarFotos(fotos, "Ordem desfeita"));
 }
 
 function handleDemandaDrop(dem, newStatus, boardResponsavel) {
@@ -4563,6 +4564,8 @@ function handleDemandaDrop(dem, newStatus, boardResponsavel) {
   const alteraResponsavel = boardResponsavel !== BOARD_ATRIBUIDOS;
   const resp = alteraResponsavel ? normalizeResponsavel(boardResponsavel) : normalizeResponsavel(dem.responsavel);
   if (dem.status === newStatus && normalizeResponsavel(dem.responsavel) === resp) return;
+  const fotos = fotografarDemandas([dem.id]);
+  const mudouEtapa = dem.status !== newStatus;
   const now = new Date().toISOString();
   if (dem.status !== newStatus) {
     dem.status = newStatus;
@@ -4577,7 +4580,10 @@ function handleDemandaDrop(dem, newStatus, boardResponsavel) {
   invalidateAlertaSnoozeIfStale(dem);
   saveState({ demanda: dem });
   renderBoard();
-  toast("Demanda atualizada");
+  oferecerDesfazer(
+    mudouEtapa ? `«${dem.titulo || "Projeto"}» movido para ${labelStatus(newStatus, dm.linhaEsteira)}` : "Demanda atualizada",
+    () => restaurarFotos(fotos, "Movimentação desfeita"),
+  );
 }
 
 function diasDesdeChegadaDemanda(d) {
@@ -4953,6 +4959,7 @@ function aplicarAlertaSnooze() {
     textoEl?.focus();
     return;
   }
+  const fotosSnooze = fotografarDemandas([dem.id]);
   const now = new Date().toISOString();
   const until = addDaysISO(todayISODate(), dias);
   const autor = getLoggedInComentarioAutor();
@@ -4999,7 +5006,7 @@ function aplicarAlertaSnooze() {
   saveState({ demanda: migrateDemanda(dem) });
   closeAlertaSnoozeModal();
   renderBoard();
-  toast(`Alerta adiado até ${formatDataISO(until)}`);
+  oferecerDesfazer(`Alerta adiado até ${formatDataISO(until)}`, () => restaurarFotos(fotosSnooze, "Adiamento desfeito"));
 }
 
 function initAlertaSnoozeModal() {
@@ -6615,15 +6622,7 @@ function concluirAtividadePeloCard(demId, itemId) {
   const dem = state.demandas.find((x) => x.id === demId);
   if (!dem) return;
   const antes = migrateDemanda({ ...dem, __isMigrated: false });
-  const desfazerDados = JSON.parse(
-    JSON.stringify({
-      checklist: dem.checklist || [],
-      status: dem.status,
-      historicoStatus: dem.historicoStatus || [],
-      ordemEsteira: dem.ordemEsteira ?? null,
-      dataTermino: dem.dataTermino || "",
-    }),
-  );
+  const fotos = fotografarDemandas([demId]);
   const lista = normalizeChecklist(dem.checklist);
   const it = lista.find((x) => x.id === itemId);
   if (!it || it.done) return;
@@ -6652,17 +6651,7 @@ function concluirAtividadePeloCard(demId, itemId) {
   if (destino) partes.push(`projeto movido para «${labelStatus(destino, linha)}»`);
   if (movidas.size) partes.push(`${movidas.size} dependente(s) reagendada(s)`);
   if (bloqueio) partes.push(`atenção: “${bloqueio.name}” ainda não foi concluída`);
-  toastComAcao(partes.join(" · "), "Desfazer", () => {
-    const d = state.demandas.find((x) => x.id === demId);
-    if (!d) return;
-    const agora = new Date().toISOString();
-    Object.assign(d, desfazerDados, { updatedAt: agora });
-    if (!desfazerDados.dataTermino) delete d.dataTermino;
-    noteOwnDemandaWrite(demId, agora);
-    saveState({ demanda: d });
-    renderBoard();
-    toast("Conclusão desfeita");
-  });
+  oferecerDesfazer(partes.join(" · "), () => restaurarFotos(fotos, "Conclusão desfeita"));
 }
 
 /* ---------- Dependências entre atividades do checklist ---------- */
@@ -8226,20 +8215,41 @@ function renderComentariosList() {
     btn.addEventListener("click", async () => {
       const cid = btn.dataset.cid;
       const c = editingComentarios.find((x) => x.id === cid);
-      const ok = await confirmDialog({
-        title: "Excluir comentário?",
-        message: c ? `“${c.texto.slice(0, 120)}${c.texto.length > 120 ? "…" : ""}”` : "",
-        confirmText: "Excluir",
-        cancelText: "Voltar",
-        variant: "danger",
-      });
-      if (!ok) return;
+      if (!c) return;
+      // Sem confirmação: o aviso traz "Desfazer" (devolve o comentário na mesma posição).
+      const pos = editingComentarios.indexOf(c);
+      const demIdComentario = editingDemandaOpenId;
       editingComentarios = editingComentarios.filter((x) => x.id !== cid);
       persistComentariosDemandaAberta();
       renderComentariosList();
-      toast("Comentário excluído");
+      oferecerDesfazer("Comentário excluído", () => restaurarComentario(demIdComentario, c, pos));
     });
   });
+}
+
+/** Devolve um comentário excluído (no modal aberto ou direto no projeto, se o modal já fechou). */
+function restaurarComentario(demId, c, pos) {
+  if (!requireWriteAccess()) return;
+  const dem = state.demandas.find((x) => x.id === demId);
+  if (!dem) return;
+  const inserir = (lista) => {
+    const out = lista.filter((x) => x.id !== c.id);
+    out.splice(Math.min(Math.max(pos, 0), out.length), 0, c);
+    return out;
+  };
+  if (editingDemandaOpenId === demId) {
+    editingComentarios = inserir(editingComentarios);
+    persistComentariosDemandaAberta();
+    renderComentariosList();
+  } else {
+    const agora = new Date().toISOString();
+    dem.comentarios = normalizeComentarios(inserir(normalizeComentarios(dem.comentarios)));
+    dem.updatedAt = agora;
+    noteOwnDemandaWrite(demId, agora);
+    saveState({ demanda: migrateDemanda(dem) });
+    refreshAllViews();
+  }
+  toast("Comentário restaurado");
 }
 
 function cancelarEdicaoComentario() {
@@ -10522,6 +10532,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
   if (!requireWriteAccess()) return;
   const id = document.getElementById("demId").value || uid();
   let existing = state.demandas.find((x) => x.id === id);
+  let fotosSalvar = [];
   const prevStatus = existing?.status;
   const tipo = normalizeTipo(document.getElementById("demTipo").value);
   const linhaEsteira = inferLinhaEsteira({ tipo });
@@ -10637,6 +10648,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
       return;
     }
     registrarCriacaoNoHistoricoEdicao(payload);
+    fotosSalvar = [{ id: payload.id, antes: null }];
     state.demandas.push(payload);
   } else {
     if (
@@ -10667,6 +10679,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     }
     payload.historicoStatus = historico;
     const prevSnapshot = migrateDemanda(existing);
+    fotosSalvar = fotografarDemandas([existing.id]);
     registrarEdicaoNoHistoricoEdicao(prevSnapshot, payload);
     Object.assign(existing, payload);
   }
@@ -10680,7 +10693,9 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
   saveState({ demanda: migrateDemanda(saved) });
   closeDemandaModal();
   renderBoard();
-  toast("Demanda salva");
+  oferecerDesfazer(existing ? "Demanda salva" : "Demanda criada", () =>
+    restaurarFotos(fotosSalvar, existing ? "Alterações desfeitas" : "Criação desfeita — o projeto foi para a lixeira"),
+  );
 });
 
 document.getElementById("btnExcluirDemanda")?.addEventListener("click", async () => {
@@ -10912,11 +10927,26 @@ function salvarMetasEtapa() {
     }
   }
   const n = metasAlteracoes();
+  const anteriores = JSON.parse(JSON.stringify(state.metasEtapa || {}));
   state.metasEtapa = metas;
   saveState({ metaFields: { metasEtapa: metas } });
   document.getElementById("modalMetasEtapa")?.close();
   refreshAllViews();
-  toast(n ? `Metas salvas · ${n} etapa(s) alterada(s)` : "Metas por etapa salvas");
+  oferecerDesfazer(n ? `Metas salvas · ${n} etapa(s) alterada(s)` : "Metas por etapa salvas", () => {
+    // Etapas que não existiam antes voltam ao padrão (null apaga o valor no merge do Firestore).
+    const volta = {};
+    for (const linha of new Set([...Object.keys(metas), ...Object.keys(anteriores)])) {
+      volta[linha] = {};
+      for (const k of new Set([...Object.keys(metas[linha] || {}), ...Object.keys(anteriores[linha] || {})])) {
+        const v = anteriores[linha]?.[k];
+        volta[linha][k] = v === undefined ? null : v;
+      }
+    }
+    state.metasEtapa = volta;
+    saveState({ metaFields: { metasEtapa: volta } });
+    refreshAllViews();
+    toast("Metas restauradas");
+  });
 }
 
 function initMetasEtapa() {
@@ -11245,6 +11275,7 @@ function syncLoteBarra() {
 function aplicarEmLote(mudar, msgFeito) {
   if (!requireWriteAccess()) return 0;
   const now = new Date().toISOString();
+  const fotos = fotografarDemandas([...selecaoEsteira.ids]);
   let n = 0;
   for (const id of selecaoEsteira.ids) {
     const dem = state.demandas.find((x) => x.id === id);
@@ -11259,7 +11290,8 @@ function aplicarEmLote(mudar, msgFeito) {
     n++;
   }
   renderBoard();
-  toast(n ? msgFeito(n) : "Nada a alterar nos projetos selecionados");
+  if (n) oferecerDesfazer(msgFeito(n), () => restaurarFotos(fotos, n === 1 ? "Alteração desfeita" : `Alteração desfeita em ${n} projetos`));
+  else toast("Nada a alterar nos projetos selecionados");
   return n;
 }
 
@@ -11515,7 +11547,7 @@ function moverDemandasParaLixeira(ids, { silencioso = false } = {}) {
     refreshAllViews();
     renderLixeiraModal();
     if (!silencioso) {
-      toastComAcao(n === 1 ? "Projeto movido para a lixeira" : `${n} projetos movidos para a lixeira`, "Desfazer", () =>
+      oferecerDesfazer(n === 1 ? "Projeto movido para a lixeira" : `${n} projetos movidos para a lixeira`, () =>
         restaurarDaLixeira(ids),
       );
     }
@@ -11523,7 +11555,7 @@ function moverDemandasParaLixeira(ids, { silencioso = false } = {}) {
   return n;
 }
 
-function restaurarDaLixeira(ids) {
+function restaurarDaLixeira(ids, { desfazivel = false } = {}) {
   if (!requireWriteAccess()) return 0;
   const agora = new Date().toISOString();
   let n = 0;
@@ -11542,7 +11574,15 @@ function restaurarDaLixeira(ids) {
   if (n) {
     refreshAllViews();
     renderLixeiraModal();
-    toast(n === 1 ? "Projeto restaurado" : `${n} projetos restaurados`);
+    const msg = n === 1 ? "Projeto restaurado" : `${n} projetos restaurados`;
+    if (desfazivel) {
+      oferecerDesfazer(msg, () => {
+        moverDemandasParaLixeira(ids, { silencioso: true });
+        toast("Restauração desfeita — voltou para a lixeira");
+      });
+    } else {
+      toast(msg);
+    }
   }
   return n;
 }
@@ -11573,7 +11613,7 @@ async function excluirDefinitivamente(ids) {
   return n;
 }
 
-function arquivarDemandas(ids, arquivar = true) {
+function arquivarDemandas(ids, arquivar = true, { desfazivel = true } = {}) {
   if (!requireWriteAccess()) return 0;
   const agora = new Date().toISOString();
   const autor = demandaAutorAcao();
@@ -11599,14 +11639,100 @@ function arquivarDemandas(ids, arquivar = true) {
   if (n) {
     refreshAllViews();
     renderLixeiraModal();
-    if (arquivar) {
-      toastComAcao(n === 1 ? "Projeto arquivado" : `${n} projetos arquivados`, "Desfazer", () => arquivarDemandas(ids, false));
-    } else {
-      toast(n === 1 ? "Projeto desarquivado — voltou para a esteira" : `${n} projetos desarquivados`);
-    }
+    const msg = arquivar
+      ? n === 1
+        ? "Projeto arquivado"
+        : `${n} projetos arquivados`
+      : n === 1
+        ? "Projeto desarquivado — voltou para a esteira"
+        : `${n} projetos desarquivados`;
+    if (desfazivel) oferecerDesfazer(msg, () => arquivarDemandas(ids, !arquivar, { desfazivel: false }));
+    else toast(arquivar ? "Arquivamento desfeito" : "Projeto(s) de volta ao arquivo");
   }
   return n;
 }
+
+/* ---------- Desfazer (botão no aviso e Ctrl+Z) ---------- */
+const DESFAZER_MAX = 20;
+/** Últimas ações desfazíveis, da mais antiga para a mais recente. */
+const pilhaDesfazer = [];
+
+/** Mostra o aviso com "Desfazer" e guarda a ação para o Ctrl+Z. */
+function oferecerDesfazer(msg, desfazer) {
+  const entrada = { msg, desfazer, feito: false };
+  pilhaDesfazer.push(entrada);
+  if (pilhaDesfazer.length > DESFAZER_MAX) pilhaDesfazer.shift();
+  toastComAcao(msg, "Desfazer", () => executarDesfazer(entrada));
+}
+
+function executarDesfazer(entrada) {
+  if (!entrada || entrada.feito) return;
+  entrada.feito = true;
+  const i = pilhaDesfazer.indexOf(entrada);
+  if (i >= 0) pilhaDesfazer.splice(i, 1);
+  entrada.desfazer();
+}
+
+function desfazerUltimaAcao() {
+  const entrada = [...pilhaDesfazer].reverse().find((x) => !x.feito);
+  if (!entrada) {
+    toast("Nada para desfazer");
+    return;
+  }
+  executarDesfazer(entrada);
+}
+
+/** Cópia dos projetos antes de uma ação. `antes: null` = projeto novo (desfazer manda para a lixeira). */
+function fotografarDemandas(ids) {
+  return [...new Set(ids)].map((id) => {
+    const d = state.demandas.find((x) => x.id === id);
+    return { id, antes: d ? JSON.parse(JSON.stringify(d)) : null };
+  });
+}
+
+/** Volta os projetos para a cópia tirada antes da ação (campos novos são apagados também na nuvem). */
+function restaurarFotos(fotos, msg = "Ação desfeita") {
+  if (!requireWriteAccess()) return;
+  const agora = new Date().toISOString();
+  const internos = new Set(["editingBy", "editingAt", "__isMigrated"]);
+  const novos = [];
+  for (const { id, antes } of fotos) {
+    const atual = state.demandas.find((x) => x.id === id);
+    if (!antes) {
+      if (atual) novos.push(id);
+      continue;
+    }
+    if (!atual) continue; // saiu da esteira depois (lixeira/exclusão): não recria
+    const volta = { ...JSON.parse(JSON.stringify(antes)), updatedAt: agora };
+    delete volta.__isMigrated;
+    const apagar = {};
+    for (const k of Object.keys(atual)) {
+      if (k in volta || internos.has(k)) continue;
+      delete atual[k];
+      const v = firebaseCampoApagar();
+      if (v !== undefined) apagar[k] = v;
+    }
+    Object.assign(atual, volta);
+    noteOwnDemandaWrite(id, agora);
+    saveState({ demanda: { ...migrateDemanda(atual), ...apagar } });
+  }
+  if (novos.length) moverDemandasParaLixeira(novos, { silencioso: true });
+  refreshAllViews();
+  toast(msg);
+}
+
+function initDesfazerAtalho() {
+  document.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || String(e.key).toLowerCase() !== "z") return;
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return; // desfazer do próprio campo
+    if (document.querySelector("dialog[open]")) return;
+    e.preventDefault();
+    desfazerUltimaAcao();
+  });
+}
+
+initDesfazerAtalho();
 
 /** Toast com um botão de ação (ex.: Desfazer) — fica 6 s na tela. */
 function toastComAcao(msg, rotulo, acao) {
@@ -11616,6 +11742,7 @@ function toastComAcao(msg, rotulo, acao) {
   btn.type = "button";
   btn.className = "toast__acao";
   btn.textContent = rotulo;
+  if (rotulo === "Desfazer") btn.title = "Desfazer (Ctrl+Z)";
   btn.addEventListener("click", () => {
     btn.remove();
     toastEl.hidden = true;
@@ -11719,7 +11846,7 @@ function initLixeiraModal() {
     } else if (b.dataset.lxDesarquivar) {
       arquivarDemandas([b.dataset.lxDesarquivar], false);
     } else if (b.dataset.lxRestaurar) {
-      restaurarDaLixeira([b.dataset.lxRestaurar]);
+      restaurarDaLixeira([b.dataset.lxRestaurar], { desfazivel: true });
     } else if (b.dataset.lxApagar) {
       const d = (state.lixeira || []).find((x) => x.id === b.dataset.lxApagar);
       const ok = await confirmDialog({
