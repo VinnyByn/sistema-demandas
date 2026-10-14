@@ -103,3 +103,15 @@ test("checklist: atividade atrasada ganha nova data sem perder o término origin
   const fim = await page.evaluate(() => checklistItemPrazo(editingChecklist[0]).texto);
   expect(fim).toBe("Concluída com 3 dias de atraso (na nova data)");
 });
+
+test("linha do tempo: atualização só pelo menu ⋯ ou clicando na fase", async ({ app: { page } }) => {
+  await page.evaluate(() => openDemandaModal("p1"));
+  const linha = page.locator("#demTimelineTable tbody tr").first();
+  await linha.scrollIntoViewIfNeeded();
+  await linha.hover();
+  await expect(page.locator(".tl-nota__add")).toHaveCount(0); // nada aparece ao passar o mouse
+  await linha.locator(".tl-menu__btn").click();
+  await linha.locator(".timeline-add-obs").click();
+  await expect(linha).toHaveClass(/is-editing/);
+  await expect(linha.locator(".timeline-obs")).toBeFocused();
+});

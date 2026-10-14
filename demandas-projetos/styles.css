@@ -6753,16 +6753,14 @@ html[data-theme="light"] .ck-mover { color: #1d4ed8; }
 .tl-periodo .tl-data.is-aberta::before { content: ""; display: inline-block; width: 0.45rem; height: 0.45rem; margin-right: 0.3rem; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22); vertical-align: 0.05rem; }
 tr.is-mesmo-dia .tl-seta, tr.is-mesmo-dia .tl-data--fim { display: none; }
 .tl-c-info .tl-aviso { margin-top: 0.3rem; }
-/* atualização: balão quando existe; "+ adicionar" ao passar o mouse */
+/* atualização: balão quando existe; para adicionar, clique na fase ou use o menu ⋯ */
 .tl-nota { margin-top: 0.45rem; }
 .tl-nota .tl-obs-txt {
   display: none; padding: 0.4rem 0.65rem; border-radius: 8px; background: var(--surface); border: 1px solid var(--border);
   font-size: 0.8rem; color: var(--text); -webkit-line-clamp: 3; font-style: normal;
 }
 tr.tem-nota .tl-nota .tl-obs-txt { display: -webkit-box; }
-.tl-nota__add { display: none; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 0.76rem; font-weight: 600; cursor: pointer; }
-tr:not(.tem-nota):hover .tl-nota__add, tr:not(.tem-nota):focus-within .tl-nota__add { display: inline; }
-tr:not(.tem-nota) .tl-nota { margin-top: 0.15rem; min-height: 0; }
+tr:not(.tem-nota) .tl-nota { display: none; }
 /* edição */
 .tl-edit { display: none; }
 tr.is-editing .tl-edit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem 0.6rem; margin-top: 0.6rem; }
