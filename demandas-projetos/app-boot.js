@@ -40,7 +40,8 @@
     document.querySelectorAll(".tabs__btn[data-tab]").forEach((b) => {
       const on = b.dataset.tab === "esteira" || b.id === "btnTabEsteira";
       b.classList.toggle("is-active", on);
-      b.setAttribute("aria-selected", on ? "true" : "false");
+      if (on) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
     });
     const viewOp = document.getElementById("esteiraViewOperacional");
     const viewB2b = document.getElementById("esteiraViewB2b");
