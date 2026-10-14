@@ -2894,6 +2894,44 @@ function applyTheme(theme) {
   if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
 }
 
+/* ---------- Acessibilidade: tamanho do texto e animações ---------- */
+const FONTE_OPCOES = { normal: "Normal", grande: "Grande", maior: "Maior" };
+
+function applyFonte(fonte) {
+  const f = FONTE_OPCOES[fonte] ? fonte : "normal";
+  if (f === "normal") document.documentElement.removeAttribute("data-fonte");
+  else document.documentElement.setAttribute("data-fonte", f);
+  try {
+    localStorage.setItem("demandas-fonte", f);
+  } catch (_) {}
+  document.querySelectorAll("#fonteSeg [data-fonte]").forEach((b) => {
+    const on = b.dataset.fonte === f;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-checked", on ? "true" : "false");
+    b.setAttribute("aria-label", `Texto ${FONTE_OPCOES[b.dataset.fonte].toLowerCase()}`);
+  });
+}
+
+function applyMenosAnimacao(on) {
+  if (on) document.documentElement.setAttribute("data-menos-animacao", "1");
+  else document.documentElement.removeAttribute("data-menos-animacao");
+  try {
+    localStorage.setItem("demandas-menos-animacao", on ? "1" : "0");
+  } catch (_) {}
+  const t = document.getElementById("menosAnimacaoToggle");
+  if (t) t.checked = !!on;
+}
+
+function initAparenciaAcessivel() {
+  applyFonte(document.documentElement.getAttribute("data-fonte") || "normal");
+  applyMenosAnimacao(document.documentElement.getAttribute("data-menos-animacao") === "1");
+  document.getElementById("fonteSeg")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-fonte]");
+    if (b) applyFonte(b.dataset.fonte);
+  });
+  document.getElementById("menosAnimacaoToggle")?.addEventListener("change", (e) => applyMenosAnimacao(e.target.checked));
+}
+
 function isMobileShell() {
   return window.matchMedia("(max-width: 720px)").matches;
 }
@@ -3030,6 +3068,7 @@ function initShellUi() {
   document.getElementById("themeToggle")?.addEventListener("change", (e) => {
     applyTheme(e.target.checked ? "light" : "dark");
   });
+  initAparenciaAcessivel();
   document.getElementById("btnSidebarToggle")?.addEventListener("click", () => {
     const app = document.getElementById("appRoot");
     applySidebarCollapsed(!app?.classList.contains("app--sidebar-collapsed"));
@@ -4313,7 +4352,8 @@ function switchMainTab(tab) {
   document.querySelectorAll(".tabs__btn[data-tab]").forEach((b) => {
     const on = b.dataset.tab === tab;
     b.classList.toggle("is-active", on);
-    b.setAttribute("aria-selected", on ? "true" : "false");
+    if (on) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
   });
   Object.entries(panels).forEach(([k, el]) => {
     if (!el) return;
@@ -5424,11 +5464,13 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
   el.draggable = !readOnly && !emSelecao;
   el.dataset.id = d.id;
   el.tabIndex = 0;
-  el.setAttribute("role", "button");
-  el.setAttribute("aria-label", `Abrir projeto ${d.titulo || ""}`.trim());
-  if (!readOnly && (canMoveUp || canMoveDown)) {
-    el.setAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown");
-  }
+  // Card como "artigo" focável (não botão: tem botões dentro). Teclado: ver cardTecladoAjuda.
+  el.setAttribute("aria-label", `Projeto ${d.titulo || ""} — ${labelStatus(d.status, dmCard.linhaEsteira)}`.trim());
+  el.setAttribute("aria-describedby", "cardTecladoAjuda");
+  el.setAttribute(
+    "aria-keyshortcuts",
+    readOnly ? "Enter ArrowUp ArrowDown ArrowLeft ArrowRight" : "Enter ArrowUp ArrowDown ArrowLeft ArrowRight Alt+ArrowUp Alt+ArrowDown Alt+ArrowLeft Alt+ArrowRight",
+  );
   if (readOnly) el.classList.add("card--readonly");
   el.addEventListener("dragstart", (e) => {
     const from = e.target instanceof Element ? e.target : e.target?.parentElement;
@@ -5470,6 +5512,16 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
       if ((dir < 0 && !canMoveUp) || (dir > 0 && !canMoveDown)) return;
       moveDemandaOrdemEsteira(d.id, dir);
       focusCardById(d.id);
+      return;
+    }
+    if (e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !isReadOnlyUser()) {
+      e.preventDefault();
+      moverCardDeColunaPeloTeclado(d.id, e.key === "ArrowLeft" ? -1 : 1);
+      return;
+    }
+    if (!e.altKey && !e.ctrlKey && !e.metaKey && /^Arrow(Up|Down|Left|Right)$/.test(e.key)) {
+      e.preventDefault();
+      focarCardVizinho(el, e.key);
     }
   });
 
@@ -5666,6 +5718,46 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
 }
 
 /** Devolve o foco ao card após um re-render do board (ex.: reordenar pelo teclado). */
+/** Setas no quadro: ↑↓ no mesmo card da coluna, ←→ para a coluna ao lado (mesma altura). */
+function focarCardVizinho(card, tecla) {
+  const col = card.closest(".column");
+  const board = card.closest(".board, [id^='boardEsteira']") || document;
+  if (!col) return;
+  const cards = (c) => [...c.querySelectorAll(".card[data-id]")];
+  const daColuna = cards(col);
+  const i = daColuna.indexOf(card);
+  if (tecla === "ArrowUp" || tecla === "ArrowDown") {
+    daColuna[i + (tecla === "ArrowUp" ? -1 : 1)]?.focus();
+    return;
+  }
+  const colunas = [...board.querySelectorAll(".column")];
+  const dir = tecla === "ArrowLeft" ? -1 : 1;
+  for (let j = colunas.indexOf(col) + dir; j >= 0 && j < colunas.length; j += dir) {
+    const alvo = cards(colunas[j]);
+    if (alvo.length) {
+      const destino = alvo[Math.min(i, alvo.length - 1)];
+      destino.focus();
+      destino.scrollIntoView({ block: "nearest", inline: "nearest" });
+      return;
+    }
+  }
+}
+
+/** Alt+←/→: leva o projeto para a etapa anterior/seguinte (mesma regra do arrastar, com Desfazer). */
+function moverCardDeColunaPeloTeclado(id, dir) {
+  const dem = state.demandas.find((x) => x.id === id);
+  if (!dem) return;
+  const linha = migrateDemanda(dem).linhaEsteira;
+  const cols = visibleEsteiraStatusKeys(linha);
+  const destino = cols[cols.indexOf(dem.status) + dir];
+  if (!destino) {
+    toast(dir < 0 ? "Já está na primeira etapa visível" : "Já está na última etapa visível");
+    return;
+  }
+  handleDemandaDrop(dem, destino, BOARD_ATRIBUIDOS);
+  focusCardById(id);
+}
+
 function focusCardById(id) {
   requestAnimationFrame(() => {
     const sel = `.card[data-id="${CSS.escape(String(id))}"]`;
