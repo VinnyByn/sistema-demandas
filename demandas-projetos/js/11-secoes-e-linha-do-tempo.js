@@ -777,13 +777,13 @@ function refreshTimelineMoveButtons() {
       btnUp.disabled = readOnly || idx === 0;
       if (btnUp.disabled) btnUp.dataset.keepDisabled = "1";
       else delete btnUp.dataset.keepDisabled;
-      btnUp.title = idx === 0 ? "Primeira fase" : "Mover fase para cima";
+      btnUp.title = idx === 0 ? "Já é a fase mais antiga" : "Mover para antes (desce na lista)";
     }
     if (btnDown) {
       btnDown.disabled = readOnly || idx === rows.length - 1;
       if (btnDown.disabled) btnDown.dataset.keepDisabled = "1";
       else delete btnDown.dataset.keepDisabled;
-      btnDown.title = idx === rows.length - 1 ? "Última fase" : "Mover fase para baixo";
+      btnDown.title = idx === rows.length - 1 ? "Já é a fase mais recente" : "Mover para depois (sobe na lista)";
     }
   });
 }
@@ -1309,8 +1309,9 @@ function renderTimeline(d) {
         `<div class="tl-menu__lista" role="menu">` +
         `<button type="button" role="menuitem" class="timeline-edit">✎ Editar datas e atualização</button>` +
         `<button type="button" role="menuitem" class="timeline-add-obs">💬 Adicionar atualização</button>` +
-        `<button type="button" role="menuitem" class="timeline-move-up">↑ Mover para antes</button>` +
-        `<button type="button" role="menuitem" class="timeline-move-down">↓ Mover para depois</button>` +
+        // A lista aparece invertida (fase mais recente em cima): "antes" desce e "depois" sobe na tela.
+        `<button type="button" role="menuitem" class="timeline-move-down">↑ Mover para depois</button>` +
+        `<button type="button" role="menuitem" class="timeline-move-up">↓ Mover para antes</button>` +
         `<button type="button" role="menuitem" class="timeline-remove">🗑 Excluir fase</button></div>`;
       acoes.appendChild(menu);
       const btnMenu = menu.querySelector(".tl-menu__btn");

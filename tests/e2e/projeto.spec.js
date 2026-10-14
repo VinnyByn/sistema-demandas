@@ -115,3 +115,30 @@ test("linha do tempo: atualização só pelo menu ⋯ ou clicando na fase", asyn
   await expect(linha).toHaveClass(/is-editing/);
   await expect(linha.locator(".timeline-obs")).toBeFocused();
 });
+
+test("linha do tempo: 'Mover para antes' desce a fase na tela (lista mais recente em cima)", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    const p = state.demandas.find((d) => d.id === "p1");
+    p.historicoStatus = [
+      { status: "novo", inicio: "2026-09-01T09:00:00.000Z", fim: "2026-09-10T09:00:00.000Z" },
+      { status: "custo", inicio: "2026-09-10T09:00:00.000Z", fim: null },
+    ];
+    p.status = "custo";
+    openDemandaModal("p1");
+  });
+  const nomesNaTela = () =>
+    page.evaluate(() =>
+      Array.from(document.querySelectorAll("#demTimelineTable tbody tr"))
+        .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
+        .map((tr) => tr.querySelector(".tl-fase strong").textContent)
+    );
+  const antes = await nomesNaTela();
+  expect(antes.length).toBe(2);
+  const topo = page.locator("#demTimelineTable tbody tr").last(); // column-reverse: último no DOM = topo da tela
+  await topo.locator(".tl-menu__btn").click();
+  await expect(topo.locator(".timeline-move-up")).toHaveText("↓ Mover para antes");
+  await topo.locator(".timeline-move-up").click();
+  const depois = await nomesNaTela();
+  expect(depois[1]).toBe(antes[0]);
+  expect(depois[0]).toBe(antes[1]);
+});
