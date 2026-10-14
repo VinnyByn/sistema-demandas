@@ -25,7 +25,7 @@ jobs:
 
       - name: Verificar sintaxe dos scripts
         run: |
-          for f in demandas-projetos/*.js functions/*.js; do node --check "$f"; done
+          for f in demandas-projetos/*.js demandas-projetos/js/*.js functions/*.js; do node --check "$f"; done
 
       - name: Instalar dependências
         run: |

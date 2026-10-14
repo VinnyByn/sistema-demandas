@@ -212,7 +212,7 @@ html[data-theme="light"] .card:hover .card__title,
 html[data-theme="light"] .card:focus-visible .card__title {
   color: color-mix(in srgb, var(--card-accent) 55%, #0f172a);
 }
-html[data-theme="light"] .card__avatar { background: hsl(var(--avatar-h) 55% 40%); }
+html[data-theme="light"] .card__avatar { background: hsl(var(--avatar-h) 55% 30%); }
 html[data-theme="light"] .card__prazo-txt { color: color-mix(in srgb, var(--prazo-cor) 70%, #000); }
 html[data-theme="light"] .card__avancar { color: #15803d; background: #f0fdf4; border-color: #86efac; }
 html[data-theme="light"] .card__avancar:hover { background: #dcfce7; border-color: #22c55e; }
@@ -1331,7 +1331,8 @@ html[data-theme="light"] .seg-hint.is-ok { color: #15803d; }
 .sync-badge[hidden] { display: none !important; }
 .sync-badge[data-status="synced"] { color: var(--accent2); }
 .sync-badge[data-status="saving"],
-.sync-badge[data-status="connecting"] { color: var(--warn); }
+.sync-badge[data-status="connecting"],
+.sync-badge[data-status="cache"] { color: var(--warn); }
 .sync-badge[data-status="error"] { color: var(--danger); }
 .sync-badge[data-status="local"],
 .sync-badge[data-status="waiting"],
@@ -2080,7 +2081,7 @@ textarea {
   font-weight: 700;
   letter-spacing: 0.03em;
   color: #fff;
-  background: hsl(var(--avatar-h) 55% 32%);
+  background: hsl(var(--avatar-h) 55% 27%);
   border: 2px solid hsl(var(--avatar-h) 60% 55%);
 }
 .card__people-names {
@@ -2751,7 +2752,7 @@ html[data-theme="light"] .checklist-gantt__track {
   font-size: 0.5rem;
   font-weight: 700;
   color: #fff;
-  background: hsl(var(--avatar-h) 55% 38%);
+  background: hsl(var(--avatar-h) 55% 28%);
 }
 .checklist-item__actions {
   grid-area: rm;
@@ -5885,7 +5886,7 @@ html[data-theme="light"] .inbox-alertas__ok-ico { color: #15803d; background: #d
 
 html[data-theme="light"] .column__ind--bad { --tom: 220, 38, 38; }
 html[data-theme="light"] .column__ind--warn { --tom: 180, 83, 9; }
-html[data-theme="light"] .column__ind--coluna { --tom: 194, 65, 12; }
+html[data-theme="light"] .column__ind--coluna { --tom: 154, 52, 18; }
 html[data-theme="light"] .column__count { background: #e2e8f0; color: #0f172a; }
 html[data-theme="light"] .column__count.is-zero { background: transparent; color: #64748b; }
 .esteira-toolbar__resumo { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
@@ -6179,7 +6180,7 @@ html[data-theme="light"] .pdf-rev__alerta { color: #b45309; }
 .dash-tipos-nav__btn b { color: var(--text); font-variant-numeric: tabular-nums; }
 .dash-tipos-nav__btn:hover { color: var(--text); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
 .dash-tipos-nav__btn.is-active { color: var(--text); border-color: var(--accent); background: rgba(59, 130, 246, 0.14); }
-.dash-tipos-nav__btn.is-vazio { opacity: 0.55; }
+.dash-tipos-nav__btn.is-vazio { opacity: 0.8; border-style: dashed; }
 .dash-tipos-nav__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* nome do tipo clicável na tabela */
@@ -6900,3 +6901,85 @@ html[data-theme="light"] .ck-nova-data-btn { color: #b45309; }
 .checklist-gantt__leg.is-nova i {
   background: repeating-linear-gradient(135deg, #f59e0b 0 3px, color-mix(in srgb, #f59e0b 45%, transparent) 3px 6px);
 }
+
+/* ---------- Esteira: "Mostrar mais" em colunas longas ---------- */
+.column__mais {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.column__mais:hover { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.column__mais:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Acessibilidade ---------- */
+/* Fundo azul com texto branco: tom mais escuro para contraste 4.5:1 (o azul claro segue em barras e bordas). */
+:root { --accent-fill: #2563eb; }
+.btn--primary,
+.sidebar__item--primary.btn.btn--primary,
+.esteira-modo button.is-active,
+.dash-seg button.is-active,
+.checklist-gantt__escala button.is-on,
+.timeline-table tr.is-editing .timeline-edit,
+.btn-selecionar.is-ativo,
+.meta-etapa.is-alterada .meta-etapa__n,
+.seg-lv-etapa,
+.comments-compose__send:not(:disabled),
+.checklist-toggle--details[aria-expanded="true"] {
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+}
+.btn--primary:hover:not(:disabled) { background: #1d4ed8; }
+.dash-tipos-nav__btn { color: color-mix(in srgb, var(--muted) 85%, var(--text)); }
+.seg-leitura__editar { opacity: 0.85; }
+
+/* Pular para o conteúdo (aparece só ao receber foco pelo teclado). */
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 10000;
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  background: var(--accent-fill);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: none; outline: 3px solid #fff; outline-offset: 2px; }
+main:focus { outline: none; }
+
+/* Foco visível em qualquer controle que não tenha estilo próprio. */
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Tamanho do texto (Minha conta → Aparência). */
+html[data-fonte="grande"] { font-size: 112.5%; }
+html[data-fonte="maior"] { font-size: 125%; }
+#fonteSeg button { min-width: 2.2rem; font-weight: 700; }
+
+/* Reduzir animações: preferência do sistema ou escolha na conta. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+html[data-menos-animacao="1"] *,
+html[data-menos-animacao="1"] *::before,
+html[data-menos-animacao="1"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+.btn--primary,
+.sidebar__item--primary.btn.btn--primary { color: #fff; }
+html[data-theme="light"] .brand__link { color: #1d4ed8; }

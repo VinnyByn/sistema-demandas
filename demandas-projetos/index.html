@@ -15,6 +15,9 @@
       try {
         var t = localStorage.getItem("demandas-theme");
         if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+        var f = localStorage.getItem("demandas-fonte");
+        if (f === "grande" || f === "maior") document.documentElement.setAttribute("data-fonte", f);
+        if (localStorage.getItem("demandas-menos-animacao") === "1") document.documentElement.setAttribute("data-menos-animacao", "1");
       } catch (e) {}
     })();
   </script>
@@ -50,6 +53,7 @@
   </div>
 
   <div class="app" id="appRoot" hidden>
+    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
     <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
     <aside class="sidebar" id="appSidebar">
       <div class="sidebar__brand">
@@ -62,7 +66,7 @@
       <button type="button" class="sidebar__collapse" id="btnSidebarToggle" aria-pressed="false" data-tip="Recolher menu" aria-label="Recolher menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
-      <nav class="sidebar__nav" role="tablist" aria-label="Seções principais">
+      <nav class="sidebar__nav" aria-label="Seções principais">
         <button type="button" class="sidebar__item sidebar__item--primary btn btn--primary" id="btnNovaDemanda" data-tip="Nova demanda" aria-label="Nova demanda">
           <span class="sidebar__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg>
@@ -71,7 +75,7 @@
         </button>
 
         <div class="sidebar__group import-menu" id="esteiraTabMenu">
-          <button type="button" class="sidebar__item tabs__btn is-active tabs__btn--menu" id="btnTabEsteira" data-tab="esteira" role="tab" aria-selected="true" aria-expanded="false" aria-haspopup="menu" aria-controls="esteiraTabPanel" data-tip="Esteira Projetos" aria-label="Esteira Projetos">
+          <button type="button" class="sidebar__item tabs__btn is-active tabs__btn--menu" id="btnTabEsteira" data-tab="esteira" aria-current="page" aria-expanded="false" aria-haspopup="menu" aria-controls="esteiraTabPanel" data-tip="Esteira Projetos" aria-label="Esteira Projetos">
             <span class="sidebar__icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="4" height="13" rx="1"/></svg>
             </span>
@@ -83,7 +87,7 @@
           </div>
         </div>
 
-        <button type="button" class="sidebar__item tabs__btn" data-tab="dashboard" role="tab" aria-selected="false" data-tip="Dashboard" aria-label="Dashboard">
+        <button type="button" class="sidebar__item tabs__btn" data-tab="dashboard" data-tip="Dashboard" aria-label="Dashboard">
           <span class="sidebar__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="11" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/></svg>
           </span>
@@ -170,7 +174,8 @@
       </div>
     </header>
 
-    <main>
+    <main id="conteudo" tabindex="-1">
+      <p id="cardTecladoAjuda" class="visually-hidden">Enter abre o projeto. Setas navegam entre os cards. Alt com setas para cima e para baixo muda a ordem; Alt com setas para os lados muda de etapa.</p>
       <section id="panelEsteira" class="panel is-visible" data-panel="esteira">
         <div class="panel__toolbar esteira-toolbar">
           <div class="esteira-toolbar__linha">
@@ -180,9 +185,9 @@
               <kbd class="esteira-busca__kbd" title="Atalho: tecla /">/</kbd>
             </label>
             <div class="esteira-modo" id="esteiraModoSeg" role="radiogroup" aria-label="Colunas exibidas">
-              <button type="button" role="radio" data-modo="ativos">Em andamento</button>
-              <button type="button" role="radio" data-modo="finalizados">Finalizados</button>
-              <button type="button" role="radio" data-modo="todos">Todas</button>
+              <button type="button" role="radio" aria-checked="true" data-modo="ativos">Em andamento</button>
+              <button type="button" role="radio" aria-checked="false" data-modo="finalizados">Finalizados</button>
+              <button type="button" role="radio" aria-checked="false" data-modo="todos">Todas</button>
             </div>
             <select id="filterEsteiraModo" aria-label="Modo das colunas da esteira" hidden>
               <option value="ativos" selected>Em andamento</option>
@@ -647,13 +652,13 @@
             <div class="chart-card dash-b2c-geo">
               <div class="dash-b2c-geo__toolbar">
                 <div class="dash-seg" role="radiogroup" aria-label="Métrica" id="dashB2cGeoMetrica">
-                  <button type="button" role="radio" data-valor="gastos">Gastos</button>
-                  <button type="button" role="radio" data-valor="portas">Portas</button>
-                  <button type="button" role="radio" data-valor="projetos">Projetos</button>
+                  <button type="button" role="radio" aria-checked="true" data-valor="gastos">Gastos</button>
+                  <button type="button" role="radio" aria-checked="false" data-valor="portas">Portas</button>
+                  <button type="button" role="radio" aria-checked="false" data-valor="projetos">Projetos</button>
                 </div>
                 <div class="dash-seg" role="radiogroup" aria-label="Agrupar por" id="dashB2cGeoNivel">
-                  <button type="button" role="radio" data-valor="regional">Por regional</button>
-                  <button type="button" role="radio" data-valor="cidade">Por cidade</button>
+                  <button type="button" role="radio" aria-checked="true" data-valor="regional">Por regional</button>
+                  <button type="button" role="radio" aria-checked="false" data-valor="cidade">Por cidade</button>
                 </div>
               </div>
               <p class="muted small chart-card__sub" id="dashB2cGeoSub"></p>
@@ -1338,7 +1343,7 @@
                   </div>
                 </div>
               </div>
-              <div class="comments-feed" id="demComentariosList" role="feed"></div>
+              <div class="comments-feed" id="demComentariosList" aria-label="Comentários do projeto"></div>
             </div>
           </aside>
         </div>
@@ -1671,7 +1676,28 @@
               <p class="muted small">Vale para esta sessão neste navegador.</p>
             </div>
             <label class="conta-switch">
-              <input type="checkbox" id="themeToggle" />
+              <input type="checkbox" id="themeToggle" aria-label="Tema claro" />
+              <span class="conta-switch__track" aria-hidden="true"></span>
+            </label>
+          </div>
+          <div class="conta-row conta-row--split">
+            <div>
+              <span class="conta-label" id="fonteLabel">Tamanho do texto</span>
+              <p class="muted small">Aumenta textos e botões de todo o sistema.</p>
+            </div>
+            <div class="dash-seg" role="radiogroup" aria-labelledby="fonteLabel" id="fonteSeg">
+              <button type="button" role="radio" aria-checked="true" data-fonte="normal">A</button>
+              <button type="button" role="radio" aria-checked="false" data-fonte="grande" style="font-size: 1.1em">A</button>
+              <button type="button" role="radio" aria-checked="false" data-fonte="maior" style="font-size: 1.25em">A</button>
+            </div>
+          </div>
+          <div class="conta-row conta-row--split">
+            <div>
+              <span class="conta-label">Reduzir animações</span>
+              <p class="muted small">Desliga movimentos e transições da tela.</p>
+            </div>
+            <label class="conta-switch">
+              <input type="checkbox" id="menosAnimacaoToggle" aria-label="Reduzir animações" />
               <span class="conta-switch__track" aria-hidden="true"></span>
             </label>
           </div>
@@ -1762,24 +1788,37 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+  <script src="carregar-sob-demanda.js"></script>
   <script src="firebase-auth.js"></script>
   <script src="firebase-persist.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="csv-import.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script>
-    if (window.pdfjsLib) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-    }
-  </script>
   <script src="pdf-custo-import.js"></script>
   <script src="login-init.js"></script>
   <script src="number-format-br.js"></script>
   <script src="user-home.js"></script>
   <script src="user-roles.js"></script>
   <script src="app-boot.js"></script>
+  <!-- Funções do app por área (só declarações); app.js roda a inicialização. -->
+  <script src="js/01-config-esteira.js"></script>
+  <script src="js/02-filtros-e-formatos.js"></script>
+  <script src="js/03-estado-e-sincronizacao.js"></script>
+  <script src="js/04-usuarios-e-presenca.js"></script>
+  <script src="js/05-base-interface.js"></script>
+  <script src="js/06-esteira-e-cards.js"></script>
+  <script src="js/07-clickup.js"></script>
+  <script src="js/08-modal-projeto.js"></script>
+  <script src="js/09-checklist.js"></script>
+  <script src="js/10-comentarios.js"></script>
+  <script src="js/11-secoes-e-linha-do-tempo.js"></script>
+  <script src="js/12-custo-e-pdf.js"></script>
+  <script src="js/13-metas-filtros-e-lote.js"></script>
+  <script src="js/14-backups-lixeira-e-desfazer.js"></script>
+  <script src="js/15-historico-diarias-e-projetistas.js"></script>
+  <script src="js/16-dashboard-base.js"></script>
+  <script src="js/17-dashboard-cidades-e-projetistas.js"></script>
+  <script src="js/18-dashboard-b2b-e-tempo.js"></script>
+  <script src="js/19-exportar-e-importar.js"></script>
+  <script src="js/20-usuarios-e-login.js"></script>
   <script src="app.js"></script>
 </body>
-</html>
 </html>

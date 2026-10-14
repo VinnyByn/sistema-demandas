@@ -71,3 +71,92 @@ test("card: Concluir finaliza a atividade atual e move para a coluna configurada
   expect(r).toEqual({ status: "vistoria", atividade: "concluida" });
   await expect(page.locator('.column[data-status="vistoria"] .card[data-id="p1"]')).toBeVisible();
 });
+
+test("coluna longa mostra 30 cards e o resto em 'Mostrar mais'", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    const muitos = Array.from({ length: 45 }, (_, i) => ({
+      id: `m${i}`,
+      titulo: `Projeto ${i}`,
+      tipo: "Backbone",
+      status: "custo",
+      responsavel: "Vinicius",
+      cidade: "Goiânia",
+      dataChegada: "2026-10-01",
+      descricao: "x",
+    }));
+    applyLoadedState({ demandas: muitos });
+    renderBoard();
+  });
+  const col = page.locator('#boardEsteira .column[data-status="custo"]');
+  await expect(col.locator(".card[data-id]")).toHaveCount(30);
+  await col.locator(".column__mais").click();
+  await expect(col.locator(".card[data-id]")).toHaveCount(45);
+  await expect(col.locator(".column__mais")).toHaveCount(0);
+});
+
+test("bibliotecas pesadas não são baixadas na abertura", async ({ app: { page } }) => {
+  const r = await page.evaluate(() => ({
+    chart: [...document.scripts].some((s) => /chart\\.js|chart\\.umd/.test(s.src)),
+    pdf: [...document.scripts].some((s) => /pdf\\.min\\.js/.test(s.src)),
+  }));
+  expect(r).toEqual({ chart: false, pdf: false });
+  await page.evaluate(() => {
+    const orig = window.carregarChartJs;
+    window.__pediuChart = 0;
+    window.carregarChartJs = () => (window.__pediuChart++, orig());
+  });
+  await page.click('[data-tab="dashboard"]');
+  // Abrir o dashboard pede o Chart.js (o teste bloqueia a CDN; o dashboard continua funcionando sem gráficos).
+  await expect.poll(() => page.evaluate(() => window.__pediuChart)).toBeGreaterThan(0);
+  await expect(page.locator("#kpiGeral")).toContainText("Não atribuídas");
+});
+
+test("desfazer: arrastar card e Ctrl+Z volta para a coluna anterior", async ({ app: { page } }) => {
+  await page.evaluate(() => handleDemandaDrop(state.demandas.find((d) => d.id === "p1"), "custo", BOARD_ATRIBUIDOS));
+  await expect(page.locator("#toast")).toContainText("movido para");
+  await expect(page.locator('.column[data-status="custo"] .card[data-id="p1"]')).toBeVisible();
+  await page.locator("body").click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press("Control+z");
+  await expect(page.locator('.column[data-status="novo"] .card[data-id="p1"]')).toBeVisible();
+  const d = await page.evaluate(() => {
+    const p = state.demandas.find((x) => x.id === "p1");
+    return { status: p.status, hist: p.historicoStatus.length };
+  });
+  expect(d).toEqual({ status: "novo", hist: 1 });
+});
+
+test("desfazer: ação em lote volta todos os projetos", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    selecaoEsteira.ids = new Set(["p3", "p4"]);
+    loteAtribuirProjetista("__none__");
+  });
+  expect(await page.evaluate(() => ["p3", "p4"].map((id) => state.demandas.find((d) => d.id === id).responsavel))).toEqual(["", ""]);
+  await page.click("#toast .toast__acao");
+  expect(await page.evaluate(() => ["p3", "p4"].map((id) => state.demandas.find((d) => d.id === id).responsavel))).toEqual([
+    "Matheus",
+    "Vinicius",
+  ]);
+});
+
+test("desfazer: salvar projeto e excluir comentário", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    state.demandas.find((d) => d.id === "p1").cidade = "Betim - BET";
+    openDemandaModal("p1");
+  });
+  await page.evaluate(() => {
+    document.getElementById("demTitulo").value = "Rota trocada";
+  });
+  await page.click("#btnSalvarDemanda");
+  await expect(page.locator("#toast")).toContainText("Demanda salva");
+  await page.click("#toast .toast__acao");
+  expect(await page.evaluate(() => state.demandas.find((d) => d.id === "p1").titulo)).toBe("Rota IJA x SRS");
+
+  await page.evaluate(() => openDemandaModal("p1"));
+  await page.fill("#demComentarioNovo", "primeiro");
+  await page.keyboard.press("Control+Enter");
+  await page.locator(".comment-del").first().click();
+  expect(await page.evaluate(() => (state.demandas.find((d) => d.id === "p1").comentarios || []).length)).toBe(0);
+  await page.click("#toast .toast__acao");
+  expect(await page.evaluate(() => state.demandas.find((d) => d.id === "p1").comentarios.map((c) => c.texto))).toEqual(["primeiro"]);
+  await expect(page.locator("#demComentariosList")).toContainText("primeiro");
+});
