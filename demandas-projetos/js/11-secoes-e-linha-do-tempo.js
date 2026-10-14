@@ -1299,19 +1299,6 @@ function renderTimeline(d) {
       if (!tr.classList.contains("is-editing")) alternarEdicao(true);
     });
 
-    const nota = tr.querySelector(".tl-nota");
-    if (!ro) {
-      const add = document.createElement("button");
-      add.type = "button";
-      add.className = "tl-nota__add";
-      add.textContent = "+ adicionar atualização";
-      add.addEventListener("click", (e) => {
-        e.stopPropagation();
-        alternarEdicao(true, ta);
-      });
-      nota.appendChild(add);
-    }
-
     // Menu ⋯: editar, mover e excluir (os botões mantêm as classes usadas pelas regras de ordem/exclusão).
     const acoes = tr.querySelector(".tl-c-acoes");
     if (!ro) {
@@ -1321,6 +1308,7 @@ function renderTimeline(d) {
         `<button type="button" class="tl-menu__btn" aria-haspopup="menu" aria-expanded="false" aria-label="Ações da fase" title="Ações da fase">⋯</button>` +
         `<div class="tl-menu__lista" role="menu">` +
         `<button type="button" role="menuitem" class="timeline-edit">✎ Editar datas e atualização</button>` +
+        `<button type="button" role="menuitem" class="timeline-add-obs">💬 Adicionar atualização</button>` +
         `<button type="button" role="menuitem" class="timeline-move-up">↑ Mover para antes</button>` +
         `<button type="button" role="menuitem" class="timeline-move-down">↓ Mover para depois</button>` +
         `<button type="button" role="menuitem" class="timeline-remove">🗑 Excluir fase</button></div>`;
@@ -1337,6 +1325,11 @@ function renderTimeline(d) {
         e.stopPropagation();
         fecharMenusTimeline();
         alternarEdicao(true);
+      });
+      menu.querySelector(".timeline-add-obs").addEventListener("click", (e) => {
+        e.stopPropagation();
+        fecharMenusTimeline();
+        alternarEdicao(true, ta);
       });
       menu.querySelector(".timeline-move-up").addEventListener("click", (e) => {
         e.stopPropagation();
