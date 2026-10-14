@@ -71,3 +71,42 @@ test("card: Concluir finaliza a atividade atual e move para a coluna configurada
   expect(r).toEqual({ status: "vistoria", atividade: "concluida" });
   await expect(page.locator('.column[data-status="vistoria"] .card[data-id="p1"]')).toBeVisible();
 });
+
+test("coluna longa mostra 30 cards e o resto em 'Mostrar mais'", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    const muitos = Array.from({ length: 45 }, (_, i) => ({
+      id: `m${i}`,
+      titulo: `Projeto ${i}`,
+      tipo: "Backbone",
+      status: "custo",
+      responsavel: "Vinicius",
+      cidade: "Goiânia",
+      dataChegada: "2026-10-01",
+      descricao: "x",
+    }));
+    applyLoadedState({ demandas: muitos });
+    renderBoard();
+  });
+  const col = page.locator('#boardEsteira .column[data-status="custo"]');
+  await expect(col.locator(".card[data-id]")).toHaveCount(30);
+  await col.locator(".column__mais").click();
+  await expect(col.locator(".card[data-id]")).toHaveCount(45);
+  await expect(col.locator(".column__mais")).toHaveCount(0);
+});
+
+test("bibliotecas pesadas não são baixadas na abertura", async ({ app: { page } }) => {
+  const r = await page.evaluate(() => ({
+    chart: [...document.scripts].some((s) => /chart\\.js|chart\\.umd/.test(s.src)),
+    pdf: [...document.scripts].some((s) => /pdf\\.min\\.js/.test(s.src)),
+  }));
+  expect(r).toEqual({ chart: false, pdf: false });
+  await page.evaluate(() => {
+    const orig = window.carregarChartJs;
+    window.__pediuChart = 0;
+    window.carregarChartJs = () => (window.__pediuChart++, orig());
+  });
+  await page.click('[data-tab="dashboard"]');
+  // Abrir o dashboard pede o Chart.js (o teste bloqueia a CDN; o dashboard continua funcionando sem gráficos).
+  await expect.poll(() => page.evaluate(() => window.__pediuChart)).toBeGreaterThan(0);
+  await expect(page.locator("#kpiGeral")).toContainText("Não atribuídas");
+});

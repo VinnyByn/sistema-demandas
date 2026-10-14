@@ -388,6 +388,10 @@ const DemandasFirebase = (function () {
     }, 500);
   }
 
+  /** Último snapshot veio do cache do aparelho (ainda sem confirmação do servidor). */
+  let demandasDoCache = false;
+  let metaDoCache = false;
+
   function emitToUi() {
     if (!onDataFn) return;
     if (!demandasLoaded || !metaLoaded) return;
@@ -399,7 +403,7 @@ const DemandasFirebase = (function () {
     );
     onDataFn(merged);
     scheduleSaveLocal(merged);
-    onStatusFn("synced");
+    onStatusFn(demandasDoCache || metaDoCache ? "cache" : "synced");
     if (snapDemandas.length === 0 && deleteTombstoneSet(loadLocal()).size === 0) {
       void checkLegacyHint();
     }
@@ -421,6 +425,10 @@ const DemandasFirebase = (function () {
     db = firebase.firestore(app);
     try {
       db.settings({ experimentalForceLongPolling: true });
+    } catch (_) {}
+    // Cache no aparelho (IndexedDB): reabre na hora com a última cópia e depois baixa só o que mudou.
+    try {
+      db.enablePersistence({ synchronizeTabs: true }).catch((e) => console.info("Cache do Firestore indisponível:", e?.code || e));
     } catch (_) {}
     metaRef = db.collection(COL_SYSTEM).doc(DOC_META);
     legacyRef = db.collection(COL_SYSTEM).doc(DOC_LEGACY);
@@ -636,6 +644,9 @@ const DemandasFirebase = (function () {
     if (unsubDemandas) unsubDemandas();
     unsubDemandas = database.collection(COL_DEMANDAS).onSnapshot(
       (snap) => {
+        // Cache vazio (primeira abertura ou sem rede): espera o servidor em vez de mostrar "nenhum projeto".
+        if (snap.metadata?.fromCache && snap.empty) return;
+        demandasDoCache = !!snap.metadata?.fromCache;
         snapDemandas = [];
         snap.forEach((doc) => {
           const d = demandaFromFirestore(doc.id, doc.data());
@@ -656,6 +667,8 @@ const DemandasFirebase = (function () {
     if (unsubMeta) unsubMeta();
     unsubMeta = metaRef.onSnapshot(
       (snap) => {
+        if (snap.metadata?.fromCache && !snap.exists) return;
+        metaDoCache = !!snap.metadata?.fromCache;
         if (snap.exists) {
           const d = snap.data();
           snapMeta = {

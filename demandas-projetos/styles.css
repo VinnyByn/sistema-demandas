@@ -1331,7 +1331,8 @@ html[data-theme="light"] .seg-hint.is-ok { color: #15803d; }
 .sync-badge[hidden] { display: none !important; }
 .sync-badge[data-status="synced"] { color: var(--accent2); }
 .sync-badge[data-status="saving"],
-.sync-badge[data-status="connecting"] { color: var(--warn); }
+.sync-badge[data-status="connecting"],
+.sync-badge[data-status="cache"] { color: var(--warn); }
 .sync-badge[data-status="error"] { color: var(--danger); }
 .sync-badge[data-status="local"],
 .sync-badge[data-status="waiting"],
@@ -6900,3 +6901,20 @@ html[data-theme="light"] .ck-nova-data-btn { color: #b45309; }
 .checklist-gantt__leg.is-nova i {
   background: repeating-linear-gradient(135deg, #f59e0b 0 3px, color-mix(in srgb, #f59e0b 45%, transparent) 3px 6px);
 }
+
+/* ---------- Esteira: "Mostrar mais" em colunas longas ---------- */
+.column__mais {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.column__mais:hover { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.column__mais:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

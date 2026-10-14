@@ -2125,6 +2125,7 @@ function setSyncStatus(status) {
     error: "Erro — não sincroniza",
     local: "Somente neste navegador",
     waiting: "Carregando dados…",
+    cache: "Cópia do aparelho — atualizando…",
     empty: "Nenhuma demanda na nuvem",
   };
   if (location.protocol === "file:" && status === "local") {
@@ -5073,6 +5074,11 @@ function buildCardMoveFlagsMap(list) {
   return flags;
 }
 
+/** Cards por coluna antes do "Mostrar mais" — colunas longas (ex.: Finalizados) não travam a tela. */
+const CARDS_POR_COLUNA = 30;
+/** Limite atual de cada coluna (`linha:status`), aumentado pelo botão "Mostrar mais". */
+const colunaLimiteCards = new Map();
+
 function renderBoardInto(boardEl, boardResponsavel, linha = activeEsteiraCanal) {
   const cfg = getEsteiraConfig(linha);
   const cols = visibleEsteiraStatusKeys(linha);
@@ -5121,9 +5127,26 @@ function renderBoardInto(boardEl, boardResponsavel, linha = activeEsteiraCanal) 
       handleDemandaDrop(dem, key, boardResponsavel);
     });
     const cardFrag = document.createDocumentFragment();
-    list.forEach((d) => {
+    const chaveLimite = `${linha}:${key}`;
+    const limite = colunaLimiteCards.get(chaveLimite) || CARDS_POR_COLUNA;
+    list.slice(0, limite).forEach((d) => {
       cardFrag.appendChild(renderCard(d, moveFlags[d.id] || { canMoveUp: false, canMoveDown: false }));
     });
+    if (list.length > limite) {
+      const restam = list.length - limite;
+      const mais = document.createElement("button");
+      mais.type = "button";
+      mais.className = "column__mais";
+      mais.textContent = `Mostrar mais ${Math.min(restam, CARDS_POR_COLUNA)} de ${restam} restante${restam > 1 ? "s" : ""}`;
+      mais.addEventListener("click", () => {
+        colunaLimiteCards.set(chaveLimite, limite + CARDS_POR_COLUNA);
+        renderBoard();
+        // Leva o foco ao primeiro card novo (quem navega pelo teclado não se perde).
+        const novo = boardEl.querySelectorAll(`.column[data-status="${CSS.escape(key)}"] .card[data-id]`)[limite];
+        novo?.focus({ preventScroll: false });
+      });
+      cardFrag.appendChild(mais);
+    }
     body.appendChild(cardFrag);
     if (!list.length) body.innerHTML = columnVazioHtml();
     frag.appendChild(col);
@@ -16783,6 +16806,15 @@ function renderDashTempoB2bTable() {
 }
 
 function renderDashboard() {
+  // Chart.js só é baixado na primeira vez que o dashboard abre; ao chegar, redesenha com os gráficos.
+  if (typeof Chart === "undefined" && typeof window.carregarChartJs === "function") {
+    window
+      .carregarChartJs()
+      .then(() => {
+        if (panels.dashboard && !panels.dashboard.hidden) renderDashboard();
+      })
+      .catch((e) => console.warn("Gráficos indisponíveis:", e));
+  }
   initDashBlocks();
   destroyDashboardCharts();
   const todas = demandasDashOperacionalList();

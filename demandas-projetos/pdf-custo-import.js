@@ -1091,7 +1091,7 @@
   }
 
   async function extractTextFromPdfFile(file) {
-    const lib = global.pdfjsLib;
+    const lib = global.pdfjsLib || (global.carregarPdfJs ? await global.carregarPdfJs().catch(() => null) : null);
     if (!lib?.getDocument) {
       throw new Error("Biblioteca PDF.js não carregou. Recarregue a página (Ctrl+F5).");
     }
