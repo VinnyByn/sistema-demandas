@@ -160,3 +160,15 @@ test("desfazer: salvar projeto e excluir comentário", async ({ app: { page } })
   expect(await page.evaluate(() => state.demandas.find((d) => d.id === "p1").comentarios.map((c) => c.texto))).toEqual(["primeiro"]);
   await expect(page.locator("#demComentariosList")).toContainText("primeiro");
 });
+
+test("pegadinha: F1 cruza a busca ao passar o mouse (e respeita menos animação)", async ({ app: { page } }) => {
+  await page.hover("#filterBusca");
+  const carro = page.locator(".f1-carro");
+  await expect(carro).toHaveCount(1);
+  await expect(carro).toHaveCount(0, { timeout: 4000 }); // some depois de atravessar
+  await page.evaluate(() => (document.documentElement.dataset.menosAnimacao = "1"));
+  await page.mouse.move(0, 0);
+  await page.hover("#filterBusca");
+  await page.waitForTimeout(150);
+  await expect(carro).toHaveCount(0);
+});
