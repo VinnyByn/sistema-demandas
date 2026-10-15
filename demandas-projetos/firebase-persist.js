@@ -19,6 +19,7 @@ const DemandasFirebase = (function () {
   let legacyRef = null;
   let rolesRef = null;
   let onStatusFn = () => {};
+  let statusAtual = "";
   let onDataFn = null;
   let onRolesFn = null;
   let unsubDemandas = null;
@@ -392,6 +393,33 @@ const DemandasFirebase = (function () {
   let demandasDoCache = false;
   let metaDoCache = false;
 
+  function statusCacheOuNuvem() {
+    return demandasDoCache || metaDoCache ? "cache" : "synced";
+  }
+
+  /**
+   * Os listeners de dados não disparam de novo quando o servidor só confirma o que já estava no cache
+   * (sem mudança de conteúdo) — o selo ficaria laranja ("Cópia do aparelho") para sempre.
+   * Estes ouvem só a troca cache → servidor e atualizam o selo, sem reprocessar os dados.
+   */
+  function ouvirOrigemDosDados(ref, aoMudar) {
+    return ref.onSnapshot(
+      { includeMetadataChanges: true },
+      (snap) => {
+        aoMudar(!!snap.metadata?.fromCache);
+        if (!demandasLoaded || !metaLoaded) return;
+        if (statusAtual !== "cache" && statusAtual !== "synced") return;
+        const st = statusCacheOuNuvem();
+        if (st !== statusAtual) onStatusFn(st);
+      },
+      () => {},
+    );
+  }
+
+  function juntarUnsub(...fns) {
+    return () => fns.forEach((fn) => fn());
+  }
+
   function emitToUi() {
     if (!onDataFn) return;
     if (!demandasLoaded || !metaLoaded) return;
@@ -403,7 +431,7 @@ const DemandasFirebase = (function () {
     );
     onDataFn(merged);
     scheduleSaveLocal(merged);
-    onStatusFn(demandasDoCache || metaDoCache ? "cache" : "synced");
+    onStatusFn(statusCacheOuNuvem());
     if (snapDemandas.length === 0 && deleteTombstoneSet(loadLocal()).size === 0) {
       void checkLegacyHint();
     }
@@ -642,7 +670,7 @@ const DemandasFirebase = (function () {
     scheduleListenerTimeout();
 
     if (unsubDemandas) unsubDemandas();
-    unsubDemandas = database.collection(COL_DEMANDAS).onSnapshot(
+    const unsubDemandasDados = database.collection(COL_DEMANDAS).onSnapshot(
       (snap) => {
         // Cache vazio (primeira abertura ou sem rede): espera o servidor em vez de mostrar "nenhum projeto".
         if (snap.metadata?.fromCache && snap.empty) return;
@@ -663,9 +691,16 @@ const DemandasFirebase = (function () {
         emitLocalFallback();
       },
     );
+    unsubDemandas = juntarUnsub(
+      unsubDemandasDados,
+      ouvirOrigemDosDados(database.collection(COL_DEMANDAS), (c) => {
+        // Cache vazio é ignorado pelo listener de dados; não deixa ele marcar a origem.
+        if (demandasLoaded) demandasDoCache = c;
+      }),
+    );
 
     if (unsubMeta) unsubMeta();
-    unsubMeta = metaRef.onSnapshot(
+    const unsubMetaDados = metaRef.onSnapshot(
       (snap) => {
         if (snap.metadata?.fromCache && !snap.exists) return;
         metaDoCache = !!snap.metadata?.fromCache;
@@ -709,6 +744,12 @@ const DemandasFirebase = (function () {
           window.__demandasSyncHint || err.message || "Erro ao sincronizar meta";
         emitLocalFallback();
       },
+    );
+    unsubMeta = juntarUnsub(
+      unsubMetaDados,
+      ouvirOrigemDosDados(metaRef, (c) => {
+        if (metaLoaded) metaDoCache = c;
+      }),
     );
 
     // Doc dedicado roles = espelho opcional. Fonte de verdade dos acessos: meta.
@@ -1101,7 +1142,11 @@ const DemandasFirebase = (function () {
   }
 
   async function initFirebase({ onData, onStatus, onRoles }) {
-    onStatusFn = onStatus || (() => {});
+    const repassar = onStatus || (() => {});
+    onStatusFn = (st) => {
+      statusAtual = st;
+      repassar(st);
+    };
     onRolesFn = typeof onRoles === "function" ? onRoles : null;
     onStatusFn("connecting");
     window.__demandasSyncHint = "";
