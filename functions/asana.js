@@ -19,7 +19,8 @@ const APP_URL = "https://demproj-fdeac.web.app";
 /** Coleções só do servidor (as regras do Firestore negam acesso do app a elas). */
 const COL_STORIES = "asanaStories"; // {storyGid} → { demandaId, comentarioId, origem }
 const COL_ENVIOS = "asanaComentarios"; // {demandaId}__{comentarioId} → { storyGid, estado }
-const DOC_WEBHOOKS = "asanaIntegracao/webhooks"; // { [projetoGid]: { secret, webhookGid } }
+const DOC_WEBHOOKS = "asanaIntegracao/webhooks";
+const COL_ANEXOS = "asanaAnexos"; // {attachmentGid} → anexos que o próprio sistema mandou (não repetir no webhook) // { [projetoGid]: { secret, webhookGid } }
 
 /** Comentários que o sistema escreve no Asana começam assim — evita trazê-los de volta (loop). */
 const SUFIXO_AUTOR = " (pelo sistema):";
@@ -279,6 +280,7 @@ async function anexarArquivo({ db, token, fetchImpl = fetch, demandaId, nome, ti
     { autor: String(autor || "").trim() || "Asana · Operação" },
   );
   await acrescentarComentario(db, ref, cmt);
+  if (anexo.gid) await db.collection(COL_ANEXOS).doc(String(anexo.gid)).set({ demandaId, em: new Date().toISOString() });
   return { gid: String(anexo.gid || ""), nome: anexo.name || arquivo, url: anexo.permalink_url || "", comentario: cmt };
 }
 
@@ -356,21 +358,8 @@ const ATIVIDADES_IGNORADAS = new Set([
   "follower_added", "attachment_liked",
 ]);
 
-let gidDaIntegracao = null;
-async function ehUsuarioDaIntegracao(asana, gid) {
-  if (!gid) return false;
-  if (gidDaIntegracao === null) {
-    try {
-      gidDaIntegracao = String((await asana("/users/me?opt_fields=gid"))?.gid || "");
-    } catch {
-      return false;
-    }
-  }
-  return gid === gidDaIntegracao;
-}
-
 /** Texto em português da atividade do Asana (comentário, anexo, responsável, prazo…), ou "" para ignorar. */
-async function textoDaAtividade(asana, story, taskGid) {
+async function textoDaAtividade(asana, story, taskGid, db) {
   const subtipo = String(story.resource_subtype || "");
   const bruto = String(story.text || "").trim();
   if (subtipo === "comment_added") return bruto || "(comentário vazio)";
@@ -378,10 +367,12 @@ async function textoDaAtividade(asana, story, taskGid) {
   if (subtipo === "attachment_added") {
     let anexo = null;
     try {
-      const lista = await asana(`/attachments?parent=${taskGid}&opt_fields=name,permalink_url,created_at`);
+      const lista = await asana(`/attachments?parent=${taskGid}&opt_fields=gid,name,permalink_url,created_at`);
       const arr = Array.isArray(lista) ? lista : [];
       anexo = arr.find((x) => x.name && bruto.includes(x.name)) || arr.sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)))[0];
     } catch {}
+    // Anexo enviado pelo próprio sistema (📎 Anexar ao Asana): o comentário já foi registrado na hora.
+    if (anexo?.gid && (await db.collection(COL_ANEXOS).doc(String(anexo.gid)).get()).exists) return "";
     const nome = anexo?.name || bruto.replace(/^.*?attached\s*/i, "") || "um arquivo";
     const ehImagem = /\.(png|jpe?g|gif|webp|heic|bmp)$/i.test(nome);
     return `${ehImagem ? "🖼️" : "📎"} Anexou ${ehImagem ? "a imagem" : "o arquivo"} «${nome}» no Asana${anexo?.permalink_url ? `\n${anexo.permalink_url}` : ""}`;
@@ -512,9 +503,8 @@ async function processarEvento({ db, token, fetchImpl, evento, apagarCampo = () 
     if (!story || story.__status) return "ignorado";
     const subtipo = String(story.resource_subtype || "");
     if (subtipo === "comment_added" && ehComentarioDoSistema(story.text)) return "eco";
-    if (subtipo !== "comment_added" && (await ehUsuarioDaIntegracao(asana, story.created_by?.gid))) return "eco"; // ações do próprio sistema
     const taskGid = String(story.target?.gid || evento.parent?.gid || "");
-    const texto = await textoDaAtividade(asana, story, taskGid);
+    const texto = await textoDaAtividade(asana, story, taskGid, db);
     if (!texto) return "ignorado";
     const doc = await demandaDaTarefa(db, taskGid);
     if (!doc) return "sem-demanda";
