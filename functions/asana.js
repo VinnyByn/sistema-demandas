@@ -431,6 +431,48 @@ async function reabrirOrdem(ref, apagarCampo) {
   await ref.set({ asana: { concluidaEm: apagarCampo() }, asanaAviso: { chave: `reaberta:${Date.now()}` } }, { merge: true });
 }
 
+/**
+ * Lê a situação atual da tarefa no Asana (concluída? em que coluna?) e gera o aviso certo. Usado quando
+ * chega a atividade "mudou de coluna"/"concluiu" pelos comentários — funciona mesmo com um webhook antigo,
+ * que só recebe comentários.
+ */
+async function avaliarSituacaoTarefa({ db, asana, taskGid, apagarCampo }) {
+  const doc = await demandaDaTarefa(db, taskGid);
+  if (!doc) return "sem-demanda";
+  const d = doc.data() || {};
+  const atual = d.asanaTaskId === taskGid;
+  const rotulo = atual ? "a tarefa" : "uma ordem anterior";
+  const t = await asana(`/tasks/${taskGid}?opt_fields=completed,memberships.project.gid,memberships.section.gid,memberships.section.name`, {
+    okStatuses: [404],
+  });
+  if (!t || t.__status) return "ignorado";
+  const membros = Array.isArray(t.memberships) ? t.memberships : [];
+  const m = membros.find((x) => x?.project?.gid && x.project.gid === d.asana?.projetoGid) || membros.find((x) => x?.section) || null;
+  const nome = String(m?.section?.name || "").trim();
+  const n = normTxt(nome);
+  if (t.completed || n.includes("conclu")) {
+    await registrarAviso(db, doc.ref, {
+      tipo: "concluida",
+      taskGid,
+      texto: `A Operação concluiu ${rotulo} no Asana${nome ? ` («${nome}»)` : ""}.`,
+      extra: atual ? { asana: { ...(nome ? { secao: nome } : {}), concluidaEm: d.asana?.concluidaEm || new Date().toISOString() } } : {},
+    });
+    return "concluida";
+  }
+  if (atual && d.asana?.concluidaEm) await reabrirOrdem(doc.ref, apagarCampo);
+  if (n.includes("andamento")) {
+    await registrarAviso(db, doc.ref, {
+      tipo: "andamento",
+      taskGid,
+      texto: `A Operação moveu ${rotulo} para «${nome}» no Asana.`,
+      extra: { ...(atual ? { asana: { secao: nome } } : {}), __chave: m?.section?.gid || nome },
+    });
+    return "andamento";
+  }
+  if (atual && nome) await doc.ref.set({ asana: { secao: nome } }, { merge: true });
+  return "secao";
+}
+
 /** Asana → sistema: tarefa mudou de coluna, foi concluída ou foi excluída. */
 async function processarEventoTarefa({ db, token, fetchImpl, evento, apagarCampo }) {
   const taskGid = String(evento.resource?.gid || "");
@@ -523,6 +565,9 @@ async function processarEvento({ db, token, fetchImpl, evento, apagarCampo = () 
     const subtipo = String(story.resource_subtype || "");
     if (subtipo === "comment_added" && ehComentarioDoSistema(story.text)) return "eco";
     const taskGid = String(story.target?.gid || evento.parent?.gid || "");
+    if (subtipo === "section_changed" || subtipo === "marked_complete" || subtipo === "marked_incomplete") {
+      return avaliarSituacaoTarefa({ db, asana, taskGid, apagarCampo });
+    }
     const texto = await textoDaAtividade(asana, story, taskGid, db);
     if (!texto) return "ignorado";
     const doc = await demandaDaTarefa(db, taskGid);

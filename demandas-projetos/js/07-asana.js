@@ -81,6 +81,7 @@ function marcarAvisoAsanaCiente(id) {
 /** Avisos do Asana já vistos nesta aba (os que existiam ao abrir não viram notificação na tela). */
 const avisosAsanaVistos = new Set();
 let avisosAsanaIniciados = false;
+let webhooksAsanaConferidos = false;
 
 function chaveAvisoAsana(d, a) {
   return `${d.id}\0${a.tipo}\0${a.em}`;
@@ -97,11 +98,13 @@ function notificarAvisosAsanaNovos() {
     avisosAsanaVistos.add(k);
     if (avisosAsanaIniciados) novos.push({ d, a });
   }
-  if (!avisosAsanaIniciados && (state.demandas || []).some((d) => d.asanaTaskId)) {
-    // Uma vez por abertura: a função também confere/atualiza os webhooks do Asana (filtros novos).
+  if (!webhooksAsanaConferidos && (state.demandas || []).some((d) => d.asanaTaskId)) {
+    // Uma vez por abertura, assim que os projetos chegam: a função também confere/atualiza os webhooks do Asana.
+    webhooksAsanaConferidos = true;
     void carregarProjetosAsana();
   }
-  avisosAsanaIniciados = true;
+  // Só começa a notificar depois que os dados da nuvem chegaram (os avisos antigos não viram notificação).
+  if ((state.demandas || []).length) avisosAsanaIniciados = true;
   if (!novos.length) return;
   const { d, a } = novos[novos.length - 1];
   const tipo = ASANA_AVISO_TIPOS[a.tipo];
