@@ -17,6 +17,10 @@ comentário decide se ele vai também para a tarefa (etiqueta *↗ Asana*) ou fi
 precisa de retrabalho). A atual fica em *Ordens anteriores* e continua recebendo comentários feitos nela no
 Asana; os novos comentários do sistema vão para a nova (campos `asanaAnteriores` e `asanaTaskIds`).
 
+**Atividades do Asana viram comentário** (*via Asana*): imagem/arquivo anexado (com link), responsável
+definido/removido, prazo alterado e outras mudanças. Ficam de fora: mudança de coluna e conclusão (já têm
+aviso próprio), curtidas e o que o próprio sistema fez.
+
 **Avisos do Asana** (alerta *Asana* no sino + comentário no projeto; some com *Ciente*):
 - tarefa movida para uma coluna com "andamento" no nome → *Em andamento no Asana*;
 - coluna com "conclu" no nome ou tarefa marcada como concluída → *Concluída no Asana* (uma vez por tarefa);
