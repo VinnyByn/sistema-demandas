@@ -287,18 +287,20 @@ test("atividades do Asana viram comentário: imagem anexada, responsável; colun
   story("A1", { resource_subtype: "attachment_added", type: "system", text: "Ana Operação attached poste12.jpg" });
   story("A2", { resource_subtype: "assigned", type: "system", text: "Ana Operação assigned to João", assignee: { name: "João Silva" } });
   story("A3", { resource_subtype: "section_changed", type: "system", text: "moved this task" });
-  story("A4", { resource_subtype: "assigned", type: "system", text: "x", assignee: { name: "Y" }, created_by: { gid: "U_INT", name: "Integração" } });
+  // feito pela própria conta dona do token (quem também usa o Asana): precisa aparecer
+  story("A4", { resource_subtype: "assigned", type: "system", text: "x", assignee: { name: "Maria Lima" }, created_by: { gid: "U_INT", name: "Vinicius" } });
   const ev = (gid) => ({ action: "added", resource: { gid, resource_type: "story" }, parent: { gid: "T1", resource_type: "task" } });
   const args = base(db, api);
   assert.equal(await asana.processarEvento({ ...args, evento: ev("A1") }), "adicionado");
   assert.equal(await asana.processarEvento({ ...args, evento: ev("A2") }), "adicionado");
   assert.equal(await asana.processarEvento({ ...args, evento: ev("A3") }), "ignorado");
-  assert.equal(await asana.processarEvento({ ...args, evento: ev("A4") }), "eco");
+  assert.equal(await asana.processarEvento({ ...args, evento: ev("A4") }), "adicionado");
   const textos = db.docs.get("demandas/d1").comentarios.map((c) => c.texto);
-  assert.equal(textos.length, 2);
+  assert.equal(textos.length, 3);
+  assert.ok(textos.includes("👤 Definiu Maria Lima como responsável no Asana"));
   assert.match(textos.find((t) => t.includes("poste12")), /^🖼️ Anexou a imagem «poste12\.jpg» no Asana\nhttps:/);
   assert.ok(textos.includes("👤 Definiu João Silva como responsável no Asana"));
-  assert.equal(db.docs.get("demandas/d1").comentarios[0].autor, "Ana Operação");
+  assert.equal(db.docs.get("demandas/d1").comentarios.find((c) => c.texto.includes("poste12")).autor, "Ana Operação");
 });
 
 test("anexo enviado pelo sistema vai para a tarefa atual no Asana e vira comentário com link", async () => {
@@ -314,6 +316,15 @@ test("anexo enviado pelo sistema vai para a tarefa atual no Asana e vira coment�
   assert.match(c.texto, /^📎 Anexou o arquivo «planta_rede\.pdf» no Asana\nhttps:/);
   assert.equal(c.autor, "Vinicius Morais");
   await assert.rejects(asana.anexarArquivo({ ...base(db, api), demandaId: "d2", nome: "a.pdf", base64 }), /ainda não tem tarefa/);
+  // o webhook do anexo que o próprio sistema mandou não gera um segundo comentário
+  api.stories.set("AX", { gid: "AX", resource_subtype: "attachment_added", type: "system", text: "attached planta_rede.pdf", created_by: { name: "Vinicius" }, target: { gid: "T1" } });
+  const listaOriginal = api.fetchImpl;
+  api.fetchImpl = async (url, opts) =>
+    new URL(url).pathname.endsWith("/attachments") && opts.method === "GET"
+      ? { ok: true, status: 200, text: async () => JSON.stringify({ data: [{ gid: "AT1", name: "planta_rede.pdf" }] }) }
+      : listaOriginal(url, opts);
+  assert.equal(await asana.processarEvento({ ...base(db, api), evento: { action: "added", resource: { gid: "AX", resource_type: "story" } } }), "ignorado");
+  assert.equal(db.docs.get("demandas/d1").comentarios.length, 1);
   const grande = Buffer.alloc(asana.ANEXO_MAX_BYTES + 1).toString("base64");
   await assert.rejects(asana.anexarArquivo({ ...base(db, api), demandaId: "d1", nome: "g.jpg", base64: grande }), /maior que 10 MB/);
 });
