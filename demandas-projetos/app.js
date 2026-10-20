@@ -279,6 +279,10 @@ document.getElementById("btnEnviarAsana")?.addEventListener("click", async () =>
   if (!envio) return;
   await enviarDemandaAsana(id, btn, envio);
 });
+document.getElementById("btnNovaOrdemAsana")?.addEventListener("click", async () => {
+  const id = (document.getElementById("demId")?.value || "").trim();
+  if (id) await abrirNovaOrdemAsana(id);
+});
 document.getElementById("btnCancelarAsana")?.addEventListener("click", async () => {
   const id = (document.getElementById("demId")?.value || "").trim();
   if (!id) return;

@@ -40,10 +40,10 @@ function firestoreFalso(inicial = {}) {
     doc: (p) => ref(p),
     collection: (c) => ({
       doc: (id) => ref(`${c}/${id}`),
-      where: (campo, _op, valor) => ({
+      where: (campo, op, valor) => ({
         limit: () => ({
           async get() {
-            const achados = [...docs.entries()].filter(([k, v]) => k.startsWith(`${c}/`) && k.split("/").length === 2 && v[campo] === valor);
+            const achados = [...docs.entries()].filter(([k, v]) => k.startsWith(`${c}/`) && k.split("/").length === 2 && (op === "array-contains" ? (v[campo] || []).includes(valor) : v[campo] === valor));
             return { empty: !achados.length, docs: await Promise.all(achados.map(([k]) => ref(k).get())) };
           },
         }),
@@ -191,4 +191,31 @@ test("aperto de mão do webhook só vale logo depois que o sistema pediu o webho
   assert.equal(await asana.registrarHandshake({ db, projetoGid: PROJ, segredo: "do-asana" }), true);
   assert.equal(db.docs.get(asana.DOC_WEBHOOKS)[PROJ].secret, "do-asana");
   assert.equal(await asana.registrarHandshake({ db, projetoGid: PROJ, segredo: "outro" }), false, "janela fecha após o primeiro");
+});
+
+test("nova ordem: a tarefa atual vira anterior e comentários na antiga ainda chegam", async () => {
+  const db = firestoreFalso({ "demandas/d1": { titulo: "X", comentarios: [] } });
+  const api = asanaFalso();
+  const args = { ...base(db, api), demandaId: "d1", projetoGid: PROJ, endpoint: "https://x/asanaWebhook" };
+  await asana.criarTarefa({ ...args, instrucoes: "primeira" });
+  const ja = await asana.criarTarefa({ ...args, instrucoes: "de novo" });
+  assert.equal(ja.already, true, "sem nova ordem não duplica");
+  let gid = 1;
+  const original = api.fetchImpl;
+  api.fetchImpl = async (url, opts) => {
+    if (opts.method === "POST" && new URL(url).pathname.endsWith("/tasks")) {
+      return { ok: true, status: 201, text: async () => JSON.stringify({ data: { gid: `T${++gid}`, permalink_url: `https://app.asana.com/0/p/T${gid}` } }) };
+    }
+    return original(url, opts);
+  };
+  const r = await asana.criarTarefa({ ...base(db, api), demandaId: "d1", projetoGid: PROJ, endpoint: "e", instrucoes: "retrabalho", novaOrdem: true });
+  assert.equal(r.taskId, "T2");
+  const d = db.docs.get("demandas/d1");
+  assert.equal(d.asanaTaskId, "T2");
+  assert.deepEqual(d.asanaAnteriores.map((a) => a.taskId), ["T1"]);
+  assert.deepEqual(d.asanaTaskIds, ["T1", "T2"]);
+  assert.match(d.comentarios[0].texto, /^Nova ordem aberta/);
+  api.stories.set("S50", { gid: "S50", text: "obs na ordem antiga", resource_subtype: "comment_added", created_by: { name: "Op" }, target: { gid: "T1" } });
+  const ev = { action: "added", resource: { gid: "S50", resource_type: "story" }, parent: { gid: "T1" } };
+  assert.equal(await asana.processarEvento({ ...base(db, api), evento: ev }), "adicionado");
 });

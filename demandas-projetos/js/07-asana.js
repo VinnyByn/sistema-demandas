@@ -32,7 +32,27 @@ function normalizeAsana(a) {
     createdAt: a.createdAt || "",
     createdBy: String(a.createdBy || "").trim(),
     instrucoes: String(a.instrucoes || "").trim(),
+    ...(a.substituidaEm ? { substituidaEm: String(a.substituidaEm) } : {}),
   };
+}
+
+function demandaTemAsana(demId) {
+  const d = demId ? state.demandas.find((x) => x.id === demId) : null;
+  return !!String(d?.asanaTaskId || normalizeAsana(d?.asana)?.taskId || "").trim();
+}
+
+/** Caixa "Enviar ao Asana" do novo comentário: só aparece em projeto com tarefa no Asana. */
+function syncComentarioAsanaBox() {
+  const box = document.getElementById("demComentarioAsanaBox");
+  if (!box) return;
+  const id = (document.getElementById("demId")?.value || "").trim();
+  box.hidden = !demandaTemAsana(id) || isReadOnlyUser();
+}
+
+/** Comentário escrito agora: marcado para o Asana? (só faz sentido com tarefa no Asana). */
+function comentarioNovoParaAsana(demId) {
+  if (!demandaTemAsana(demId)) return undefined;
+  return document.getElementById("demComentarioAsana")?.checked !== false;
 }
 
 async function carregarProjetosAsana() {
@@ -120,7 +140,11 @@ function initAsanaEnvioDialog() {
 }
 
 /** Pergunta as instruções e o projeto do Asana. Resolve com { instrucoes, projetoGid } ou null. */
-function promptAsanaEnvio(titulo) {
+function promptAsanaEnvio(titulo, { novaOrdem = false } = {}) {
+  const tituloEl = document.getElementById("asanaEnvioTitulo");
+  const okEl = document.getElementById("asanaEnvioOk");
+  if (tituloEl) tituloEl.textContent = novaOrdem ? "Nova ordem para a Operação" : "Enviar à Operação";
+  if (okEl) okEl.textContent = novaOrdem ? "Abrir nova ordem" : "Criar no Asana";
   const dlg = document.getElementById("modalAsanaEnvio");
   const ta = document.getElementById("asanaEnvioTexto");
   const proj = document.getElementById("asanaEnvioProjeto");
@@ -163,7 +187,7 @@ function aplicarRespostaAsanaLocal(id, patch, comentario) {
   renderBoard();
 }
 
-async function enviarDemandaAsana(id, btn, envio) {
+async function enviarDemandaAsana(id, btn, envio, { novaOrdem = false } = {}) {
   if (!requireWriteAccess()) return;
   const texto = String(envio?.instrucoes || "").trim();
   if (!texto) {
@@ -182,16 +206,26 @@ async function enviarDemandaAsana(id, btn, envio) {
     btn.textContent = "Enviando…";
   }
   try {
-    const res = await call({ demandaId: id, instrucoes: texto, projetoGid: envio.projetoGid });
+    const res = await call({ demandaId: id, instrucoes: texto, projetoGid: envio.projetoGid, novaOrdem });
     const data = res?.data || {};
     if (!data.url) {
       toast("O Asana não retornou o link da tarefa");
       return;
     }
     const asana = normalizeAsana(data);
-    aplicarRespostaAsanaLocal(id, { asana, asanaTaskId: asana.taskId }, data.comentario);
+    const patch = { asana, asanaTaskId: asana.taskId };
+    const atual = state.demandas.find((x) => x.id === id);
+    const antes = normalizeAsana(atual?.asana);
+    if (novaOrdem && antes && antes.taskId !== asana.taskId) {
+      patch.asanaAnteriores = [...(atual.asanaAnteriores || []), { ...antes, substituidaEm: new Date().toISOString() }];
+    }
+    aplicarRespostaAsanaLocal(id, patch, data.comentario);
     setAsanaUiOverride(id, asana);
-    toast(data.already ? "Já existe no Asana" : `Demanda criada no Asana${asana.projetoNome ? ` (${asana.projetoNome})` : ""}`);
+    toast(
+      data.already
+        ? "Já existe no Asana"
+        : `${novaOrdem ? "Nova ordem aberta" : "Demanda criada"} no Asana${asana.projetoNome ? ` (${asana.projetoNome})` : ""}`,
+    );
   } catch (err) {
     toast(formatCallableError(err, "Não foi possível criar no Asana"));
   } finally {
@@ -248,8 +282,26 @@ function setAsanaUiOverride(id, asana) {
   syncDemandaModalAlerts();
 }
 
+/** Abre outra ordem (ex.: a anterior já foi fechada no Asana e precisa de retrabalho). */
+async function abrirNovaOrdemAsana(id) {
+  if (!requireWriteAccess()) return;
+  const ok = await confirmDialog({
+    title: "Abrir nova ordem no Asana?",
+    message:
+      "A tarefa atual continua no Asana e fica no histórico como ordem anterior. A nova vira a principal: os próximos comentários vão para ela.",
+    confirmText: "Continuar",
+    cancelText: "Voltar",
+  });
+  if (!ok) return;
+  const titulo = (document.getElementById("demTitulo")?.value || "").trim();
+  const envio = await promptAsanaEnvio(titulo, { novaOrdem: true });
+  if (!envio) return;
+  await enviarDemandaAsana(id, document.getElementById("btnNovaOrdemAsana"), envio, { novaOrdem: true });
+}
+
 function syncDemAsanaUi() {
   atualizarCampoAsana();
+  syncComentarioAsanaBox();
   // A seção "Referências" em modo leitura mostra o mesmo estado (link ou botão de envio).
   if (editingDemandaOpenId) agendarSyncDemNavegacao();
 }
@@ -259,6 +311,8 @@ function atualizarCampoAsana() {
   const btn = document.getElementById("btnEnviarAsana");
   const link = document.getElementById("demAsanaLink");
   const btnCancel = document.getElementById("btnCancelarAsana");
+  const btnNova = document.getElementById("btnNovaOrdemAsana");
+  const anterioresEl = document.getElementById("demAsanaAnteriores");
   if (!hint || !btn || !link) return;
   const id = (document.getElementById("demId")?.value || "").trim();
   const d = id ? state.demandas.find((x) => x.id === id) : null;
@@ -278,6 +332,16 @@ function atualizarCampoAsana() {
     btnCancel.hidden = true;
     btnCancel.disabled = true;
   }
+  if (btnNova) btnNova.hidden = true;
+  if (anterioresEl) {
+    const ant = (d?.asanaAnteriores || []).map(normalizeAsana).filter((a) => a?.url);
+    anterioresEl.hidden = !ant.length;
+    anterioresEl.innerHTML = ant.length
+      ? `Ordens anteriores: ${ant
+          .map((a, i) => `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer">${i + 1}ª${a.projetoNome ? ` (${escapeHtml(a.projetoNome)})` : ""}</a>`)
+          .join(" · ")}`
+      : "";
+  }
 
   if (as?.url) {
     hint.hidden = false;
@@ -287,6 +351,10 @@ function atualizarCampoAsana() {
     if (btnCancel && !readOnly) {
       btnCancel.hidden = false;
       btnCancel.disabled = false;
+    }
+    if (btnNova && !readOnly) {
+      btnNova.hidden = false;
+      btnNova.disabled = false;
     }
     return;
   }
@@ -310,6 +378,7 @@ function atualizarCampoAsana() {
 /** Publica (ou edita/apaga) no Asana um comentário digitado aqui. Não bloqueia a tela. */
 async function sincronizarComentarioAsana(demId, acao, c) {
   if (!demId || !c || c.origem) return; // comentários vindos do Asana/integração não voltam para lá
+  if (c.paraAsana !== true) return; // marcado como "só no sistema" (ou escrito antes do envio)
   const d = state.demandas.find((x) => x.id === demId);
   if (!String(d?.asanaTaskId || normalizeAsana(d?.asana)?.taskId || "").trim()) return;
   const call = asanaFuncao("asanaComentario");

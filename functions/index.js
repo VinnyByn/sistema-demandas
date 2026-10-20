@@ -62,6 +62,7 @@ exports.createAsanaOperacao = onCall({ region: REGION, secrets: [asanaToken], co
       projetoGid: request.data?.projetoGid,
       email: request.auth.token.email || "",
       endpoint: ASANA_WEBHOOK_URL,
+      novaOrdem: request.data?.novaOrdem === true,
     });
   } catch (e) {
     throw erroCallable(e, "Não foi possível criar a tarefa no Asana.");

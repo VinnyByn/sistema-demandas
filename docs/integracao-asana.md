@@ -10,6 +10,13 @@ Substitui a integração com o ClickUp. Faz duas coisas:
    - feito no Asana → aparece no sistema com a etiqueta *via Asana* (edição e exclusão também) —
      webhook `asanaWebhook`, criado sozinho no primeiro envio de cada projeto do Asana.
 
+**Marcar o que vai para o Asana:** em projeto já enviado, a caixa *Enviar ao Asana* ao lado do campo de
+comentário decide se ele vai também para a tarefa (etiqueta *↗ Asana*) ou fica só no sistema (*só no sistema*).
+
+**Nova ordem:** com uma tarefa já criada, *+ Nova ordem* abre outra tarefa (ex.: a anterior foi fechada e
+precisa de retrabalho). A atual fica em *Ordens anteriores* e continua recebendo comentários feitos nela no
+Asana; os novos comentários do sistema vão para a nova (campos `asanaAnteriores` e `asanaTaskIds`).
+
 Projetos do Asana (workspace `1211507547180510`), em `functions/asana.js` e `demandas-projetos/js/07-asana.js`:
 
 | gid | uso |

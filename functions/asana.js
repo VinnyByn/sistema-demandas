@@ -143,14 +143,19 @@ async function garantirWebhook({ db, token, fetchImpl, projetoGid, endpoint }) {
   return { criado: true };
 }
 
-async function criarTarefa({ db, token, fetchImpl, demandaId, instrucoes, projetoGid, email, endpoint }) {
+/**
+ * Cria a tarefa da Operação no Asana. Com novaOrdem, a tarefa atual vira "ordem anterior" (continua
+ * no Asana e no histórico) e os próximos comentários passam a ir para a nova.
+ */
+async function criarTarefa({ db, token, fetchImpl, demandaId, instrucoes, projetoGid, email, endpoint, novaOrdem = false }) {
   const projeto = projetoValido(projetoGid);
   if (!projeto) throw new AsanaErro("Escolha em qual projeto do Asana a demanda vai entrar.", 400);
   const ref = db.collection("demandas").doc(demandaId);
   const snap = await ref.get();
   if (!snap.exists) throw new AsanaErro("Demanda não encontrada.", 404);
   const d = snap.data() || {};
-  if (d.asanaTaskId && d.asana?.url) {
+  const temAtual = !!(d.asanaTaskId && d.asana?.url);
+  if (temAtual && !novaOrdem) {
     return { already: true, taskId: d.asanaTaskId, url: d.asana.url, projetoGid: d.asana.projetoGid || "" };
   }
 
@@ -181,9 +186,17 @@ async function criarTarefa({ db, token, fetchImpl, demandaId, instrucoes, projet
   const agora = new Date().toISOString();
   const info = { taskId, url, projetoGid: projeto.gid, projetoNome, createdAt: agora, createdBy: email || "", instrucoes };
   const cmt = comentarioIntegracao(
-    `Demanda enviada à Operação no Asana (${projetoNome}).\nInstruções: ${instrucoes}\n${url}`,
+    `${temAtual ? "Nova ordem aberta" : "Demanda enviada à Operação"} no Asana (${projetoNome}).\nInstruções: ${instrucoes}\n${url}`,
   );
-  await acrescentarComentario(db, ref, cmt, { asanaTaskId: taskId, asana: info });
+  const anteriores = Array.isArray(d.asanaAnteriores) ? d.asanaAnteriores : [];
+  const extra = {
+    asanaTaskId: taskId,
+    asana: info,
+    // Todas as tarefas da demanda: o webhook acha a demanda por qualquer uma (comentário em ordem antiga).
+    asanaTaskIds: [...new Set([...(Array.isArray(d.asanaTaskIds) ? d.asanaTaskIds : []), d.asanaTaskId, taskId].filter(Boolean))],
+  };
+  if (temAtual) extra.asanaAnteriores = [...anteriores, { ...d.asana, substituidaEm: agora }].slice(-20);
+  await acrescentarComentario(db, ref, cmt, extra);
 
   try {
     await garantirWebhook({ db, token, fetchImpl, projetoGid: projeto.gid, endpoint });
@@ -292,7 +305,8 @@ async function processarEvento({ db, token, fetchImpl, evento }) {
     if (!story || story.__status || story.resource_subtype !== "comment_added") return "ignorado";
     if (ehComentarioDoSistema(story.text)) return "eco";
     const taskGid = String(story.target?.gid || evento.parent?.gid || "");
-    const q = await db.collection("demandas").where("asanaTaskId", "==", taskGid).limit(1).get();
+    let q = await db.collection("demandas").where("asanaTaskIds", "array-contains", taskGid).limit(1).get();
+    if (q.empty) q = await db.collection("demandas").where("asanaTaskId", "==", taskGid).limit(1).get();
     if (q.empty) return "sem-demanda";
     const doc = q.docs[0];
     const comentarioId = `asana_${storyGid}`;
