@@ -17,6 +17,15 @@ comentário decide se ele vai também para a tarefa (etiqueta *↗ Asana*) ou fi
 precisa de retrabalho). A atual fica em *Ordens anteriores* e continua recebendo comentários feitos nela no
 Asana; os novos comentários do sistema vão para a nova (campos `asanaAnteriores` e `asanaTaskIds`).
 
+**Avisos do Asana** (alerta *Asana* no sino + comentário no projeto; some com *Ciente*):
+- tarefa movida para uma coluna com "andamento" no nome → *Em andamento no Asana*;
+- coluna com "conclu" no nome ou tarefa marcada como concluída → *Concluída no Asana* (uma vez por tarefa);
+- tarefa excluída no Asana → *Excluída no Asana*: a ordem é encerrada aqui (vai para *Ordens anteriores*)
+  e o botão *Enviar à Operação* volta a aparecer.
+
+Os webhooks antigos (só comentários) são recriados sozinhos com os filtros novos quando alguém abre a
+janela *Enviar à Operação* ou envia uma demanda.
+
 Projetos do Asana (workspace `1211507547180510`), em `functions/asana.js` e `demandas-projetos/js/07-asana.js`:
 
 | gid | uso |

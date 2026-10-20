@@ -117,14 +117,25 @@ async function nomesDosProjetos({ token, fetchImpl }) {
  * Garante um webhook ativo no projeto, filtrado para comentários (stories). Idempotente:
  * reaproveita o que já existe para o mesmo endereço; recria se o Asana o desativou.
  */
+/** Sobe quando os filtros do webhook mudam: o webhook antigo é recriado com os novos. */
+const WEBHOOK_VERSAO = 2;
+const WEBHOOK_FILTROS = [
+  ...["added", "changed", "removed", "deleted"].map((action) => ({ resource_type: "story", action })),
+  { resource_type: "task", action: "added" }, // entrou numa seção (coluna) do quadro
+  { resource_type: "task", action: "changed", fields: ["completed"] },
+  { resource_type: "task", action: "deleted" },
+];
+
 async function garantirWebhook({ db, token, fetchImpl, projetoGid, endpoint }) {
   const asana = criarCliente(token, fetchImpl);
   const target = `${endpoint}?projeto=${projetoGid}`;
+  const salvo = (await db.doc(DOC_WEBHOOKS).get()).data()?.[projetoGid] || {};
+  const versaoOk = Number(salvo.versao) >= WEBHOOK_VERSAO;
   const lista = await asana(
     `/webhooks?workspace=${ASANA_WORKSPACE_GID}&resource=${projetoGid}&opt_fields=gid,target,active`,
   );
   const meus = (Array.isArray(lista) ? lista : []).filter((w) => w.target === target);
-  if (meus.some((w) => w.active)) return { criado: false };
+  if (versaoOk && meus.some((w) => w.active)) return { criado: false };
   for (const w of meus) await asana(`/webhooks/${w.gid}`, { method: "DELETE", okStatuses: [404] });
   // Abre uma janela curta para o "aperto de mão": fora dela, um X-Hook-Secret recebido é recusado.
   await db.doc(DOC_WEBHOOKS).set({ [projetoGid]: { handshakeAte: Date.now() + 2 * 60 * 1000 } }, { merge: true });
@@ -133,11 +144,11 @@ async function garantirWebhook({ db, token, fetchImpl, projetoGid, endpoint }) {
     data: {
       resource: projetoGid,
       target,
-      filters: ["added", "changed", "removed", "deleted"].map((action) => ({ resource_type: "story", action })),
+      filters: WEBHOOK_FILTROS,
     },
   });
   await db.doc(DOC_WEBHOOKS).set(
-    { [projetoGid]: { webhookGid: String(criado?.gid || ""), target, atualizadoEm: new Date().toISOString() } },
+    { [projetoGid]: { webhookGid: String(criado?.gid || ""), target, versao: WEBHOOK_VERSAO, atualizadoEm: new Date().toISOString() } },
     { merge: true },
   );
   return { criado: true };
@@ -288,7 +299,108 @@ function assinaturaValida(secret, rawBody, assinatura) {
 }
 
 /** Asana → sistema: aplica um evento de comentário (story) recebido pelo webhook. */
-async function processarEvento({ db, token, fetchImpl, evento }) {
+function normTxt(s) {
+  return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
+async function demandaDaTarefa(db, taskGid) {
+  let q = await db.collection("demandas").where("asanaTaskIds", "array-contains", taskGid).limit(1).get();
+  if (q.empty) q = await db.collection("demandas").where("asanaTaskId", "==", taskGid).limit(1).get();
+  return q.empty ? null : q.docs[0];
+}
+
+/** Registra um aviso do Asana na demanda (comentário + alerta no sistema), sem repetir o mesmo aviso. */
+async function registrarAviso(db, ref, { tipo, taskGid, texto, extra = {} }) {
+  const agora = new Date().toISOString();
+  await db.runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    if (!s.exists) return;
+    const d = s.data() || {};
+    const chave = `${tipo}:${taskGid}:${extra.__chave || ""}`;
+    if (d.asanaAviso?.chave === chave) return;
+    const { __chave, ...resto } = extra;
+    const cmt = comentarioIntegracao(texto);
+    const lista = Array.isArray(d.comentarios) ? d.comentarios : [];
+    tx.set(
+      ref,
+      {
+        ...resto,
+        asanaAviso: { tipo, texto, taskId: taskGid, em: agora, chave },
+        comentarios: [cmt, ...lista],
+        comentariosServidorAt: agora,
+      },
+      { merge: true },
+    );
+  });
+}
+
+/** Asana → sistema: tarefa mudou de coluna, foi concluída ou foi excluída. */
+async function processarEventoTarefa({ db, token, fetchImpl, evento, apagarCampo }) {
+  const taskGid = String(evento.resource?.gid || "");
+  if (!taskGid) return "ignorado";
+  const doc = await demandaDaTarefa(db, taskGid);
+  if (!doc) return "sem-demanda";
+  const d = doc.data() || {};
+  const asana = criarCliente(token, fetchImpl);
+  const atual = d.asanaTaskId === taskGid;
+  const rotulo = atual ? "a tarefa" : "uma ordem anterior";
+
+  if (evento.action === "deleted") {
+    if (!atual) return "ignorado"; // cancelada pelo próprio sistema ou ordem antiga
+    const agora = new Date().toISOString();
+    const anteriores = Array.isArray(d.asanaAnteriores) ? d.asanaAnteriores : [];
+    await registrarAviso(db, doc.ref, {
+      tipo: "excluida",
+      taskGid,
+      texto: "A tarefa foi excluída no Asana — a ordem foi encerrada aqui. Use \"Enviar à Operação\" para abrir outra, se precisar.",
+      extra: {
+        asana: apagarCampo(),
+        asanaTaskId: apagarCampo(),
+        asanaAnteriores: [...anteriores, { ...(d.asana || {}), excluidaNoAsanaEm: agora }].slice(-20),
+      },
+    });
+    return "excluida";
+  }
+
+  if (evento.action === "changed" && evento.change?.field === "completed") {
+    const t = await asana(`/tasks/${taskGid}?opt_fields=completed`, { okStatuses: [404] });
+    if (!t || t.__status || !t.completed) return "ignorado";
+    await registrarAviso(db, doc.ref, {
+      tipo: "concluida",
+      taskGid,
+      texto: `A Operação concluiu ${rotulo} no Asana.`,
+      extra: atual ? { asana: { ...(d.asana || {}), concluidaEm: new Date().toISOString() } } : {},
+    });
+    return "concluida";
+  }
+
+  if (evento.action === "added" && evento.parent?.resource_type === "section") {
+    const secao = await asana(`/sections/${evento.parent.gid}?opt_fields=name`, { okStatuses: [404] });
+    const nome = String(secao?.name || "").trim();
+    const n = normTxt(nome);
+    const tipo = n.includes("conclu") ? "concluida" : n.includes("andamento") ? "andamento" : "";
+    const extraSecao = atual ? { asana: { ...(d.asana || {}), secao: nome } } : {};
+    if (!tipo) {
+      if (atual) await doc.ref.set(extraSecao, { merge: true });
+      return "secao";
+    }
+    await registrarAviso(db, doc.ref, {
+      tipo,
+      taskGid,
+      texto:
+        tipo === "andamento"
+          ? `A Operação moveu ${rotulo} para «${nome}» no Asana.`
+          : `A Operação concluiu ${rotulo} no Asana («${nome}»).`,
+      // "andamento" avisa de novo se voltar para outra coluna de andamento; "concluida" uma vez por tarefa.
+      extra: { ...extraSecao, ...(tipo === "andamento" ? { __chave: evento.parent.gid } : {}) },
+    });
+    return tipo;
+  }
+  return "ignorado";
+}
+
+async function processarEvento({ db, token, fetchImpl, evento, apagarCampo = () => null }) {
+  if (evento?.resource?.resource_type === "task") return processarEventoTarefa({ db, token, fetchImpl, evento, apagarCampo });
   if (evento?.resource?.resource_type !== "story") return "ignorado";
   const storyGid = String(evento.resource.gid || "");
   if (!storyGid) return "ignorado";
@@ -305,10 +417,8 @@ async function processarEvento({ db, token, fetchImpl, evento }) {
     if (!story || story.__status || story.resource_subtype !== "comment_added") return "ignorado";
     if (ehComentarioDoSistema(story.text)) return "eco";
     const taskGid = String(story.target?.gid || evento.parent?.gid || "");
-    let q = await db.collection("demandas").where("asanaTaskIds", "array-contains", taskGid).limit(1).get();
-    if (q.empty) q = await db.collection("demandas").where("asanaTaskId", "==", taskGid).limit(1).get();
-    if (q.empty) return "sem-demanda";
-    const doc = q.docs[0];
+    const doc = await demandaDaTarefa(db, taskGid);
+    if (!doc) return "sem-demanda";
     const comentarioId = `asana_${storyGid}`;
     await acrescentarComentario(db, doc.ref, {
       id: comentarioId,

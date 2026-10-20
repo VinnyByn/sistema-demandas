@@ -40,7 +40,16 @@ function exigirLogin(request, acao) {
 exports.asanaProjetos = onCall({ region: REGION, secrets: [asanaToken], cors: true }, async (request) => {
   exigirLogin(request, "ver os projetos do Asana");
   try {
-    return { projetos: await asanaLib.nomesDosProjetos({ token: tokenAsana() }) };
+    const token = tokenAsana();
+    // Aproveita para atualizar os webhooks (ex.: novos avisos de coluna/conclusão/exclusão).
+    await Promise.all(
+      asanaLib.ASANA_PROJETOS.map((p) =>
+        asanaLib.garantirWebhook({ db: getFirestore(), token, projetoGid: p.gid, endpoint: ASANA_WEBHOOK_URL }).catch((e) =>
+          console.warn("Webhook Asana:", e.message || e),
+        ),
+      ),
+    );
+    return { projetos: await asanaLib.nomesDosProjetos({ token }) };
   } catch (e) {
     throw erroCallable(e, "Não foi possível ler os projetos do Asana.");
   }
@@ -139,7 +148,7 @@ exports.asanaWebhook = onRequest({ region: REGION, secrets: [asanaToken] }, asyn
   const token = asanaToken.value();
   for (const evento of eventos) {
     try {
-      await asanaLib.processarEvento({ db, token, evento });
+      await asanaLib.processarEvento({ db, token, evento, apagarCampo: () => FieldValue.delete() });
     } catch (e) {
       console.warn("Evento do Asana:", e.message || e);
     }

@@ -129,3 +129,19 @@ test("Asana: comentário marcado só para o sistema não vai; nova ordem guarda 
   expect(d.asanaAnteriores.map((a) => a.taskId)).toEqual(["T1"]);
   await expect(page.locator(".seg-leitura", { hasText: "Asana (Operação)" }).first()).toContainText("Ordens anteriores");
 });
+
+test("Asana: aviso de concluída aparece nos alertas e sai com Ciente", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    const d = state.demandas.find((x) => x.id === "p3");
+    d.asanaTaskId = "T7";
+    d.asana = { taskId: "T7", url: "https://app.asana.com/0/x/T7", projetoNome: "Operação Rede", concluidaEm: new Date().toISOString() };
+    d.asanaAviso = { tipo: "concluida", texto: "A Operação concluiu a tarefa no Asana.", taskId: "T7", em: new Date().toISOString(), chave: "c" };
+    renderBoard();
+  });
+  await page.click("#btnNotif");
+  const linha = page.locator("#esteiraInboxAlertas .alerta", { hasText: "Hospital Central" }).filter({ hasText: "Concluída no Asana" });
+  await expect(linha).toHaveCount(1);
+  await linha.locator("[data-asana-ciente]").click();
+  await expect(page.locator("#esteiraInboxAlertas")).not.toContainText("Concluída no Asana");
+  expect(await page.evaluate(() => !!state.demandas.find((x) => x.id === "p3").asanaAviso.cienteEm)).toBe(true);
+});

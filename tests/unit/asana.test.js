@@ -88,6 +88,8 @@ function asanaFalso() {
       }
     }
     if (opts.method === "DELETE" && caminho.startsWith("/tasks/")) return resp(200, {});
+    if (opts.method === "GET" && caminho.startsWith("/sections/")) return resp(200, { name: { SEC_AND: "Em andamento", SEC_FIM: "Concluído", SEC_X: "Backlog" }[caminho.split("/")[2]] });
+    if (opts.method === "GET" && /^\/tasks\/\w+$/.test(caminho)) return resp(200, { completed: true });
     return resp(404);
   };
   return { fetchImpl, chamadas, stories };
@@ -111,7 +113,8 @@ test("envio cria a tarefa no projeto escolhido, guarda o vínculo e liga o webho
   assert.equal(criar.auth, "Bearer tok");
   const hook = api.chamadas.find((c) => c.method === "POST" && c.caminho === "/webhooks");
   assert.equal(hook.corpo.target, `https://x/asanaWebhook?projeto=${PROJ}`);
-  assert.ok(hook.corpo.filters.every((f) => f.resource_type === "story"));
+  assert.ok(hook.corpo.filters.some((f) => f.resource_type === "story" && f.action === "added"));
+  assert.ok(hook.corpo.filters.some((f) => f.resource_type === "task" && f.action === "added"));
   await assert.rejects(
     asana.criarTarefa({ ...base(db, api), demandaId: "d1", instrucoes: "x", projetoGid: "999", endpoint: "e" }),
     /Escolha em qual projeto/,
@@ -218,4 +221,55 @@ test("nova ordem: a tarefa atual vira anterior e comentários na antiga ainda ch
   api.stories.set("S50", { gid: "S50", text: "obs na ordem antiga", resource_subtype: "comment_added", created_by: { name: "Op" }, target: { gid: "T1" } });
   const ev = { action: "added", resource: { gid: "S50", resource_type: "story" }, parent: { gid: "T1" } };
   assert.equal(await asana.processarEvento({ ...base(db, api), evento: ev }), "adicionado");
+});
+
+test("avisos do Asana: moveu para em andamento, concluiu e excluiu (fecha a ordem aqui)", async () => {
+  const db = firestoreFalso({
+    "demandas/d1": { asanaTaskId: "T1", asanaTaskIds: ["T1"], asana: { taskId: "T1", url: "u", projetoNome: "Op" }, comentarios: [] },
+  });
+  const api = asanaFalso();
+  const ev = (extra) => ({ resource: { gid: "T1", resource_type: "task" }, ...extra });
+  const args = { ...base(db, api), apagarCampo: () => APAGAR };
+  const d = () => db.docs.get("demandas/d1");
+
+  assert.equal(await asana.processarEvento({ ...args, evento: ev({ action: "added", parent: { gid: "SEC_X", resource_type: "section" } }) }), "secao");
+  assert.equal(d().asana.secao, "Backlog");
+  assert.equal(d().comentarios.length, 0, "coluna comum não avisa");
+
+  assert.equal(await asana.processarEvento({ ...args, evento: ev({ action: "added", parent: { gid: "SEC_AND", resource_type: "section" } }) }), "andamento");
+  assert.equal(d().asanaAviso.tipo, "andamento");
+  assert.match(d().comentarios[0].texto, /moveu a tarefa para «Em andamento»/);
+  await asana.processarEvento({ ...args, evento: ev({ action: "added", parent: { gid: "SEC_AND", resource_type: "section" } }) });
+  assert.equal(d().comentarios.length, 1, "entrega repetida não avisa de novo");
+
+  assert.equal(await asana.processarEvento({ ...args, evento: ev({ action: "added", parent: { gid: "SEC_FIM", resource_type: "section" } }) }), "concluida");
+  assert.equal(await asana.processarEvento({ ...args, evento: ev({ action: "changed", change: { field: "completed" } }) }), "concluida");
+  assert.equal(d().comentarios.length, 2, "coluna Concluído + marcar concluída avisam uma vez só");
+  assert.equal(d().asanaAviso.tipo, "concluida");
+
+  assert.equal(await asana.processarEvento({ ...args, evento: ev({ action: "deleted" }) }), "excluida");
+  assert.equal(d().asanaTaskId, undefined);
+  assert.equal(d().asana, undefined);
+  assert.equal(d().asanaAnteriores[0].taskId, "T1");
+  assert.equal(d().asanaAviso.tipo, "excluida");
+  assert.match(d().comentarios[0].texto, /excluída no Asana/);
+  // exclusão de tarefa que o próprio sistema já cancelou não gera aviso
+  assert.equal(await asana.processarEvento({ ...args, evento: ev({ action: "deleted" }) }), "ignorado");
+});
+
+test("webhook antigo (só comentários) é recriado com os filtros novos", async () => {
+  const db = firestoreFalso({ [asana.DOC_WEBHOOKS]: { [PROJ]: { webhookGid: "W0", versao: 1 } } });
+  const api = asanaFalso();
+  const f = api.fetchImpl;
+  api.fetchImpl = async (url, opts) =>
+    opts.method === "GET" && new URL(url).pathname.endsWith("/webhooks")
+      ? { ok: true, status: 200, text: async () => JSON.stringify({ data: [{ gid: "W0", target: `https://x/asanaWebhook?projeto=${PROJ}`, active: true }] }) }
+      : f(url, opts);
+  const r = await asana.garantirWebhook({ ...base(db, api), projetoGid: PROJ, endpoint: "https://x/asanaWebhook" });
+  assert.equal(r.criado, true);
+  assert.ok(api.chamadas.some((c) => c.method === "DELETE" && c.caminho === "/webhooks/W0"));
+  const novo = api.chamadas.find((c) => c.method === "POST" && c.caminho === "/webhooks");
+  assert.ok(novo.corpo.filters.some((x) => x.resource_type === "task" && x.action === "deleted"));
+  const deNovo = await asana.garantirWebhook({ ...base(db, api), projetoGid: PROJ, endpoint: "https://x/asanaWebhook" });
+  assert.equal(deNovo.criado, false, "já na versão nova: reaproveita");
 });
