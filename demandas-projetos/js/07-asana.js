@@ -456,6 +456,11 @@ function setAsanaUiOverride(id, asana) {
 /** Abre outra ordem (ex.: a anterior já foi fechada no Asana e precisa de retrabalho). */
 async function abrirNovaOrdemAsana(id) {
   if (!requireWriteAccess()) return;
+  const d = state.demandas.find((x) => x.id === id);
+  if (normalizeAsana(d?.asana) && !normalizeAsana(d.asana).concluidaEm) {
+    toast("A ordem atual ainda está aberta no Asana — a nova ordem libera quando ela for concluída.");
+    return;
+  }
   const ok = await confirmDialog({
     title: "Abrir nova ordem no Asana?",
     message:
@@ -527,8 +532,13 @@ function atualizarCampoAsana() {
       btnCancel.disabled = false;
     }
     if (btnNova && !readOnly) {
+      // Só uma ordem aberta por vez: libera quando a atual for concluída no Asana (excluída lá, ela já se encerra).
+      const liberada = !!as.concluidaEm;
       btnNova.hidden = false;
-      btnNova.disabled = false;
+      btnNova.disabled = !liberada;
+      btnNova.title = liberada
+        ? "A tarefa atual continua no Asana; os próximos comentários vão para a nova"
+        : "Disponível quando a ordem atual for concluída (ou excluída) no Asana";
     }
     if (btnAnexar && !readOnly) btnAnexar.hidden = false;
     return;

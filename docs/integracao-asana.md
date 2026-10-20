@@ -18,7 +18,7 @@ um comentário com o link.
 **Marcar o que vai para o Asana:** em projeto já enviado, a caixa *Enviar ao Asana* ao lado do campo de
 comentário decide se ele vai também para a tarefa (etiqueta *↗ Asana*) ou fica só no sistema (*só no sistema*).
 
-**Nova ordem:** com uma tarefa já criada, *+ Nova ordem* abre outra tarefa (ex.: a anterior foi fechada e
+**Nova ordem:** só depois que a tarefa atual for concluída no Asana (coluna "Concluído" ou marcada como concluída; se for reaberta, trava de novo — excluída lá, a ordem já se encerra), *+ Nova ordem* abre outra tarefa (ex.: a anterior foi fechada e
 precisa de retrabalho). A atual fica em *Ordens anteriores* e continua recebendo comentários feitos nela no
 Asana; os novos comentários do sistema vão para a nova (campos `asanaAnteriores` e `asanaTaskIds`).
 

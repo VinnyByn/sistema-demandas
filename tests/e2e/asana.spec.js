@@ -105,6 +105,13 @@ test("Asana: comentário marcado só para o sistema não vai; nova ordem guarda 
     d.asana = { taskId: "T1", url: "https://app.asana.com/0/x/T1", projetoGid: "1211582012771845", projetoNome: "Operação Rede" };
     openDemandaModal("p1");
   });
+  // Ordem ainda aberta no Asana: "+ Nova ordem" fica travado.
+  await expect(page.locator("[data-lv-asana-nova]")).toBeDisabled();
+  await page.evaluate(() => {
+    const d = state.demandas.find((x) => x.id === "p1");
+    d.asana = { ...d.asana, concluidaEm: new Date().toISOString() };
+    refreshAllViews();
+  });
   await expect(page.locator("#demComentarioAsanaBox")).toBeVisible();
   await page.uncheck("#demComentarioAsana");
   await page.fill("#demComentarioNovo", "Nota interna");
@@ -118,6 +125,7 @@ test("Asana: comentário marcado só para o sistema não vai; nova ordem guarda 
     .poll(() => page.evaluate(() => window.__chamadas.filter((c) => c.nome === "asanaComentario").map((c) => c.dados.texto)))
     .toEqual(["Para a Operação"]);
 
+  await expect(page.locator("[data-lv-asana-nova]")).toBeEnabled();
   await page.click("[data-lv-asana-nova]");
   await page.locator("#asanaEnvioProjetosLista input").first().check();
   await expect(page.locator("#asanaEnvioOk")).toHaveText("Abrir nova ordem");

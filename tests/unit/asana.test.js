@@ -13,7 +13,12 @@ function firestoreFalso(inicial = {}) {
     for (const [k, v] of Object.entries(data)) {
       if (v === APAGAR) delete atual[k];
       else if (merge && v && typeof v === "object" && !Array.isArray(v) && atual[k] && typeof atual[k] === "object") {
-        atual[k] = { ...atual[k], ...structuredClone(v) };
+        const junto = { ...atual[k] };
+        for (const [kk, vv] of Object.entries(v)) {
+          if (vv === APAGAR) delete junto[kk];
+          else junto[kk] = structuredClone(vv);
+        }
+        atual[k] = junto;
       } else atual[k] = structuredClone(v);
     }
     docs.set(path, atual);
@@ -217,6 +222,11 @@ test("nova ordem: a tarefa atual vira anterior e comentários na antiga ainda ch
     }
     return original(url, opts);
   };
+  await assert.rejects(
+    asana.criarTarefa({ ...base(db, api), demandaId: "d1", projetoGid: PROJ, endpoint: "e", instrucoes: "cedo", novaOrdem: true }),
+    /ainda não foi concluída/,
+  );
+  db.docs.get("demandas/d1").asana.concluidaEm = "2026-10-20T10:00:00.000Z";
   const r = await asana.criarTarefa({ ...base(db, api), demandaId: "d1", projetoGid: PROJ, endpoint: "e", instrucoes: "retrabalho", novaOrdem: true });
   assert.equal(r.taskId, "T2");
   const d = db.docs.get("demandas/d1");
@@ -327,4 +337,19 @@ test("anexo enviado pelo sistema vai para a tarefa atual no Asana e vira coment�
   assert.equal(db.docs.get("demandas/d1").comentarios.length, 1);
   const grande = Buffer.alloc(asana.ANEXO_MAX_BYTES + 1).toString("base64");
   await assert.rejects(asana.anexarArquivo({ ...base(db, api), demandaId: "d1", nome: "g.jpg", base64: grande }), /maior que 10 MB/);
+});
+
+test("ordem concluída pela coluna libera nova ordem; voltar a abrir no Asana trava de novo", async () => {
+  const db = firestoreFalso({ "demandas/d1": { asanaTaskId: "T1", asanaTaskIds: ["T1"], asana: { taskId: "T1", url: "u" }, comentarios: [] } });
+  const api = asanaFalso();
+  const args = { ...base(db, api), apagarCampo: () => APAGAR };
+  const ev = (extra) => ({ resource: { gid: "T1", resource_type: "task" }, ...extra });
+  const d = () => db.docs.get("demandas/d1");
+  await asana.processarEvento({ ...args, evento: ev({ action: "added", parent: { gid: "SEC_FIM", resource_type: "section" } }) });
+  assert.ok(d().asana.concluidaEm, "coluna Concluído marca a ordem como concluída");
+  await asana.processarEvento({ ...args, evento: ev({ action: "added", parent: { gid: "SEC_AND", resource_type: "section" } }) });
+  assert.equal(d().asana.concluidaEm, undefined, "voltou para Em andamento: reaberta");
+  await asana.processarEvento({ ...args, evento: ev({ action: "added", parent: { gid: "SEC_FIM", resource_type: "section" } }) });
+  assert.ok(d().asana.concluidaEm);
+  assert.equal(d().comentarios.filter((c) => /concluiu/.test(c.texto)).length, 2, "concluir de novo avisa de novo");
 });
