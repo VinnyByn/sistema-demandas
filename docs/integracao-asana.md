@@ -10,6 +10,11 @@ Substitui a integração com o ClickUp. Faz duas coisas:
    - feito no Asana → aparece no sistema com a etiqueta *via Asana* (edição e exclusão também) —
      webhook `asanaWebhook`, criado sozinho no primeiro envio de cada projeto do Asana.
 
+**Anexos:** na janela de envio (e na *+ Nova ordem*) há o campo *Anexos* — PDF, Word, Excel, imagem, KMZ…
+até 10 MB cada e 25 MB por envio. Depois do envio, *📎 Anexar ao Asana* manda mais arquivos. Os arquivos
+passam pela função `asanaAnexar` direto para a tarefa no Asana (não ficam no Firebase) e o projeto ganha
+um comentário com o link.
+
 **Marcar o que vai para o Asana:** em projeto já enviado, a caixa *Enviar ao Asana* ao lado do campo de
 comentário decide se ele vai também para a tarefa (etiqueta *↗ Asana*) ou fica só no sistema (*só no sistema*).
 

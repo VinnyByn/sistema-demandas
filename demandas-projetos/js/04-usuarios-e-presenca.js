@@ -682,6 +682,8 @@ function syncDemandaModalAlerts() {
 /** Ids de campos que não fazem parte do projeto (rascunhos de comentário, novas atividades, seletores de "adicionar"). */
 const DEM_CAMPOS_FORA_DO_SNAPSHOT = new Set([
   "demComentarioNovo",
+  "demComentarioAsana",
+  "asanaAnexarInput",
   "demChecklistEtapa",
   "demChecklistWho",
   "demChecklistDateInicio",

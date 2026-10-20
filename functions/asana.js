@@ -231,6 +231,57 @@ async function cancelarTarefa({ db, token, fetchImpl, demandaId, apagarCampo }) 
   return { deleted: !!taskId, comentario: cmt };
 }
 
+/** Limite por arquivo enviado pelo app (o pedido à função tem teto de ~32 MB, e base64 cresce ~33%). */
+const ANEXO_MAX_BYTES = 10 * 1024 * 1024;
+
+function nomeArquivoSeguro(nome) {
+  const limpo = String(nome || "")
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_")
+    .trim()
+    .slice(0, 180);
+  return limpo || "arquivo";
+}
+
+/**
+ * Anexa um arquivo na tarefa atual da demanda, direto no Asana (não fica guardado no Firebase),
+ * e registra no projeto um comentário com o link.
+ */
+async function anexarArquivo({ db, token, fetchImpl = fetch, demandaId, nome, tipo, base64, autor }) {
+  const ref = db.collection("demandas").doc(demandaId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new AsanaErro("Demanda não encontrada.", 404);
+  const taskId = String(snap.data()?.asanaTaskId || "").trim();
+  if (!taskId) throw new AsanaErro("Esta demanda ainda não tem tarefa no Asana.", 400);
+  const bytes = Buffer.from(String(base64 || ""), "base64");
+  if (!bytes.length) throw new AsanaErro("Arquivo vazio.", 400);
+  if (bytes.length > ANEXO_MAX_BYTES) throw new AsanaErro("Arquivo maior que 10 MB — anexe direto no Asana.", 400);
+  const arquivo = nomeArquivoSeguro(nome);
+  const form = new FormData();
+  form.append("parent", taskId);
+  form.append("file", new Blob([bytes], { type: String(tipo || "application/octet-stream") }), arquivo);
+  const res = await fetchImpl(`${ASANA_API}/attachments?opt_fields=gid,name,permalink_url`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    body: form,
+  });
+  const txt = await res.text();
+  let json = {};
+  try {
+    json = txt ? JSON.parse(txt) : {};
+  } catch {}
+  if (!res.ok) throw new AsanaErro(`Asana: ${json?.errors?.[0]?.message || txt || `HTTP ${res.status}`}`, res.status);
+  const anexo = json.data || {};
+  const ehImagem = /\.(png|jpe?g|gif|webp|heic|bmp)$/i.test(arquivo);
+  const cmt = comentarioIntegracao(
+    `${ehImagem ? "🖼️" : "📎"} Anexou ${ehImagem ? "a imagem" : "o arquivo"} «${anexo.name || arquivo}» no Asana${
+      anexo.permalink_url ? `\n${anexo.permalink_url}` : ""
+    }`,
+    { autor: String(autor || "").trim() || "Asana · Operação" },
+  );
+  await acrescentarComentario(db, ref, cmt);
+  return { gid: String(anexo.gid || ""), nome: anexo.name || arquivo, url: anexo.permalink_url || "", comentario: cmt };
+}
+
 /** Sistema → Asana: publica, edita ou apaga no Asana o comentário digitado no sistema. */
 async function sincronizarComentario({ db, token, fetchImpl, demandaId, acao, comentarioId, texto, autor }) {
   const snap = await db.collection("demandas").doc(demandaId).get();
@@ -533,6 +584,8 @@ module.exports = {
   criarTarefa,
   cancelarTarefa,
   sincronizarComentario,
+  anexarArquivo,
+  ANEXO_MAX_BYTES,
   assinaturaValida,
   registrarHandshake,
   processarEvento,

@@ -94,6 +94,26 @@ exports.cancelAsanaOperacao = onCall({ region: REGION, secrets: [asanaToken], co
   }
 });
 
+/** Anexa um arquivo (PDF, Word, imagem…) na tarefa do Asana; um arquivo por chamada. */
+exports.asanaAnexar = onCall({ region: REGION, secrets: [asanaToken], cors: true, timeoutSeconds: 120, memory: "512MiB" }, async (request) => {
+  exigirLogin(request, "anexar no Asana");
+  const demandaId = String(request.data?.demandaId || "").trim();
+  if (!demandaId) throw new HttpsError("invalid-argument", "Informe a demanda.");
+  try {
+    return await asanaLib.anexarArquivo({
+      db: getFirestore(),
+      token: tokenAsana(),
+      demandaId,
+      nome: request.data?.nome,
+      tipo: request.data?.tipo,
+      base64: request.data?.base64,
+      autor: String(request.data?.autor || request.auth.token.name || request.auth.token.email || "").slice(0, 120),
+    });
+  } catch (e) {
+    throw erroCallable(e, "Não foi possível anexar no Asana.");
+  }
+});
+
 /** Sistema → Asana: comentário digitado (ou editado/apagado) no projeto vira comentário na tarefa. */
 exports.asanaComentario = onCall({ region: REGION, secrets: [asanaToken], cors: true }, async (request) => {
   exigirLogin(request, "comentar no Asana");
