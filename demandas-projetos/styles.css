@@ -2921,21 +2921,21 @@ html[data-theme="light"] .checklist-gantt__track {
   .checklist-add { grid-template-columns: minmax(0, 1fr); }
   .checklist-progress { flex-wrap: wrap; }
 }
-.field--clickup {
+.field--asana {
   grid-column: 1 / -1;
 }
-.field--clickup .clickup-ref {
+.field--asana .asana-ref {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.45rem 0.65rem;
   min-height: 2.35rem;
 }
-.clickup-ref__hint {
+.asana-ref__hint {
   margin: 0;
   flex: 1 1 100%;
 }
-.clickup-ref__link {
+.asana-ref__link {
   text-decoration: none;
 }
 .badge {
@@ -3937,23 +3937,37 @@ html[data-theme="light"] .modal::backdrop {
   border-top: 1px solid var(--border);
 }
 .confirm-dialog__foot .btn { min-width: 7rem; }
-.clickup-instrucoes-dialog { max-width: min(520px, 94vw); }
-.clickup-instrucoes-dialog::backdrop {
+.asana-envio-dialog { max-width: min(520px, 94vw); }
+.asana-envio-dialog::backdrop {
   background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(3px);
 }
-.clickup-instrucoes-dialog__inner {
+.asana-envio-dialog__inner {
   max-height: none;
 }
-.clickup-instrucoes-dialog .modal__body {
+.asana-envio-dialog .modal__body {
   padding: 0.85rem 1.15rem 0.35rem;
 }
-.clickup-instrucoes-dialog textarea {
+.asana-envio-dialog textarea {
   width: 100%;
   resize: vertical;
   min-height: 8.5rem;
   font: inherit;
 }
+.asana-envio__projetos { margin: 0.5rem 0 0.8rem; padding: 0; border: 0; min-width: 0; }
+.asana-envio__projetos legend { padding: 0; margin-bottom: 0.35rem; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.asana-envio__lista { display: grid; gap: 0.4rem; }
+.asana-projeto {
+  display: flex; align-items: center; gap: 0.55rem; padding: 0.55rem 0.7rem; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface); cursor: pointer; font-size: 0.88rem;
+}
+.asana-projeto:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25); }
+.asana-projeto input { accent-color: var(--accent); margin: 0; }
+.comment-origem {
+  margin-left: 0.35rem; padding: 0.05rem 0.4rem; border-radius: 999px; font-size: 0.66rem; font-weight: 700;
+  background: rgba(240, 106, 106, 0.16); color: #f8a5a5; vertical-align: 0.08rem;
+}
+html[data-theme="light"] .comment-origem { background: #fde8e8; color: #9b1c1c; }
 .modal__inner { display: flex; flex-direction: column; max-height: min(92vh, 900px); min-height: 0; overflow: hidden; }
 .modal__head {
   display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem;

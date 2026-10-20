@@ -1,0 +1,369 @@
+/**
+ * Integração com o Asana: envio da demanda à Operação (tarefa em um dos projetos do Asana)
+ * e comentários nos dois sentidos (sistema → Asana pelo callable; Asana → sistema pelo webhook).
+ *
+ * As funções recebem as dependências (db, token, fetch, apagarCampo) para poderem ser testadas
+ * com um Asana e um Firestore simulados.
+ */
+const crypto = require("node:crypto");
+
+const ASANA_API = "https://app.asana.com/api/1.0";
+const ASANA_WORKSPACE_GID = "1211507547180510";
+/** Projetos ("pastas") do Asana em que a demanda pode entrar; o nome real vem da API. */
+const ASANA_PROJETOS = [
+  { gid: "1211582012771845", nome: "Projeto do Asana 1" },
+  { gid: "1219543786224599", nome: "Projeto do Asana 2" },
+];
+const APP_URL = "https://demproj-fdeac.web.app";
+
+/** Coleções só do servidor (as regras do Firestore negam acesso do app a elas). */
+const COL_STORIES = "asanaStories"; // {storyGid} → { demandaId, comentarioId, origem }
+const COL_ENVIOS = "asanaComentarios"; // {demandaId}__{comentarioId} → { storyGid, estado }
+const DOC_WEBHOOKS = "asanaIntegracao/webhooks"; // { [projetoGid]: { secret, webhookGid } }
+
+/** Comentários que o sistema escreve no Asana começam assim — evita trazê-los de volta (loop). */
+const SUFIXO_AUTOR = " (pelo sistema):";
+
+class AsanaErro extends Error {
+  constructor(msg, status) {
+    super(msg);
+    this.status = status;
+  }
+}
+
+function criarCliente(token, fetchImpl = fetch) {
+  return async function asana(caminho, { method = "GET", data, okStatuses = [] } = {}) {
+    const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+    if (data) headers["Content-Type"] = "application/json";
+    const res = await fetchImpl(`${ASANA_API}${caminho}`, {
+      method,
+      headers,
+      body: data ? JSON.stringify({ data }) : undefined,
+    });
+    const txt = await res.text();
+    let json = {};
+    try {
+      json = txt ? JSON.parse(txt) : {};
+    } catch {
+      json = { raw: txt };
+    }
+    if (!res.ok) {
+      if (okStatuses.includes(res.status)) return { __status: res.status };
+      const msg = json?.errors?.[0]?.message || txt || `HTTP ${res.status}`;
+      throw new AsanaErro(`Asana: ${msg}`, res.status);
+    }
+    return json.data ?? json;
+  };
+}
+
+function projetoValido(gid) {
+  return ASANA_PROJETOS.find((p) => p.gid === String(gid || "").trim()) || null;
+}
+
+function textoComentarioSistema(autor, texto) {
+  return `${String(autor || "Equipe").trim() || "Equipe"}${SUFIXO_AUTOR}\n${String(texto || "").trim()}`;
+}
+
+function ehComentarioDoSistema(texto) {
+  const primeira = String(texto || "").split("\n", 1)[0];
+  return primeira.endsWith(SUFIXO_AUTOR);
+}
+
+function chaveEnvio(demandaId, comentarioId) {
+  return `${demandaId}__${comentarioId}`.replace(/\//g, "_");
+}
+
+function comentarioIntegracao(texto, extra = {}) {
+  return {
+    id: `asana_sis_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    texto,
+    autor: "Asana · Operação",
+    createdAt: new Date().toISOString(),
+    origem: "integracao",
+    ...extra,
+  };
+}
+
+/** Acrescenta um comentário sem regravar a demanda inteira (não dispara aviso de conflito no app). */
+async function acrescentarComentario(db, demandaRef, cmt, extra = {}) {
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(demandaRef);
+    if (!snap.exists) return;
+    const lista = Array.isArray(snap.data()?.comentarios) ? snap.data().comentarios : [];
+    if (lista.some((c) => c && c.id === cmt.id)) return;
+    tx.set(
+      demandaRef,
+      { ...extra, comentarios: [cmt, ...lista], comentariosServidorAt: new Date().toISOString() },
+      { merge: true },
+    );
+  });
+}
+
+async function nomesDosProjetos({ token, fetchImpl }) {
+  const asana = criarCliente(token, fetchImpl);
+  return Promise.all(
+    ASANA_PROJETOS.map(async (p) => {
+      try {
+        const proj = await asana(`/projects/${p.gid}?opt_fields=name`);
+        return { gid: p.gid, nome: String(proj?.name || "").trim() || p.nome };
+      } catch {
+        return { ...p };
+      }
+    }),
+  );
+}
+
+/**
+ * Garante um webhook ativo no projeto, filtrado para comentários (stories). Idempotente:
+ * reaproveita o que já existe para o mesmo endereço; recria se o Asana o desativou.
+ */
+async function garantirWebhook({ db, token, fetchImpl, projetoGid, endpoint }) {
+  const asana = criarCliente(token, fetchImpl);
+  const target = `${endpoint}?projeto=${projetoGid}`;
+  const lista = await asana(
+    `/webhooks?workspace=${ASANA_WORKSPACE_GID}&resource=${projetoGid}&opt_fields=gid,target,active`,
+  );
+  const meus = (Array.isArray(lista) ? lista : []).filter((w) => w.target === target);
+  if (meus.some((w) => w.active)) return { criado: false };
+  for (const w of meus) await asana(`/webhooks/${w.gid}`, { method: "DELETE", okStatuses: [404] });
+  // Abre uma janela curta para o "aperto de mão": fora dela, um X-Hook-Secret recebido é recusado.
+  await db.doc(DOC_WEBHOOKS).set({ [projetoGid]: { handshakeAte: Date.now() + 2 * 60 * 1000 } }, { merge: true });
+  const criado = await asana("/webhooks", {
+    method: "POST",
+    data: {
+      resource: projetoGid,
+      target,
+      filters: ["added", "changed", "removed", "deleted"].map((action) => ({ resource_type: "story", action })),
+    },
+  });
+  await db.doc(DOC_WEBHOOKS).set(
+    { [projetoGid]: { webhookGid: String(criado?.gid || ""), target, atualizadoEm: new Date().toISOString() } },
+    { merge: true },
+  );
+  return { criado: true };
+}
+
+async function criarTarefa({ db, token, fetchImpl, demandaId, instrucoes, projetoGid, email, endpoint }) {
+  const projeto = projetoValido(projetoGid);
+  if (!projeto) throw new AsanaErro("Escolha em qual projeto do Asana a demanda vai entrar.", 400);
+  const ref = db.collection("demandas").doc(demandaId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new AsanaErro("Demanda não encontrada.", 404);
+  const d = snap.data() || {};
+  if (d.asanaTaskId && d.asana?.url) {
+    return { already: true, taskId: d.asanaTaskId, url: d.asana.url, projetoGid: d.asana.projetoGid || "" };
+  }
+
+  const asana = criarCliente(token, fetchImpl);
+  const nomes = await nomesDosProjetos({ token, fetchImpl });
+  const projetoNome = nomes.find((p) => p.gid === projeto.gid)?.nome || projeto.nome;
+  const notes = [
+    "Instruções para a Operação:",
+    instrucoes,
+    "",
+    "———",
+    "Origem: Sistema Projetos Master",
+    `ID da demanda: ${demandaId}`,
+    `Tipo: ${d.tipo || "—"}`,
+    `Cidade: ${d.cidade || "—"}`,
+    `Projetista: ${d.responsavel || "Não atribuído"}`,
+    `Solicitante: ${d.solicitante || "—"}`,
+    `Abrir no sistema: ${APP_URL}/`,
+    "",
+    String(d.descricao || "").trim() || "Sem descrição.",
+  ].join("\n");
+  const tarefa = await asana("/tasks?opt_fields=gid,permalink_url", {
+    method: "POST",
+    data: { name: String(d.titulo || "Demanda").trim(), notes, projects: [projeto.gid] },
+  });
+  const taskId = String(tarefa?.gid || "");
+  const url = String(tarefa?.permalink_url || `https://app.asana.com/0/${projeto.gid}/${taskId}`);
+  const agora = new Date().toISOString();
+  const info = { taskId, url, projetoGid: projeto.gid, projetoNome, createdAt: agora, createdBy: email || "", instrucoes };
+  const cmt = comentarioIntegracao(
+    `Demanda enviada à Operação no Asana (${projetoNome}).\nInstruções: ${instrucoes}\n${url}`,
+  );
+  await acrescentarComentario(db, ref, cmt, { asanaTaskId: taskId, asana: info });
+
+  try {
+    await garantirWebhook({ db, token, fetchImpl, projetoGid: projeto.gid, endpoint });
+  } catch (e) {
+    console.warn("Webhook Asana:", e.message || e);
+  }
+  return { already: false, ...info, comentario: cmt };
+}
+
+async function cancelarTarefa({ db, token, fetchImpl, demandaId, apagarCampo }) {
+  const ref = db.collection("demandas").doc(demandaId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new AsanaErro("Demanda não encontrada.", 404);
+  const d = snap.data() || {};
+  const taskId = String(d.asanaTaskId || d.asana?.taskId || "").trim();
+  if (taskId) {
+    await criarCliente(token, fetchImpl)(`/tasks/${taskId}`, { method: "DELETE", okStatuses: [404] });
+  }
+  const cmt = comentarioIntegracao("Envio à Operação cancelado. A tarefa foi excluída no Asana.");
+  await acrescentarComentario(db, ref, cmt, { asana: apagarCampo(), asanaTaskId: apagarCampo() });
+  return { deleted: !!taskId, comentario: cmt };
+}
+
+/** Sistema → Asana: publica, edita ou apaga no Asana o comentário digitado no sistema. */
+async function sincronizarComentario({ db, token, fetchImpl, demandaId, acao, comentarioId, texto, autor }) {
+  const snap = await db.collection("demandas").doc(demandaId).get();
+  if (!snap.exists) throw new AsanaErro("Demanda não encontrada.", 404);
+  const taskId = String(snap.data()?.asanaTaskId || "").trim();
+  if (!taskId) return { ignorado: "sem-tarefa" };
+  const asana = criarCliente(token, fetchImpl);
+  const envioRef = db.collection(COL_ENVIOS).doc(chaveEnvio(demandaId, comentarioId));
+
+  if (acao === "criar") {
+    try {
+      await envioRef.create({ demandaId, comentarioId, estado: "enviando", criadoEm: new Date().toISOString() });
+    } catch {
+      return { ignorado: "ja-enviado" }; // outra chamada já está enviando/enviou este comentário
+    }
+    let story;
+    try {
+      story = await asana(`/tasks/${taskId}/stories?opt_fields=gid`, {
+        method: "POST",
+        data: { text: textoComentarioSistema(autor, texto) },
+      });
+    } catch (e) {
+      await envioRef.delete();
+      throw e;
+    }
+    const storyGid = String(story?.gid || "");
+    await Promise.all([
+      envioRef.set({ storyGid, estado: "ok" }, { merge: true }),
+      db.collection(COL_STORIES).doc(storyGid).set({ demandaId, comentarioId, origem: "sistema" }),
+    ]);
+    return { storyGid };
+  }
+
+  const envio = (await envioRef.get()).data();
+  if (!envio?.storyGid) return { ignorado: "nao-enviado" };
+  if (acao === "editar") {
+    await asana(`/stories/${envio.storyGid}`, { method: "PUT", data: { text: textoComentarioSistema(autor, texto) } });
+    return { storyGid: envio.storyGid };
+  }
+  if (acao === "apagar") {
+    await asana(`/stories/${envio.storyGid}`, { method: "DELETE", okStatuses: [404] });
+    await Promise.all([envioRef.delete(), db.collection(COL_STORIES).doc(envio.storyGid).delete()]);
+    return { storyGid: envio.storyGid };
+  }
+  throw new AsanaErro("Ação inválida.", 400);
+}
+
+/**
+ * "Aperto de mão" do Asana ao criar o webhook: guarda o segredo só se o próprio sistema acabou de
+ * pedir o webhook (senão qualquer um poderia trocar o segredo e forjar comentários).
+ */
+async function registrarHandshake({ db, projetoGid, segredo }) {
+  const ref = db.doc(DOC_WEBHOOKS);
+  const atual = (await ref.get()).data()?.[projetoGid] || {};
+  if (!segredo || !(Number(atual.handshakeAte) > Date.now())) return false;
+  await ref.set({ [projetoGid]: { secret: segredo, handshakeAte: 0, handshakeEm: new Date().toISOString() } }, { merge: true });
+  return true;
+}
+
+function assinaturaValida(secret, rawBody, assinatura) {
+  if (!secret || !assinatura || !rawBody) return false;
+  const esperado = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+  const a = Buffer.from(esperado);
+  const b = Buffer.from(String(assinatura));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/** Asana → sistema: aplica um evento de comentário (story) recebido pelo webhook. */
+async function processarEvento({ db, token, fetchImpl, evento }) {
+  if (evento?.resource?.resource_type !== "story") return "ignorado";
+  const storyGid = String(evento.resource.gid || "");
+  if (!storyGid) return "ignorado";
+  const mapaRef = db.collection(COL_STORIES).doc(storyGid);
+  const mapa = (await mapaRef.get()).data();
+  const asana = criarCliente(token, fetchImpl);
+
+  if (evento.action === "added") {
+    if (mapa) return "ja-conhecido"; // veio do próprio sistema ou já foi aplicado
+    const story = await asana(
+      `/stories/${storyGid}?opt_fields=text,resource_subtype,created_at,created_by.name,target.gid`,
+      { okStatuses: [404] },
+    );
+    if (!story || story.__status || story.resource_subtype !== "comment_added") return "ignorado";
+    if (ehComentarioDoSistema(story.text)) return "eco";
+    const taskGid = String(story.target?.gid || evento.parent?.gid || "");
+    const q = await db.collection("demandas").where("asanaTaskId", "==", taskGid).limit(1).get();
+    if (q.empty) return "sem-demanda";
+    const doc = q.docs[0];
+    const comentarioId = `asana_${storyGid}`;
+    await acrescentarComentario(db, doc.ref, {
+      id: comentarioId,
+      texto: String(story.text || "").trim() || "(comentário vazio)",
+      autor: String(story.created_by?.name || "").trim() || "Asana",
+      createdAt: story.created_at || new Date().toISOString(),
+      origem: "asana",
+      asanaStoryGid: storyGid,
+    });
+    await mapaRef.set({ demandaId: doc.id, comentarioId, origem: "asana" });
+    return "adicionado";
+  }
+
+  if (!mapa) return "desconhecido";
+  if (mapa.origem !== "asana") {
+    // Comentário que o sistema mandou e foi apagado lá: só esquece o vínculo.
+    if (evento.action === "deleted" || evento.action === "removed") {
+      await Promise.all([mapaRef.delete(), db.collection(COL_ENVIOS).doc(chaveEnvio(mapa.demandaId, mapa.comentarioId)).delete()]);
+    }
+    return "do-sistema";
+  }
+  const demandaRef = db.collection("demandas").doc(mapa.demandaId);
+
+  if (evento.action === "changed") {
+    const story = await asana(`/stories/${storyGid}?opt_fields=text`, { okStatuses: [404] });
+    if (!story || story.__status) return "ignorado";
+    const texto = String(story.text || "").trim();
+    await db.runTransaction(async (tx) => {
+      const s = await tx.get(demandaRef);
+      if (!s.exists) return;
+      const lista = Array.isArray(s.data()?.comentarios) ? s.data().comentarios : [];
+      const nova = lista.map((c) =>
+        c && c.id === mapa.comentarioId && c.texto !== texto ? { ...c, texto, editadoEm: new Date().toISOString() } : c,
+      );
+      tx.set(demandaRef, { comentarios: nova, comentariosServidorAt: new Date().toISOString() }, { merge: true });
+    });
+    return "editado";
+  }
+
+  if (evento.action === "deleted" || evento.action === "removed") {
+    await db.runTransaction(async (tx) => {
+      const s = await tx.get(demandaRef);
+      if (!s.exists) return;
+      const lista = Array.isArray(s.data()?.comentarios) ? s.data().comentarios : [];
+      tx.set(
+        demandaRef,
+        { comentarios: lista.filter((c) => !(c && c.id === mapa.comentarioId)), comentariosServidorAt: new Date().toISOString() },
+        { merge: true },
+      );
+    });
+    await mapaRef.delete();
+    return "apagado";
+  }
+  return "ignorado";
+}
+
+module.exports = {
+  ASANA_PROJETOS,
+  DOC_WEBHOOKS,
+  AsanaErro,
+  projetoValido,
+  nomesDosProjetos,
+  garantirWebhook,
+  criarTarefa,
+  cancelarTarefa,
+  sincronizarComentario,
+  assinaturaValida,
+  registrarHandshake,
+  processarEvento,
+  textoComentarioSistema,
+  ehComentarioDoSistema,
+};

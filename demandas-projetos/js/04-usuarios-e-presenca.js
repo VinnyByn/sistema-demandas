@@ -552,21 +552,21 @@ function setDemandaEditingBy(id, editingBy) {
 
 let editingDemandaOpenId = null;
 let editingDemandaBaselineUpdatedAt = "";
-let ownClickupSyncId = "";
+let ownAsanaSyncId = "";
 let ownWriteGraceUntil = 0;
-let clickupUiOverride = null;
+let asanaUiOverride = null;
 const ownUpdatedAtWrites = new Set();
 
 function beginOwnDemandaWrite(id) {
   if (!id) return;
-  ownClickupSyncId = id;
+  ownAsanaSyncId = id;
   ownWriteGraceUntil = Date.now() + 20000;
   const conflict = document.getElementById("demConflictBanner");
   if (conflict && editingDemandaOpenId === id) conflict.hidden = true;
 }
 
 function isInOwnWriteGrace(id) {
-  return !!(id && ownClickupSyncId === id && Date.now() < ownWriteGraceUntil);
+  return !!(id && ownAsanaSyncId === id && Date.now() < ownWriteGraceUntil);
 }
 
 function noteOwnDemandaWrite(id, updatedAt) {
@@ -615,11 +615,9 @@ function hideDemandaModalAlerts() {
   const conflict = document.getElementById("demConflictBanner");
   const presence = document.getElementById("demPresenceBanner");
   const selfBanner = document.getElementById("demSelfEditingBanner");
-  const clickupRetorno = document.getElementById("demClickupRetornoBanner");
   if (conflict) conflict.hidden = true;
   if (presence) presence.hidden = true;
   if (selfBanner) selfBanner.hidden = true;
-  if (clickupRetorno) clickupRetorno.hidden = true;
 }
 
 function absorbOwnDemandaRemoteUpdate(dem) {
@@ -676,17 +674,6 @@ function syncDemandaModalAlerts() {
       presenceText.textContent = `${other.autor} está editando este projeto agora.`;
     } else {
       presence.hidden = true;
-    }
-  }
-
-  const clickupRetorno = document.getElementById("demClickupRetornoBanner");
-  const btnCiente = document.getElementById("btnDemClickupCiente");
-  if (clickupRetorno) {
-    const pendente = clickupRetornoPendente(dem);
-    clickupRetorno.hidden = !pendente;
-    if (btnCiente) {
-      btnCiente.hidden = !pendente || isReadOnlyUser();
-      btnCiente.disabled = !pendente || isReadOnlyUser();
     }
   }
 }
@@ -772,8 +759,8 @@ function closeDemandaModal() {
   if (id) releaseDemandaEditing(id);
   editingDemandaOpenId = null;
   editingDemandaBaselineUpdatedAt = "";
-  clickupUiOverride = null;
-  ownClickupSyncId = "";
+  asanaUiOverride = null;
+  ownAsanaSyncId = "";
   ownWriteGraceUntil = 0;
   editingCustoBaseline = null;
   pdfCustoAppliedInSession = false;
@@ -813,6 +800,9 @@ function normalizeComentario(c) {
     ? [...new Set(c.mencoes.map((e) => String(e || "").trim().toLowerCase()).filter(Boolean))]
     : [];
   if (mencoes.length) out.mencoes = mencoes;
+  // Gravados pelo servidor: "asana" (comentário feito no Asana) ou "integracao" (avisos de envio).
+  if (c?.origem === "asana" || c?.origem === "integracao") out.origem = c.origem;
+  if (c?.asanaStoryGid) out.asanaStoryGid = String(c.asanaStoryGid);
   return out;
 }
 
@@ -859,7 +849,7 @@ const HISTORICO_EDICAO_CAMPOS = [
   { campo: "descricao", label: "Descrição", format: shortText },
   { campo: "chamadoOcomon", label: "Chamado Ocomon", format: (v) => v || "—" },
   { campo: "osAniel", label: "Nº O.S. Aniel", format: (v) => v || "—" },
-  { campo: "clickup", label: "ClickUp", format: (v) => (v && v.url) || "—" },
+  { campo: "asana", label: "Asana", format: (v) => (v && v.url) || "—" },
   {
     campo: "checklist",
     label: "Checklist das tarefas do projeto",
@@ -923,7 +913,6 @@ function normalizeHistoricoEdicoes(list) {
 const HISTORICO_ALERTAS_LIMITE = 80;
 const ALERTA_KIND_SEM_ATRIB = "sem_atribuicao";
 const ALERTA_KIND_COLUNA = "coluna";
-const ALERTA_KIND_CLICKUP_RETORNO = "clickup_retorno";
 const ALERTA_KIND_MENCAO = "mencao";
 const ALERTA_DIAS_MESMA_COLUNA = 6;
 const ALERTA_SNOOZE_DIAS_PADRAO = 4;
@@ -943,50 +932,6 @@ function normalizeAlertaSnooze(s) {
     autor: String(s.autor || "").trim() || "Equipe",
     email: String(s.email || "").trim().toLowerCase(),
     texto: String(s.texto || "").trim(),
-  };
-}
-
-function clickupRetornoPendente(d) {
-  const cu = normalizeClickup(d?.clickup);
-  return !!(cu?.completedAt && !cu.retornoCienteAt);
-}
-
-function marcarClickupRetornoCiente(id) {
-  if (!requireWriteAccess()) return;
-  const idx = state.demandas.findIndex((x) => x.id === id);
-  if (idx < 0) return;
-  const prev = normalizeClickup(state.demandas[idx].clickup);
-  if (!prev?.completedAt || prev.retornoCienteAt) return;
-  const now = new Date().toISOString();
-  beginOwnDemandaWrite(id);
-  const clickup = { ...prev, retornoCienteAt: now };
-  const dem = migrateDemanda({ ...state.demandas[idx], clickup, updatedAt: now });
-  state.demandas[idx] = dem;
-  noteOwnDemandaWrite(id, now);
-  if (clickupUiOverride?.id === id) clickupUiOverride = { id, clickup };
-  saveState({ demanda: dem });
-  renderBoard();
-  if (editingDemandaOpenId === id) {
-    syncDemClickupUi();
-    syncDemandaModalAlerts();
-  }
-}
-
-function normalizeClickup(c) {
-  if (!c || typeof c !== "object") return null;
-  const taskId = String(c.taskId || c.clickupTaskId || "").trim();
-  const url = String(c.url || "").trim();
-  if (!taskId && !url) return null;
-  return {
-    taskId,
-    url,
-    status: String(c.status || "").trim(),
-    listId: String(c.listId || "").trim(),
-    createdAt: c.createdAt || "",
-    createdBy: String(c.createdBy || "").trim(),
-    completedAt: c.completedAt || "",
-    retornoCienteAt: c.retornoCienteAt || "",
-    instrucoes: String(c.instrucoes || "").trim(),
   };
 }
 

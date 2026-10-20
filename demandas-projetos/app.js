@@ -188,9 +188,9 @@ initLoteEsteira();
 initFiltrosSalvos();
 initMetasEtapa();
 
-// ===== Integração com o ClickUp (envio à Operação) (js/07-clickup.js) =====
+// ===== Integração com o Asana (envio à Operação e comentários) (js/07-asana.js) =====
 
-initClickupInstrucoesDialog();
+initAsanaEnvioDialog();
 
 // ===== Modal do projeto: campos, selects e sincronização do formulário (js/08-modal-projeto.js) =====
 
@@ -267,22 +267,22 @@ document.getElementById("btnNovaDemanda")?.addEventListener("click", () => {
   openDemandaModal(null);
 });
 
-document.getElementById("btnEnviarClickup")?.addEventListener("click", async () => {
+document.getElementById("btnEnviarAsana")?.addEventListener("click", async () => {
   const id = (document.getElementById("demId")?.value || "").trim();
-  const btn = document.getElementById("btnEnviarClickup");
+  const btn = document.getElementById("btnEnviarAsana");
   if (!id) {
-    toast("Salve a demanda antes de enviar ao ClickUp.");
+    toast("Salve a demanda antes de enviar ao Asana.");
     return;
   }
   const titulo = (document.getElementById("demTitulo")?.value || "").trim();
-  const instrucoes = await promptClickupInstrucoes(titulo);
-  if (!instrucoes) return;
-  await enviarDemandaClickup(id, btn, instrucoes);
+  const envio = await promptAsanaEnvio(titulo);
+  if (!envio) return;
+  await enviarDemandaAsana(id, btn, envio);
 });
-document.getElementById("btnCancelarClickup")?.addEventListener("click", async () => {
+document.getElementById("btnCancelarAsana")?.addEventListener("click", async () => {
   const id = (document.getElementById("demId")?.value || "").trim();
   if (!id) return;
-  await cancelarDemandaClickup(id);
+  await cancelarDemandaAsana(id);
 });
 document.getElementById("btnAddComentario")?.addEventListener("click", () => {
   if (!requireWriteAccess()) return;
@@ -338,11 +338,6 @@ document.getElementById("btnDemConflictReload")?.addEventListener("click", () =>
   const id = editingDemandaOpenId;
   if (!id) return;
   openDemandaModal(id);
-});
-document.getElementById("btnDemClickupCiente")?.addEventListener("click", () => {
-  const id = editingDemandaOpenId;
-  if (!id) return;
-  marcarClickupRetornoCiente(id);
 });
 window.addEventListener("beforeunload", () => {
   if (editingDemandaOpenId) releaseDemandaEditing(editingDemandaOpenId);
@@ -411,7 +406,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     linhaEsteira,
     status: newStatus,
     descricao: document.getElementById("demDescricao").value,
-    comentarios: normalizeComentarios(editingComentarios),
+    comentarios: normalizeComentarios(mesclarComentariosDoServidor(editingComentarios, existing?.comentarios)),
     custo: readCustoFromForm(),
     pdfLevantamento: editingPdfLevantamento,
     imagens: existing?.imagens?.length ? existing.imagens : editingImages,
@@ -419,8 +414,8 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     historicoEdicoes: Array.isArray(existing?.historicoEdicoes) ? [...existing.historicoEdicoes] : [],
     historicoAlertas: syncHistoricoAlertasOcultos(existing?.historicoAlertas, editingComentarios),
     alertaSnooze: existing?.alertaSnooze || null,
-    clickup: existing?.clickup || null,
-    clickupTaskId: existing?.clickupTaskId || existing?.clickup?.taskId || "",
+    asana: existing?.asana || null,
+    asanaTaskId: existing?.asanaTaskId || existing?.asana?.taskId || "",
     chamadoOcomon: (document.getElementById("demChamadoOcomon")?.value || "").trim(),
     osAniel: (document.getElementById("demOsAniel")?.value || "").trim(),
     checklist: normalizeChecklist(editingChecklist),
@@ -499,7 +494,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
       editingDemandaBaselineUpdatedAt &&
       existing.updatedAt &&
       existing.updatedAt !== editingDemandaBaselineUpdatedAt &&
-      ownClickupSyncId !== existing.id &&
+      ownAsanaSyncId !== existing.id &&
       !isInOwnWriteGrace(existing.id) &&
       !ownUpdatedAtWrites.has(`${existing.id}\0${existing.updatedAt}`)
     ) {

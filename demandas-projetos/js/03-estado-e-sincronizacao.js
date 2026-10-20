@@ -165,6 +165,7 @@ function demandasContentFingerprint(demandas) {
         d.ordemEsteira ?? "",
         d.titulo || "",
         d.dataChegada || "",
+        d.comentariosServidorAt || "", // comentário vindo do Asana (o servidor não mexe no updatedAt)
       ].join("\0"),
     )
     .join("\n");
@@ -219,7 +220,8 @@ function refreshAllViews() {
   if (usuariosModalAberto()) renderUsuariosPanel();
   applyRoleUi({ light: true });
   syncDemandaModalAlerts();
-  syncDemClickupUi();
+  syncDemAsanaUi();
+  syncComentariosServidorNoModal();
 }
 
 /** Agrupa snapshots do Firestore para não recriar a UI várias vezes seguidas. */
