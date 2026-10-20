@@ -75,6 +75,56 @@ function marcarAvisoAsanaCiente(id) {
   noteOwnDemandaWrite(id, now);
   saveState({ demanda: dem });
   renderBoard();
+  syncAsanaAvisoBanner();
+}
+
+/** Avisos do Asana já vistos nesta aba (os que existiam ao abrir não viram notificação na tela). */
+const avisosAsanaVistos = new Set();
+let avisosAsanaIniciados = false;
+
+function chaveAvisoAsana(d, a) {
+  return `${d.id}\0${a.tipo}\0${a.em}`;
+}
+
+/** Chegou aviso novo do Asana (concluída, em andamento, excluída): mostra na hora, além do sino. */
+function notificarAvisosAsanaNovos() {
+  const novos = [];
+  for (const d of state.demandas || []) {
+    const a = avisoAsanaPendente(d);
+    if (!a) continue;
+    const k = chaveAvisoAsana(d, a);
+    if (avisosAsanaVistos.has(k)) continue;
+    avisosAsanaVistos.add(k);
+    if (avisosAsanaIniciados) novos.push({ d, a });
+  }
+  if (!avisosAsanaIniciados && (state.demandas || []).some((d) => d.asanaTaskId)) {
+    // Uma vez por abertura: a função também confere/atualiza os webhooks do Asana (filtros novos).
+    void carregarProjetosAsana();
+  }
+  avisosAsanaIniciados = true;
+  if (!novos.length) return;
+  const { d, a } = novos[novos.length - 1];
+  const tipo = ASANA_AVISO_TIPOS[a.tipo];
+  const extra = novos.length > 1 ? ` (+${novos.length - 1} aviso${novos.length > 2 ? "s" : ""})` : "";
+  toastComAcao(`${tipo.ico} ${tipo.curta}: «${d.titulo || "Projeto"}»${extra}`, "Abrir", () => openDemandaModal(d.id));
+}
+
+/** Faixa no topo do projeto aberto com o último aviso do Asana ainda não marcado como ciente. */
+function syncAsanaAvisoBanner() {
+  const banner = document.getElementById("demAsanaAvisoBanner");
+  const txt = document.getElementById("demAsanaAvisoTexto");
+  const btn = document.getElementById("btnDemAsanaCiente");
+  if (!banner || !txt) return;
+  const id = editingDemandaOpenId;
+  const d = id ? state.demandas.find((x) => x.id === id) : null;
+  const a = avisoAsanaPendente(d);
+  banner.hidden = !a;
+  if (!a) return;
+  const tipo = ASANA_AVISO_TIPOS[a.tipo];
+  banner.classList.toggle("demanda-alert--ok", a.tipo !== "excluida");
+  banner.classList.toggle("demanda-alert--conflict", a.tipo === "excluida");
+  txt.textContent = `${tipo.ico} ${a.texto || tipo.curta}`;
+  if (btn) btn.hidden = isReadOnlyUser();
 }
 
 function demandaTemAsana(demId) {
@@ -477,6 +527,7 @@ async function abrirNovaOrdemAsana(id) {
 
 function syncDemAsanaUi() {
   atualizarCampoAsana();
+  syncAsanaAvisoBanner();
   syncComentarioAsanaBox();
   // A seção "Referências" em modo leitura mostra o mesmo estado (link ou botão de envio).
   if (editingDemandaOpenId) agendarSyncDemNavegacao();
@@ -531,14 +582,11 @@ function atualizarCampoAsana() {
       btnCancel.hidden = false;
       btnCancel.disabled = false;
     }
-    if (btnNova && !readOnly) {
-      // Só uma ordem aberta por vez: libera quando a atual for concluída no Asana (excluída lá, ela já se encerra).
-      const liberada = !!as.concluidaEm;
+    // Só uma ordem aberta por vez: o botão só aparece depois que a atual for concluída no Asana
+    // (excluída lá, a ordem já se encerra e volta o "Enviar à Operação").
+    if (btnNova && !readOnly && as.concluidaEm) {
       btnNova.hidden = false;
-      btnNova.disabled = !liberada;
-      btnNova.title = liberada
-        ? "A tarefa atual continua no Asana; os próximos comentários vão para a nova"
-        : "Disponível quando a ordem atual for concluída (ou excluída) no Asana";
+      btnNova.disabled = false;
     }
     if (btnAnexar && !readOnly) btnAnexar.hidden = false;
     return;

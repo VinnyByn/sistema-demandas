@@ -618,6 +618,8 @@ function hideDemandaModalAlerts() {
   if (conflict) conflict.hidden = true;
   if (presence) presence.hidden = true;
   if (selfBanner) selfBanner.hidden = true;
+  const asanaAviso = document.getElementById("demAsanaAvisoBanner");
+  if (asanaAviso) asanaAviso.hidden = true;
 }
 
 function absorbOwnDemandaRemoteUpdate(dem) {
