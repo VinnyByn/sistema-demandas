@@ -222,6 +222,7 @@ function refreshAllViews() {
   syncDemandaModalAlerts();
   syncDemAsanaUi();
   syncComentariosServidorNoModal();
+  notificarAvisosAsanaNovos();
 }
 
 /** Agrupa snapshots do Firestore para não recriar a UI várias vezes seguidas. */

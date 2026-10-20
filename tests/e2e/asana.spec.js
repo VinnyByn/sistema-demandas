@@ -105,8 +105,8 @@ test("Asana: comentário marcado só para o sistema não vai; nova ordem guarda 
     d.asana = { taskId: "T1", url: "https://app.asana.com/0/x/T1", projetoGid: "1211582012771845", projetoNome: "Operação Rede" };
     openDemandaModal("p1");
   });
-  // Ordem ainda aberta no Asana: "+ Nova ordem" fica travado.
-  await expect(page.locator("[data-lv-asana-nova]")).toBeDisabled();
+  // Ordem ainda aberta no Asana: "+ Nova ordem" não aparece.
+  await expect(page.locator("[data-lv-asana-nova]")).toHaveCount(0);
   await page.evaluate(() => {
     const d = state.demandas.find((x) => x.id === "p1");
     d.asana = { ...d.asana, concluidaEm: new Date().toISOString() };
@@ -125,7 +125,7 @@ test("Asana: comentário marcado só para o sistema não vai; nova ordem guarda 
     .poll(() => page.evaluate(() => window.__chamadas.filter((c) => c.nome === "asanaComentario").map((c) => c.dados.texto)))
     .toEqual(["Para a Operação"]);
 
-  await expect(page.locator("[data-lv-asana-nova]")).toBeEnabled();
+  await expect(page.locator("[data-lv-asana-nova]")).toBeVisible();
   await page.click("[data-lv-asana-nova]");
   await page.locator("#asanaEnvioProjetosLista input").first().check();
   await expect(page.locator("#asanaEnvioOk")).toHaveText("Abrir nova ordem");
@@ -181,4 +181,21 @@ test("Asana: anexos escolhidos no envio vão para a tarefa, e dá para anexar de
     .poll(() => page.evaluate(() => window.__chamadas.filter((c) => c.nome === "asanaAnexar").map((c) => c.dados.nome)))
     .toEqual(["planta.pdf", "medicao.xlsx"]);
   await expect(page.locator("#demComentariosList")).toContainText("medicao.xlsx");
+});
+
+test("Asana: aviso novo vira notificação na tela e faixa no projeto aberto", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    refreshAllViews(); // estado inicial: nada pendente
+    openDemandaModal("p3");
+    const d = state.demandas.find((x) => x.id === "p3");
+    d.asanaTaskId = "T7";
+    d.asana = { taskId: "T7", url: "https://app.asana.com/0/x/T7", concluidaEm: new Date().toISOString() };
+    d.asanaAviso = { tipo: "concluida", texto: "A Operação concluiu a tarefa no Asana.", taskId: "T7", em: new Date().toISOString(), chave: "c" };
+    refreshAllViews(); // como se tivesse chegado da nuvem
+  });
+  await expect(page.locator("#toast")).toContainText("Concluída no Asana: «Hospital Central»");
+  await expect(page.locator("#demAsanaAvisoBanner")).toBeVisible();
+  await expect(page.locator("#demAsanaAvisoTexto")).toContainText("concluiu a tarefa");
+  await page.click("#btnDemAsanaCiente");
+  await expect(page.locator("#demAsanaAvisoBanner")).toBeHidden();
 });
