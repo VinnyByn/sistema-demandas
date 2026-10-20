@@ -302,18 +302,6 @@ function buildInboxAlertasRows(list, linha) {
   const rows = [];
   for (const raw of list) {
     const d = migrateDemanda(raw);
-    if (clickupRetornoPendente(d)) {
-      const cu = normalizeClickup(d.clickup);
-      rows.push({
-        severity: "ok",
-        kind: ALERTA_KIND_CLICKUP_RETORNO,
-        d,
-        dias: 0,
-        msg: "Retornou da Operação (concluída)",
-        curta: "Retornou da Operação",
-        meta: cu?.status ? `ClickUp: ${cu.status}` : "ClickUp",
-      });
-    }
     if (isStatusConcluidoDemanda(d) || isDemandaEncerrada(d)) continue;
 
     const semAtrib = !normalizeResponsavel(d.responsavel);
@@ -359,8 +347,6 @@ function buildInboxAlertasRows(list, linha) {
     }
   }
   return rows.sort((a, b) => {
-    if (a.kind === ALERTA_KIND_CLICKUP_RETORNO && b.kind !== ALERTA_KIND_CLICKUP_RETORNO) return -1;
-    if (b.kind === ALERTA_KIND_CLICKUP_RETORNO && a.kind !== ALERTA_KIND_CLICKUP_RETORNO) return 1;
     const ia = alertaEsteiraSortIndex(a.d, linha);
     const ib = alertaEsteiraSortIndex(b.d, linha);
     if (ia !== ib) return ia - ib;
@@ -375,7 +361,6 @@ const ALERTAS_ABAS = [
   { kind: ALERTA_KIND_MENCAO, label: "Menções", tom: "mencao" },
   { kind: ALERTA_KIND_SEM_ATRIB, label: "Sem projetista", tom: "bad" },
   { kind: ALERTA_KIND_COLUNA, label: "Parados", tom: "coluna" },
-  { kind: ALERTA_KIND_CLICKUP_RETORNO, label: "Retornos", tom: "ok" },
 ];
 
 function renderInboxAlertas(linha = activeEsteiraCanal) {
@@ -388,7 +373,7 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   const head = (extra = "") =>
     `<div class="inbox-alertas__head"><h4 class="inbox-alertas__title">Alertas${extra}</h4>` +
     `<span class="inbox-alertas__canal">${canal}${esteiraFiltrosAtivosCount() ? " · com filtros" : ""}</span>` +
-    `<span class="inbox-alertas__ajuda" tabindex="0" title="Vermelho: sem projetista. Laranja: passou da meta de dias da etapa. Verde: retornou da Operação.&#10;Adiar registra um comentário e silencia o alerta por alguns dias. Ciente tira o retorno da lista." aria-label="Como funcionam os alertas">?</span></div>`;
+    `<span class="inbox-alertas__ajuda" tabindex="0" title="Vermelho: sem projetista. Laranja: passou da meta de dias da etapa. @: menções a você.&#10;Adiar registra um comentário e silencia o alerta por alguns dias." aria-label="Como funcionam os alertas">?</span></div>`;
 
   if (!rows.length) {
     el.innerHTML =
@@ -426,16 +411,12 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
       const dias =
         r.kind === ALERTA_KIND_MENCAO
           ? `<span class="alerta__dias alerta__dias--ico" aria-hidden="true">@</span>`
-          : r.kind === ALERTA_KIND_CLICKUP_RETORNO
-          ? `<span class="alerta__dias alerta__dias--ico" aria-hidden="true">✓</span>`
           : `<span class="alerta__dias" title="${escapeHtml(r.msg)}"><b>${r.dias}</b><small>${r.dias === 1 ? "dia" : "dias"}</small></span>`;
       const acao = r.kind === ALERTA_KIND_MENCAO
         ? `<button type="button" class="alerta__acao" data-mencao-ciente="${escapeHtml(r.cid)}" title="Marcar como lida" aria-label="Marcar menção em ${escapeHtml(r.d.titulo)} como lida"><span aria-hidden="true">✓</span> Ciente</button>`
         : ro
         ? ""
-        : r.kind === ALERTA_KIND_CLICKUP_RETORNO
-          ? `<button type="button" class="alerta__acao" data-alerta-ciente="${escapeHtml(r.d.id)}" title="Marcar como ciente" aria-label="Marcar ${escapeHtml(r.d.titulo)} como ciente"><span aria-hidden="true">✓</span> Ciente</button>`
-          : `<button type="button" class="alerta__acao" data-alerta-snooze="${escapeHtml(r.d.id)}" data-kind="${escapeHtml(r.kind)}" title="Registrar e silenciar por alguns dias" aria-label="Adiar alerta de ${escapeHtml(r.d.titulo)}"><span aria-hidden="true">⏰</span> Adiar</button>`;
+        : `<button type="button" class="alerta__acao" data-alerta-snooze="${escapeHtml(r.d.id)}" data-kind="${escapeHtml(r.kind)}" title="Registrar e silenciar por alguns dias" aria-label="Adiar alerta de ${escapeHtml(r.d.titulo)}"><span aria-hidden="true">⏰</span> Adiar</button>`;
       return (
         `<li class="alerta alerta--${r.severity}">` +
         `<button type="button" class="alerta__abrir" data-alerta-abrir="${escapeHtml(r.d.id)}"${r.cid ? ` data-cid="${escapeHtml(r.cid)}"` : ""} title="Abrir projeto">` +
@@ -476,9 +457,6 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
       setNotifAberto(false);
       openAlertaSnoozeModal(row);
     });
-  });
-  el.querySelectorAll("[data-alerta-ciente]").forEach((btn) => {
-    btn.addEventListener("click", () => marcarClickupRetornoCiente(btn.dataset.alertaCiente));
   });
   el.querySelectorAll("[data-mencao-ciente]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1403,81 +1381,4 @@ function formatCallableError(err, fallback) {
     return details || raw || fallback;
   }
   return details || raw || fallback || "Não foi possível concluir.";
-}
-
-async function enviarDemandaClickup(id, btn, instrucoes) {
-  if (!requireWriteAccess()) return;
-  const texto = String(instrucoes || "").trim();
-  if (!texto) {
-    toast("Informe as instruções do que deverá ser feito.");
-    return;
-  }
-  if (typeof firebase === "undefined" || !firebase.functions) {
-    toast("Recarregue a página (Ctrl+F5) para carregar o ClickUp.");
-    return;
-  }
-  const prev = btn?.textContent || "Enviar à Operação";
-  beginOwnDemandaWrite(id);
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Enviando…";
-  }
-  try {
-    const fns = firebase.app().functions("us-central1");
-    const call = fns.httpsCallable("createClickupOperacao");
-    const res = await call({ demandaId: id, instrucoes: texto });
-    const data = res?.data || {};
-    if (data.url) {
-      const idx = state.demandas.findIndex((x) => x.id === id);
-      if (idx >= 0) {
-        const now = new Date().toISOString();
-        const clickup = {
-          taskId: data.taskId || "",
-          url: data.url,
-          status: data.status || "Nova demanda",
-          listId: "901716986422",
-          createdAt: now,
-          instrucoes: texto,
-        };
-        const dem = { ...state.demandas[idx], clickup, clickupTaskId: clickup.taskId, updatedAt: now };
-        if (!data.already) {
-          const cmt = normalizeComentario({
-            texto: `Demanda enviada para o time de Operação no ClickUp (Nova demanda).\nInstruções: ${texto}\n${data.url}`,
-            autor: getLoggedInComentarioAutor(),
-            createdAt: now,
-          });
-          if (cmt) {
-            dem.comentarios = [cmt, ...normalizeComentarios(dem.comentarios)];
-            if (document.getElementById("demId")?.value === id) {
-              editingComentarios = [cmt, ...normalizeComentarios(editingComentarios)];
-              renderComentariosList();
-            }
-          }
-        }
-        state.demandas[idx] = dem;
-        noteOwnDemandaWrite(id, now);
-        saveState({ demanda: migrateDemanda(dem) });
-        renderBoard();
-        setClickupUiOverride(id, clickup);
-      } else {
-        setClickupUiOverride(id, {
-          taskId: data.taskId || "",
-          url: data.url,
-          status: data.status || "Nova demanda",
-          instrucoes: texto,
-        });
-      }
-      toast(data.already ? "Já existe no ClickUp" : "Demanda criada no ClickUp");
-    } else {
-      toast("ClickUp não retornou o link da tarefa");
-    }
-  } catch (err) {
-    toast(formatCallableError(err, "Não foi possível criar no ClickUp"));
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = prev;
-    }
-    syncDemClickupUi();
-  }
 }

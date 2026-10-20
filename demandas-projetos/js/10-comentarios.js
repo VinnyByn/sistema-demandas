@@ -231,7 +231,7 @@ let comentarioEditandoId = "";
 
 /** Pode editar: o próprio autor ou um administrador (nunca quem só visualiza). */
 function podeEditarComentario(c) {
-  if (isReadOnlyUser()) return false;
+  if (isReadOnlyUser() || c.origem) return false; // vindos do Asana/integração: edite no Asana
   const eu = getLoggedInComentarioAutor();
   return (eu && eu !== "Equipe" && c.autor === eu) || isAdminUser();
 }
@@ -293,6 +293,7 @@ function renderComentariosList() {
               escapeHtml(comentarioIniciais(c.autor)) + "</div>" +
               '<div class="comment-body"><div class="comment-head"><strong>' + escapeHtml(c.autor) +
               (meu ? ' <span class="comment-voce">você</span>' : "") +
+              (c.origem === "asana" ? ' <span class="comment-origem" title="Comentário feito no Asana">via Asana</span>' : "") +
               '</strong><time class="comment-time" datetime="' + escapeHtml(c.createdAt) + '" title="' +
               escapeHtml(formatComentarioData(c.createdAt)) + '">' + escapeHtml(formatComentarioRelativo(c.createdAt)) +
               "</time>" + editado + "</div>" +
@@ -346,9 +347,11 @@ function renderComentariosList() {
       // Sem confirmação: o aviso traz "Desfazer" (devolve o comentário na mesma posição).
       const pos = editingComentarios.indexOf(c);
       const demIdComentario = editingDemandaOpenId;
+      if (c.origem) comentariosApagadosNoModal.add(c.id);
       editingComentarios = editingComentarios.filter((x) => x.id !== cid);
       persistComentariosDemandaAberta();
       renderComentariosList();
+      void sincronizarComentarioAsana(demIdComentario, "apagar", c);
       oferecerDesfazer("Comentário excluído", () => restaurarComentario(demIdComentario, c, pos));
     });
   });
@@ -364,6 +367,7 @@ function restaurarComentario(demId, c, pos) {
     out.splice(Math.min(Math.max(pos, 0), out.length), 0, c);
     return out;
   };
+  comentariosApagadosNoModal.delete(c.id);
   if (editingDemandaOpenId === demId) {
     editingComentarios = inserir(editingComentarios);
     persistComentariosDemandaAberta();
@@ -376,6 +380,7 @@ function restaurarComentario(demId, c, pos) {
     saveState({ demanda: migrateDemanda(dem) });
     refreshAllViews();
   }
+  void sincronizarComentarioAsana(demId, "criar", c);
   toast("Comentário restaurado");
 }
 
@@ -402,6 +407,7 @@ function salvarEdicaoComentario(cid, texto) {
   );
   persistComentariosDemandaAberta();
   renderComentariosList();
+  void sincronizarComentarioAsana(editingDemandaOpenId, "editar", { ...c, texto: novo });
   toast("Comentário editado");
 }
 
@@ -432,6 +438,7 @@ function persistComentariosDemandaAberta() {
   const dem = demId ? state.demandas.find((x) => x.id === demId) : null;
   if (!dem) return;
   const now = new Date().toISOString();
+  editingComentarios = mesclarComentariosDoServidor(editingComentarios, dem.comentarios);
   dem.comentarios = normalizeComentarios(editingComentarios);
   dem.historicoAlertas = syncHistoricoAlertasOcultos(dem.historicoAlertas, editingComentarios);
   dem.updatedAt = now;
@@ -460,6 +467,7 @@ function addComentarioFromForm() {
   // Projeto existente: grava na hora (como a exclusão). Projeto novo: vai junto com o Salvar.
   if ((document.getElementById("demId")?.value || "").trim()) {
     persistComentariosDemandaAberta();
+    void sincronizarComentarioAsana(editingDemandaOpenId, "criar", c);
     toast("Comentário publicado");
   }
   renderComentariosList();
@@ -474,7 +482,7 @@ function setDemandaFormReadOnly(readOnly) {
   if (form) {
     form.querySelectorAll("input, select, textarea, button").forEach((el) => {
       if (el.dataset.uiNav) return;
-        if (el.id === "modalDemandaClose" || el.id === "btnFecharDemanda" || el.id === "btnEnviarClickup" || el.id === "btnCancelarClickup" || el.id === "btnDemClickupCiente" || el.id === "btnChecklistExpand" || el.id === "btnChecklistGantt") return;
+        if (el.id === "modalDemandaClose" || el.id === "btnFecharDemanda" || el.id === "btnEnviarAsana" || el.id === "btnCancelarAsana" || el.id === "btnChecklistExpand" || el.id === "btnChecklistGantt") return;
       if (el.closest(".comments-panel__toggle")) return;
       if (el.classList.contains("timeline-move-up") || el.classList.contains("timeline-move-down") || el.classList.contains("checklist-item__move-up") || el.classList.contains("checklist-item__move-down")) {
         if (readOnly) el.disabled = true;

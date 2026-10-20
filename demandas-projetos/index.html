@@ -916,10 +916,6 @@
         <p>Esta demanda foi alterada por outra pessoa enquanto você editava. Recarregue para ver a versão atual antes de salvar.</p>
         <button type="button" class="btn btn--ghost btn--sm" id="btnDemConflictReload">Recarregar do servidor</button>
       </div>
-      <div id="demClickupRetornoBanner" class="demanda-alert demanda-alert--ok" hidden role="status">
-        <p>A Operação concluiu esta demanda no ClickUp — ela retornou.</p>
-        <button type="button" class="btn btn--ghost btn--sm" id="btnDemClickupCiente">Ciente</button>
-      </div>
       <form class="modal__body modal__body--split" id="formDemanda">
         <input type="hidden" id="demId" />
 
@@ -1002,13 +998,13 @@
               <span>Nº O.S. Aniel</span>
               <input id="demOsAniel" maxlength="80" placeholder="Número da O.S. do Aniel" autocomplete="off" />
             </label>
-            <div class="field field--clickup" id="fieldDemClickup">
-              <span>ClickUp (Operação)</span>
-              <div class="clickup-ref">
-                <p class="muted small clickup-ref__hint" id="demClickupHint" hidden></p>
-                <button type="button" class="btn btn--primary btn--sm" id="btnEnviarClickup">Enviar à Operação</button>
-                <a class="btn btn--ghost btn--sm clickup-ref__link" id="demClickupLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Abrir no ClickUp</a>
-                <button type="button" class="btn btn--danger btn--sm" id="btnCancelarClickup" hidden>Cancelar envio</button>
+            <div class="field field--asana" id="fieldDemAsana">
+              <span>Asana (Operação)</span>
+              <div class="asana-ref">
+                <p class="muted small asana-ref__hint" id="demAsanaHint" hidden></p>
+                <button type="button" class="btn btn--primary btn--sm" id="btnEnviarAsana">Enviar à Operação</button>
+                <a class="btn btn--ghost btn--sm asana-ref__link" id="demAsanaLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Abrir no Asana</a>
+                <button type="button" class="btn btn--danger btn--sm" id="btnCancelarAsana" hidden>Cancelar envio</button>
               </div>
             </div>
           </div>
@@ -1591,22 +1587,27 @@
     </div>
   </dialog>
 
-  <dialog class="modal modal--sm clickup-instrucoes-dialog" id="modalClickupInstrucoes" aria-labelledby="clickupInstrucoesTitulo">
-    <div class="modal__inner clickup-instrucoes-dialog__inner">
+  <dialog class="modal modal--sm asana-envio-dialog" id="modalAsanaEnvio" aria-labelledby="asanaEnvioTitulo">
+    <div class="modal__inner asana-envio-dialog__inner">
       <div class="modal__head">
-        <h2 id="clickupInstrucoesTitulo">Enviar à Operação</h2>
-        <button type="button" class="icon-btn" id="clickupInstrucoesClose" aria-label="Fechar">×</button>
+        <h2 id="asanaEnvioTitulo">Enviar à Operação</h2>
+        <button type="button" class="icon-btn" id="asanaEnvioClose" aria-label="Fechar">×</button>
       </div>
       <div class="modal__body">
-        <p class="muted small" id="clickupInstrucoesProjeto"></p>
+        <p class="muted small" id="asanaEnvioProjeto"></p>
+        <fieldset class="asana-envio__projetos">
+          <legend>Projeto no Asana</legend>
+          <div class="asana-envio__lista" id="asanaEnvioProjetosLista" role="radiogroup" aria-label="Projeto no Asana"></div>
+        </fieldset>
         <label class="field">
           <span>Instruções do que deverá ser feito</span>
-          <textarea id="clickupInstrucoesTexto" rows="7" maxlength="4000" placeholder="Descreva o que a Operação precisa executar nesta demanda."></textarea>
+          <textarea id="asanaEnvioTexto" rows="7" maxlength="4000" placeholder="Descreva o que a Operação precisa executar nesta demanda."></textarea>
         </label>
+        <p class="muted small">Os comentários deste projeto passam a aparecer na tarefa do Asana, e os de lá aparecem aqui.</p>
       </div>
       <div class="modal__foot">
-        <button type="button" class="btn btn--ghost" id="clickupInstrucoesCancel">Cancelar</button>
-        <button type="button" class="btn btn--primary" id="clickupInstrucoesOk">Criar no ClickUp</button>
+        <button type="button" class="btn btn--ghost" id="asanaEnvioCancel">Cancelar</button>
+        <button type="button" class="btn btn--primary" id="asanaEnvioOk">Criar no Asana</button>
       </div>
     </div>
   </dialog>
@@ -1805,7 +1806,7 @@
   <script src="js/04-usuarios-e-presenca.js"></script>
   <script src="js/05-base-interface.js"></script>
   <script src="js/06-esteira-e-cards.js"></script>
-  <script src="js/07-clickup.js"></script>
+  <script src="js/07-asana.js"></script>
   <script src="js/08-modal-projeto.js"></script>
   <script src="js/09-checklist.js"></script>
   <script src="js/10-comentarios.js"></script>

@@ -344,24 +344,24 @@ function demSecaoLeituraHtml(key) {
       return `<div class="custo-lv">${conta}${blocos.length ? `<div class="custo-lv__blocos">${blocos.join("")}</div>` : ""}</div>`;
     }
     case "referencias": {
-      const link = document.getElementById("demClickupLink");
-      const hint = (document.getElementById("demClickupHint")?.textContent || "").trim();
-      const podeEnviar = !document.getElementById("btnEnviarClickup")?.hidden;
-      let clickup = "";
+      const link = document.getElementById("demAsanaLink");
+      const hint = (document.getElementById("demAsanaHint")?.textContent || "").trim();
+      const podeEnviar = !document.getElementById("btnEnviarAsana")?.hidden;
+      let asana = "";
       if (link && !link.hidden && link.getAttribute("href")) {
-        clickup =
+        asana =
           `${escapeHtml(hint || "Tarefa criada")} ` +
-          `<a class="seg-lv__link" href="${escapeHtml(link.getAttribute("href"))}" target="_blank" rel="noopener" data-lv-acao="1">Abrir no ClickUp ↗</a>`;
+          `<a class="seg-lv__link" href="${escapeHtml(link.getAttribute("href"))}" target="_blank" rel="noopener" data-lv-acao="1">Abrir no Asana ↗</a>`;
       } else if (podeEnviar) {
-        clickup = `<button type="button" class="btn btn--primary btn--sm" data-lv-clickup="1" data-lv-acao="1">Enviar à Operação</button>`;
+        asana = `<button type="button" class="btn btn--primary btn--sm" data-lv-asana="1" data-lv-acao="1">Enviar à Operação</button>`;
       } else {
-        clickup = hint ? escapeHtml(hint) : lvVazio("Não enviada");
+        asana = hint ? escapeHtml(hint) : lvVazio("Não enviada");
       }
       return (
         `<div class="seg-lv-grid">` +
         lvPar("Chamado Ocomon", lvVal("demChamadoOcomon") ? `<span class="seg-lv__codigo">${escapeHtml(lvVal("demChamadoOcomon"))}</span>` : lvVazio()) +
         lvPar("O.S. Aniel", lvVal("demOsAniel") ? `<span class="seg-lv__codigo">${escapeHtml(lvVal("demOsAniel"))}</span>` : lvVazio()) +
-        lvPar("ClickUp (Operação)", clickup) +
+        lvPar("Asana (Operação)", asana) +
         `</div>`
       );
     }
@@ -428,9 +428,9 @@ function initDemSecoesLeitura() {
     fs.querySelector(":scope > legend")?.after(box);
     box.addEventListener("click", (e) => {
       const alvo = e.target instanceof Element ? e.target : null;
-      if (alvo?.closest("[data-lv-clickup]")) {
+      if (alvo?.closest("[data-lv-asana]")) {
         e.preventDefault();
-        document.getElementById("btnEnviarClickup")?.click();
+        document.getElementById("btnEnviarAsana")?.click();
         return;
       }
       if (alvo?.closest("a[data-lv-acao]")) return;
@@ -493,7 +493,7 @@ function demSecaoResumo(key) {
       const refs = [];
       if (val("demChamadoOcomon")) refs.push(`Ocomon ${val("demChamadoOcomon")}`);
       if (val("demOsAniel")) refs.push(`O.S. ${val("demOsAniel")}`);
-      if (!document.getElementById("demClickupLink")?.hidden) refs.push("ClickUp");
+      if (!document.getElementById("demAsanaLink")?.hidden) refs.push("Asana");
       return refs.length ? { txt: refs.join(" · "), tom: "ok" } : { txt: "Nenhuma", tom: "neutro" };
     }
     case "checklist": {
@@ -591,7 +591,7 @@ function openDemandaModal(id) {
 
   const d = id ? state.demandas.find((x) => x.id === id) : null;
   const dm = d ? migrateDemanda(d) : null;
-  clickupUiOverride = null;
+  asanaUiOverride = null;
   editingDemandaOpenId = d?.id || null;
   editingDemandaBaselineUpdatedAt = d?.updatedAt || "";
   hideDemandaModalAlerts();
@@ -641,7 +641,7 @@ function openDemandaModal(id) {
   if (elChamado) elChamado.value = dm?.chamadoOcomon || "";
   const elOsAniel = document.getElementById("demOsAniel");
   if (elOsAniel) elOsAniel.value = dm?.osAniel || "";
-  syncDemClickupUi();
+  syncDemAsanaUi();
   editingCustoBaseline = JSON.parse(JSON.stringify(normalizeCusto(d?.custo)));
   pdfCustoAppliedInSession = false;
   applyCustoToForm(editingCustoBaseline);
@@ -651,6 +651,7 @@ function openDemandaModal(id) {
     : null;
   lastPdfParseResult = null;
   editingComentarios = JSON.parse(JSON.stringify(normalizeComentarios(dm?.comentarios || d?.comentarios || [])));
+  comentariosApagadosNoModal.clear();
   editingChecklist = JSON.parse(JSON.stringify(normalizeChecklist(dm?.checklist || d?.checklist || [])));
   editingChecklistItemId = "";
   const expandBtn = document.getElementById("btnChecklistExpand");
@@ -710,7 +711,7 @@ function openDemandaModal(id) {
   refreshTimelineDeleteButtons();
   renderCidadesExtraList();
   renderProjetistasExtraList();
-  syncDemClickupUi();
+  syncDemAsanaUi();
   const scrollSnap = snapshotPageScroll();
   setDemandaModalScrollLock(true);
   syncDemNavegacao();

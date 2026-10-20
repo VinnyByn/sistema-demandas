@@ -5,393 +5,144 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { aggregateViabilidade } = require("./viabilidade");
 const { gerarBackup, isAdminEmail } = require("./backup");
+const asanaLib = require("./asana");
 
 initializeApp();
 
-const clickupToken = defineSecret("CLICKUP_TOKEN");
+const asanaToken = defineSecret("ASANA_TOKEN");
 
-const CLICKUP_TEAM_ID = "90171462966";
-const CLICKUP_LIST_ID = "901716986422";
-const CLICKUP_API = "https://api.clickup.com/api/v2";
-const APP_URL = "https://demproj-fdeac.web.app";
 const REGION = "us-central1";
+const ASANA_WEBHOOK_URL = `https://${REGION}-${process.env.GCLOUD_PROJECT || "demproj-fdeac"}.cloudfunctions.net/asanaWebhook`;
 
-const STATUS_NOVA = ["nova demanda", "pendente", "to do", "open"];
-const STATUS_CONCLUSAO = ["conclusao", "conclusão", "concluido", "concluído", "complete", "closed", "done"];
-
-function normStatus(s) {
-  return String(s || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+function tokenAsana() {
+  const token = asanaToken.value();
+  if (!token) throw new HttpsError("failed-precondition", "Token do Asana (ASANA_TOKEN) não configurado no Firebase.");
+  return token;
 }
 
-function isStatusConclusao(s) {
-  const n = normStatus(s);
-  return STATUS_CONCLUSAO.some((x) => n === normStatus(x) || n.includes("conclus") || n.includes("conclu"));
-}
-
-async function clickupFetch(token, path, opts = {}) {
-  const headers = { Authorization: token, Accept: "application/json" };
-  if (opts.body) headers["Content-Type"] = "application/json";
-  const res = await fetch(`${CLICKUP_API}${path}`, {
-    method: opts.method || "GET",
-    headers,
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
-  const text = await res.text();
-  let data = {};
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { raw: text };
+/** Converte erros do Asana/validação em HttpsError com a mensagem em português. */
+function erroCallable(e, padrao) {
+  if (e instanceof HttpsError) return e;
+  if (e instanceof asanaLib.AsanaErro) {
+    // "not-found" fica reservado: no app ele significa "função não publicada".
+    const code = e.status === 400 ? "invalid-argument" : e.status === 404 ? "failed-precondition" : e.status === 403 ? "permission-denied" : "unavailable";
+    return new HttpsError(code, e.message);
   }
-  if (!res.ok) {
-    if ((opts.okStatuses || []).includes(res.status)) return { ...data, __status: res.status };
-    const msg = data?.err || data?.error || data?.ECODE || text || `HTTP ${res.status}`;
-    const err = new Error(String(msg));
-    err.status = res.status;
-    throw err;
-  }
-  return data;
+  console.error(padrao, e);
+  return new HttpsError("unavailable", String(e?.message || padrao));
 }
 
-function parseClickupTaskId(value) {
-  const s = String(value || "").trim();
-  if (!s) return "";
-  const fromUrl = s.match(/\/t\/(?:id\/)?([a-zA-Z0-9]+)/i);
-  if (fromUrl) return fromUrl[1];
-  if (/^[a-zA-Z0-9]{6,}$/i.test(s)) return s;
-  return "";
+function exigirLogin(request, acao) {
+  if (!request.auth) throw new HttpsError("unauthenticated", `Faça login para ${acao}.`);
 }
 
-async function getClickupTask(token, taskId) {
+/** Nomes dos dois projetos do Asana em que a demanda pode entrar (para o seletor do app). */
+exports.asanaProjetos = onCall({ region: REGION, secrets: [asanaToken], cors: true }, async (request) => {
+  exigirLogin(request, "ver os projetos do Asana");
   try {
-    const data = await clickupFetch(token, `/task/${taskId}`);
-    return data && data.id ? data : null;
+    return { projetos: await asanaLib.nomesDosProjetos({ token: tokenAsana() }) };
   } catch (e) {
-    if (e.status === 404) return null;
-    throw e;
+    throw erroCallable(e, "Não foi possível ler os projetos do Asana.");
   }
-}
+});
 
-async function findClickupTaskInList(token, demandaId) {
-  const needle = String(demandaId || "").trim();
-  if (!needle) return "";
-  const data = await clickupFetch(
-    token,
-    `/list/${CLICKUP_LIST_ID}/task?archived=false&include_closed=true&subtasks=true`,
-  );
-  const tasks = Array.isArray(data.tasks) ? data.tasks : [];
-  const found = tasks.find((t) => {
-    const blob = [t.id, t.custom_id, t.name, t.description, t.text_content, t.url]
-      .map((x) => String(x || ""))
-      .join("\n");
-    return blob.includes(needle);
-  });
-  return found?.id ? String(found.id) : "";
-}
-
-async function deleteClickupTask(token, taskId) {
-  const id = parseClickupTaskId(taskId);
-  if (!id) return false;
-  const existing = await getClickupTask(token, id);
-  if (!existing) return false;
+exports.createAsanaOperacao = onCall({ region: REGION, secrets: [asanaToken], cors: true }, async (request) => {
+  exigirLogin(request, "enviar ao Asana");
+  const demandaId = String(request.data?.demandaId || "").trim();
+  if (!demandaId) throw new HttpsError("invalid-argument", "Informe a demanda.");
+  const instrucoes = String(request.data?.instrucoes || "").trim();
+  if (!instrucoes) throw new HttpsError("invalid-argument", "Informe as instruções do que deverá ser feito.");
+  if (instrucoes.length > 4000) throw new HttpsError("invalid-argument", "As instruções devem ter no máximo 4000 caracteres.");
   try {
-    await clickupFetch(token, `/task/${id}`, { method: "DELETE" });
-  } catch (e) {
-    if (e.status !== 404) {
-      await clickupFetch(token, `/task/${id}`, { method: "PUT", body: { archived: true } });
-    }
-  }
-  const still = await getClickupTask(token, id);
-  if (still && !still.archived) {
-    throw new Error("A tarefa ainda existe no ClickUp após tentar excluir.");
-  }
-  return true;
-}
-
-async function pickCreateStatus(token) {
-  const list = await clickupFetch(token, `/list/${CLICKUP_LIST_ID}`);
-  const statuses = (list.statuses || []).map((s) => s.status);
-  for (const wanted of STATUS_NOVA) {
-    const found = statuses.find((s) => normStatus(s) === normStatus(wanted));
-    if (found) return found;
-  }
-  return statuses[0] || "pendente";
-}
-
-function commentFromClickup(texto) {
-  return {
-    id: `clickup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    texto,
-    autor: "ClickUp · Operação",
-    createdAt: new Date().toISOString(),
-  };
-}
-
-exports.createClickupOperacao = onCall(
-  { region: REGION, secrets: [clickupToken], cors: true },
-  async (request) => {
-    try {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Faça login para enviar ao ClickUp.");
-    }
-    const token = clickupToken.value();
-    if (!token) {
-      throw new HttpsError("failed-precondition", "Token do ClickUp não configurado no Firebase.");
-    }
-    const demandaId = String(request.data?.demandaId || "").trim();
-    if (!demandaId) throw new HttpsError("invalid-argument", "Informe a demanda.");
-    const instrucoes = String(request.data?.instrucoes || "").trim();
-    if (!instrucoes) throw new HttpsError("invalid-argument", "Informe as instruções do que deverá ser feito.");
-    if (instrucoes.length > 4000) throw new HttpsError("invalid-argument", "As instruções devem ter no máximo 4000 caracteres.");
-
-    const db = getFirestore();
-    const ref = db.collection("demandas").doc(demandaId);
-    const snap = await ref.get();
-    if (!snap.exists) throw new HttpsError("failed-precondition", "Demanda não encontrada.");
-    const d = snap.data() || {};
-    if (d.clickupTaskId && d.clickup?.url) {
-      return { ok: true, already: true, taskId: d.clickupTaskId, url: d.clickup.url, status: d.clickup.status || "" };
-    }
-
-    const leftover = await findClickupTaskInList(token, demandaId);
-    if (leftover) {
-      try {
-        await deleteClickupTask(token, leftover);
-      } catch (e) {
-        console.warn("ClickUp leftover:", e.message || e);
-      }
-    }
-
-    const status = await pickCreateStatus(token);
-    const titulo = String(d.titulo || "Demanda").trim();
-    const markdown = [
-      `## Instruções para a Operação`,
+    return await asanaLib.criarTarefa({
+      db: getFirestore(),
+      token: tokenAsana(),
+      demandaId,
       instrucoes,
-      "",
-      `---`,
-      `**Origem:** Sistema Projetos Master`,
-      `**ID da demanda:** \`${demandaId}\``,
-      `**Tipo:** ${d.tipo || "—"}`,
-      `**Cidade:** ${d.cidade || "—"}`,
-      `**Projetista:** ${d.responsavel || "Não atribuído"}`,
-      `**Solicitante:** ${d.solicitante || "—"}`,
-      `[Abrir no sistema](${APP_URL}/)`,
-      "",
-      String(d.descricao || "").trim() || "_Sem descrição._",
-    ].join("\n");
-
-    const created = await clickupFetch(token, `/list/${CLICKUP_LIST_ID}/task`, {
-      method: "POST",
-      body: {
-        name: titulo,
-        markdown_description: markdown,
-        status,
-      },
+      projetoGid: request.data?.projetoGid,
+      email: request.auth.token.email || "",
+      endpoint: ASANA_WEBHOOK_URL,
     });
-
-    const taskId = String(created.id || "");
-    const url = String(created.url || `https://app.clickup.com/t/${taskId}`);
-    const now = new Date().toISOString();
-    const clickup = {
-      taskId,
-      url,
-      status: created.status?.status || status,
-      listId: CLICKUP_LIST_ID,
-      createdAt: now,
-      createdBy: request.auth.token.email || "",
-      instrucoes,
-    };
-    const cmt = commentFromClickup(
-      `Demanda enviada para o time de Operação no ClickUp (Nova demanda).\nInstruções: ${instrucoes}\n${url}`,
-    );
-    const comentarios = Array.isArray(d.comentarios) ? [cmt, ...d.comentarios] : [cmt];
-    await ref.set(
-      {
-        clickupTaskId: taskId,
-        clickup,
-        comentarios,
-        updatedAt: now,
-      },
-      { merge: true },
-    );
-
-    await ensureWebhook(token, db);
-
-    return { ok: true, already: false, taskId, url, status: clickup.status };
-    } catch (e) {
-      if (e instanceof HttpsError) throw e;
-      console.error("createClickupOperacao", e);
-      throw new HttpsError("unavailable", String(e?.message || "Não foi possível criar no ClickUp."));
-    }
-  },
-);
-
-exports.cancelClickupOperacao = onCall(
-  { region: REGION, secrets: [clickupToken], cors: true },
-  async (request) => {
-    try {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Faça login para cancelar no ClickUp.");
-    }
-    const token = clickupToken.value();
-    if (!token) {
-      throw new HttpsError("failed-precondition", "Token do ClickUp não configurado no Firebase.");
-    }
-      const demandaId = String(request.data?.demandaId || "").trim();
-      if (!demandaId) throw new HttpsError("invalid-argument", "Informe a demanda.");
-      const db = getFirestore();
-      const ref = db.collection("demandas").doc(demandaId);
-      const snap = await ref.get();
-      if (!snap.exists) throw new HttpsError("failed-precondition", "Demanda não encontrada.");
-      const d = snap.data() || {};
-      const candidates = [
-        request.data?.taskId,
-        d.clickupTaskId,
-        d.clickup?.taskId,
-        parseClickupTaskId(request.data?.url),
-        parseClickupTaskId(d.clickup?.url),
-      ]
-        .map((x) => parseClickupTaskId(x))
-        .filter(Boolean);
-      const seen = new Set();
-      const ids = [];
-      for (const id of candidates) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        ids.push(id);
-      }
-      let deleted = false;
-      let lastErr = null;
-      for (const id of ids) {
-        try {
-          if (await deleteClickupTask(token, id)) {
-            deleted = true;
-            break;
-          }
-        } catch (e) {
-          lastErr = e;
-        }
-      }
-      if (!deleted) {
-        try {
-          const fromList = await findClickupTaskInList(token, demandaId);
-          if (fromList) deleted = await deleteClickupTask(token, fromList);
-        } catch (e) {
-          lastErr = lastErr || e;
-        }
-      }
-      if (!deleted && lastErr) {
-        throw new HttpsError("failed-precondition", String(lastErr.message || lastErr));
-      }
-      if (!deleted && ids.length) {
-        throw new HttpsError("unavailable", "Não foi possível excluir a tarefa no ClickUp. Confira se o token tem permissão de excluir.");
-      }
-      const now = new Date().toISOString();
-      const cmt = commentFromClickup("Envio à Operação cancelado. A tarefa foi excluída no ClickUp.");
-      const comentarios = Array.isArray(d.comentarios) ? [cmt, ...d.comentarios] : [cmt];
-      await ref.set(
-        {
-          clickup: FieldValue.delete(),
-          clickupTaskId: FieldValue.delete(),
-          comentarios,
-          updatedAt: now,
-        },
-        { merge: true },
-      );
-      return { ok: true, deleted };
-    } catch (e) {
-      if (e instanceof HttpsError) throw e;
-      console.error("cancelClickupOperacao", e);
-      throw new HttpsError("unavailable", String(e?.message || "Não foi possível cancelar no ClickUp."));
-    }
-  },
-);
-
-async function ensureWebhook(token, db) {
-  const cfgRef = db.doc("demandasSistema/clickup");
-  const cfg = (await cfgRef.get()).data() || {};
-  if (cfg.webhookId) return;
-  const endpoint = `https://${REGION}-${process.env.GCLOUD_PROJECT || "demproj-fdeac"}.cloudfunctions.net/clickupWebhook`;
-  try {
-    const created = await clickupFetch(token, `/team/${CLICKUP_TEAM_ID}/webhook`, {
-      method: "POST",
-      body: {
-        endpoint,
-        events: ["taskStatusUpdated"],
-        list_id: CLICKUP_LIST_ID,
-      },
-    });
-    await cfgRef.set(
-      {
-        webhookId: created.id || created.webhook?.id || "",
-        endpoint,
-        listId: CLICKUP_LIST_ID,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true },
-    );
   } catch (e) {
-    console.warn("Webhook ClickUp:", e.message || e);
+    throw erroCallable(e, "Não foi possível criar a tarefa no Asana.");
   }
-}
+});
 
-exports.clickupWebhook = onRequest({ region: REGION, cors: true, secrets: [clickupToken] }, async (req, res) => {
-  if (req.method === "GET") {
-    res.status(200).send("ok");
-    return;
+exports.cancelAsanaOperacao = onCall({ region: REGION, secrets: [asanaToken], cors: true }, async (request) => {
+  exigirLogin(request, "cancelar no Asana");
+  const demandaId = String(request.data?.demandaId || "").trim();
+  if (!demandaId) throw new HttpsError("invalid-argument", "Informe a demanda.");
+  try {
+    return await asanaLib.cancelarTarefa({
+      db: getFirestore(),
+      token: tokenAsana(),
+      demandaId,
+      apagarCampo: () => FieldValue.delete(),
+    });
+  } catch (e) {
+    throw erroCallable(e, "Não foi possível cancelar no Asana.");
   }
+});
+
+/** Sistema → Asana: comentário digitado (ou editado/apagado) no projeto vira comentário na tarefa. */
+exports.asanaComentario = onCall({ region: REGION, secrets: [asanaToken], cors: true }, async (request) => {
+  exigirLogin(request, "comentar no Asana");
+  const demandaId = String(request.data?.demandaId || "").trim();
+  const comentarioId = String(request.data?.comentarioId || "").trim();
+  const acao = String(request.data?.acao || "");
+  const texto = String(request.data?.texto || "").trim();
+  if (!demandaId || !comentarioId) throw new HttpsError("invalid-argument", "Informe a demanda e o comentário.");
+  if (!["criar", "editar", "apagar"].includes(acao)) throw new HttpsError("invalid-argument", "Ação inválida.");
+  if (acao !== "apagar" && !texto) throw new HttpsError("invalid-argument", "Comentário vazio.");
+  if (texto.length > 4000) throw new HttpsError("invalid-argument", "Comentário longo demais.");
+  const autor = String(request.data?.autor || request.auth.token.name || request.auth.token.email || "Equipe").slice(0, 120);
+  try {
+    return await asanaLib.sincronizarComentario({ db: getFirestore(), token: tokenAsana(), demandaId, acao, comentarioId, texto, autor });
+  } catch (e) {
+    throw erroCallable(e, "Não foi possível enviar o comentário ao Asana.");
+  }
+});
+
+/**
+ * Asana → sistema. O Asana faz um "aperto de mão" (X-Hook-Secret) ao criar o webhook; depois
+ * cada entrega vem assinada (X-Hook-Signature = HMAC-SHA256 do corpo com aquele segredo).
+ */
+exports.asanaWebhook = onRequest({ region: REGION, secrets: [asanaToken] }, async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).send("method");
     return;
   }
-  const body = req.body || {};
-  const event = String(body.event || "");
-  const taskId = String(body.task_id || body.task?.id || "").trim();
-  if (!taskId) {
-    res.status(200).json({ ok: true, ignored: true });
+  const projetoGid = String(req.query.projeto || "");
+  if (!asanaLib.projetoValido(projetoGid)) {
+    res.status(400).send("projeto");
     return;
   }
-
-  let statusName = "";
-  const hist = Array.isArray(body.history_items) ? body.history_items : [];
-  for (const item of hist) {
-    const after = item?.after;
-    if (after && typeof after === "object" && after.status) {
-      statusName = after.status;
-      break;
-    }
-    if (typeof after === "string") statusName = after;
-  }
-  if (!statusName && body.task?.status) {
-    statusName = typeof body.task.status === "string" ? body.task.status : body.task.status.status || "";
-  }
-
   const db = getFirestore();
-  const q = await db.collection("demandas").where("clickupTaskId", "==", taskId).limit(1).get();
-  if (q.empty) {
-    res.status(200).json({ ok: true, unmatched: true });
+  const webhooksRef = db.doc(asanaLib.DOC_WEBHOOKS);
+  const segredoNovo = req.get("X-Hook-Secret");
+  if (segredoNovo) {
+    if (!(await asanaLib.registrarHandshake({ db, projetoGid, segredo: segredoNovo }))) {
+      res.status(403).send("handshake");
+      return;
+    }
+    res.set("X-Hook-Secret", segredoNovo);
+    res.status(200).send("");
     return;
   }
-  const doc = q.docs[0];
-  const d = doc.data() || {};
-  const prev = d.clickup && typeof d.clickup === "object" ? { ...d.clickup } : {};
-  const now = new Date().toISOString();
-  const next = { ...prev, status: statusName || prev.status || "" };
-  const patch = { clickup: next, updatedAt: now };
-
-  if (event.includes("taskStatusUpdated") && isStatusConclusao(statusName) && !prev.completedAt) {
-    const url = prev.url || `https://app.clickup.com/t/${taskId}`;
-    next.completedAt = now;
-    patch.clickup = next;
-    const cmt = commentFromClickup(`Operação concluiu a demanda no ClickUp.\n${url}`);
-    patch.comentarios = Array.isArray(d.comentarios) ? [cmt, ...d.comentarios] : [cmt];
+  const segredo = (await webhooksRef.get()).data()?.[projetoGid]?.secret;
+  if (!asanaLib.assinaturaValida(segredo, req.rawBody, req.get("X-Hook-Signature"))) {
+    res.status(401).send("assinatura");
+    return;
   }
-
-  await doc.ref.set(patch, { merge: true });
+  const eventos = Array.isArray(req.body?.events) ? req.body.events : [];
+  const token = asanaToken.value();
+  for (const evento of eventos) {
+    try {
+      await asanaLib.processarEvento({ db, token, evento });
+    } catch (e) {
+      console.warn("Evento do Asana:", e.message || e);
+    }
+  }
   res.status(200).json({ ok: true });
 });
 

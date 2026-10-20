@@ -313,12 +313,9 @@ const DemandasFirebase = (function () {
     if (!copy.alertaSnooze) {
       copy.alertaSnooze = firebase.firestore.FieldValue.delete();
     }
-    if (!copy.clickup) {
-      copy.clickup = firebase.firestore.FieldValue.delete();
-    }
-    if (!copy.clickupTaskId) {
-      copy.clickupTaskId = firebase.firestore.FieldValue.delete();
-    }
+    // Vínculo com o Asana: só o servidor grava/apaga (o app nunca o remove numa gravação).
+    if (!copy.asana) delete copy.asana;
+    if (!copy.asanaTaskId) delete copy.asanaTaskId;
     return copy;
   }
 

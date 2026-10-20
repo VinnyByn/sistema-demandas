@@ -113,8 +113,8 @@ function migrateDemanda(d) {
     historicoAlertas: normalizeHistoricoAlertas(d.historicoAlertas),
     chamadoOcomon: String(d.chamadoOcomon || "").trim(),
     osAniel: String(d.osAniel || "").trim(),
-    clickupTaskId: String(d.clickupTaskId || d.clickup?.taskId || "").trim(),
-    clickup: normalizeClickup(d.clickup || d),
+    asanaTaskId: String(d.asanaTaskId || d.asana?.taskId || "").trim(),
+    asana: normalizeAsana(d.asana),
     createdAt: d.createdAt || new Date().toISOString(),
     updatedAt: d.updatedAt || new Date().toISOString(),
   };
@@ -130,8 +130,8 @@ function migrateDemanda(d) {
   }
   const snooze = normalizeAlertaSnooze(d.alertaSnooze);
   if (snooze) base.alertaSnooze = snooze;
-  if (!base.clickup) delete base.clickup;
-  if (!base.clickupTaskId) delete base.clickupTaskId;
+  if (!base.asana) delete base.asana;
+  if (!base.asanaTaskId) delete base.asanaTaskId;
   if (!base.historicoStatus.length) {
     const t = base.createdAt;
     base.historicoStatus = [{ status: base.status, inicio: t, fim: "", observacao: "" }];
