@@ -1004,6 +1004,8 @@
                 <p class="muted small asana-ref__hint" id="demAsanaHint" hidden></p>
                 <button type="button" class="btn btn--primary btn--sm" id="btnEnviarAsana">Enviar à Operação</button>
                 <a class="btn btn--ghost btn--sm asana-ref__link" id="demAsanaLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Abrir no Asana</a>
+                <button type="button" class="btn btn--ghost btn--sm" id="btnAnexarAsana" hidden title="Envia PDF, Word, imagem… direto para a tarefa no Asana">📎 Anexar ao Asana</button>
+                <input type="file" id="asanaAnexarInput" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.txt,.csv,.kmz,.kml,.dwg,.dxf,.zip,.rar,image/*" hidden />
                 <button type="button" class="btn btn--ghost btn--sm" id="btnNovaOrdemAsana" hidden title="A tarefa atual continua no Asana; os próximos comentários vão para a nova">+ Nova ordem</button>
                 <button type="button" class="btn btn--danger btn--sm" id="btnCancelarAsana" hidden>Cancelar envio</button>
                 <p class="muted small asana-ref__anteriores" id="demAsanaAnteriores" hidden></p>
@@ -1608,7 +1610,15 @@
           <span>Instruções do que deverá ser feito</span>
           <textarea id="asanaEnvioTexto" rows="7" maxlength="4000" placeholder="Descreva o que a Operação precisa executar nesta demanda."></textarea>
         </label>
-        <p class="muted small">Os comentários deste projeto passam a aparecer na tarefa do Asana, e os de lá aparecem aqui.</p>
+        <div class="asana-anexos" id="asanaEnvioAnexos">
+          <span class="asana-anexos__rotulo">Anexos <small>(opcional · PDF, Word, Excel, imagem, KMZ… até 10 MB cada)</small></span>
+          <label class="asana-anexos__soltar" for="asanaEnvioArquivos">
+            <span aria-hidden="true">📎</span> <strong>Escolher arquivos</strong> ou arraste aqui
+            <input type="file" id="asanaEnvioArquivos" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.txt,.csv,.kmz,.kml,.dwg,.dxf,.zip,.rar,image/*" />
+          </label>
+          <ul class="asana-anexos__lista" id="asanaEnvioArquivosLista"></ul>
+        </div>
+        <p class="muted small">Os anexos vão direto para a tarefa no Asana (não ficam guardados no sistema). Os comentários deste projeto passam a aparecer lá, e os de lá aparecem aqui.</p>
       </div>
       <div class="modal__foot">
         <button type="button" class="btn btn--ghost" id="asanaEnvioCancel">Cancelar</button>

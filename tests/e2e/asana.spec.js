@@ -20,6 +20,7 @@ async function simularFuncoes(page) {
         comentario: { id: "asana_sis_1", texto: "Demanda enviada à Operação no Asana (Operação B2B).", autor: "Asana · Operação", createdAt: new Date().toISOString(), origem: "integracao" },
       }),
       asanaComentario: () => ({ storyGid: "S1" }),
+      asanaAnexar: (d) => ({ gid: "AT", nome: d.nome, comentario: { id: `asana_sis_anexo_${d.nome}`, texto: `📎 Anexou o arquivo «${d.nome}» no Asana`, autor: d.autor, createdAt: new Date().toISOString(), origem: "integracao" } }),
     };
     window.firebase = {
       apps: [1],
@@ -144,4 +145,32 @@ test("Asana: aviso de concluída aparece nos alertas e sai com Ciente", async ({
   await linha.locator("[data-asana-ciente]").click();
   await expect(page.locator("#esteiraInboxAlertas")).not.toContainText("Concluída no Asana");
   expect(await page.evaluate(() => !!state.demandas.find((x) => x.id === "p3").asanaAviso.cienteEm)).toBe(true);
+});
+
+test("Asana: anexos escolhidos no envio vão para a tarefa, e dá para anexar depois", async ({ app: { page } }) => {
+  await simularFuncoes(page);
+  await page.evaluate(() => openDemandaModal("p1"));
+  await page.click("[data-lv-asana]");
+  await page.locator("#asanaEnvioProjetosLista input").first().check();
+  await page.fill("#asanaEnvioTexto", "Executar conforme planta");
+  await page.setInputFiles("#asanaEnvioArquivos", [
+    { name: "planta.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 x") },
+    { name: "foto.jpg", mimeType: "image/jpeg", buffer: Buffer.from([0xff, 0xd8, 0xff]) },
+  ]);
+  await expect(page.locator("#asanaEnvioArquivosLista li")).toHaveCount(2);
+  await page.locator('#asanaEnvioArquivosLista [data-anexo-remover="1"]').click();
+  await expect(page.locator("#asanaEnvioArquivosLista li")).toHaveCount(1);
+  await page.click("#asanaEnvioOk");
+  await expect
+    .poll(() => page.evaluate(() => window.__chamadas.filter((c) => c.nome === "asanaAnexar").map((c) => [c.dados.nome, c.dados.base64])))
+    .toEqual([["planta.pdf", Buffer.from("%PDF-1.4 x").toString("base64")]]);
+  await expect(page.locator("#demComentariosList")).toContainText("Anexou o arquivo «planta.pdf» no Asana");
+
+  // depois do envio: 📎 Anexar ao Asana
+  await expect(page.locator("[data-lv-asana-anexar]")).toBeVisible();
+  await page.setInputFiles("#asanaAnexarInput", [{ name: "medicao.xlsx", mimeType: "application/vnd.ms-excel", buffer: Buffer.from("x") }]);
+  await expect
+    .poll(() => page.evaluate(() => window.__chamadas.filter((c) => c.nome === "asanaAnexar").map((c) => c.dados.nome)))
+    .toEqual(["planta.pdf", "medicao.xlsx"]);
+  await expect(page.locator("#demComentariosList")).toContainText("medicao.xlsx");
 });

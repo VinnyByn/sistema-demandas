@@ -64,7 +64,7 @@ function asanaFalso() {
   const fetchImpl = async (url, opts) => {
     const u = new URL(url);
     const caminho = u.pathname.replace("/api/1.0", "");
-    const corpo = opts.body ? JSON.parse(opts.body).data : undefined;
+    const corpo = opts.body instanceof FormData ? opts.body : opts.body ? JSON.parse(opts.body).data : undefined;
     chamadas.push({ method: opts.method, caminho, corpo, auth: opts.headers.Authorization });
     if (opts.method === "GET" && caminho.startsWith("/projects/")) return resp(200, { name: `Nome ${caminho.split("/")[2]}` });
     if (opts.method === "POST" && caminho === "/tasks") return resp(201, { gid: "T1", permalink_url: "https://app.asana.com/0/p/T1" });
@@ -88,6 +88,10 @@ function asanaFalso() {
       }
     }
     if (opts.method === "DELETE" && caminho.startsWith("/tasks/")) return resp(200, {});
+    if (opts.method === "POST" && caminho === "/attachments") {
+      const f = corpo.get("file");
+      return resp(201, { gid: "AT1", name: f.name, permalink_url: `https://app.asana.com/anexo/${f.name}`, parent: corpo.get("parent"), size: f.size });
+    }
     if (opts.method === "GET" && caminho === "/users/me") return resp(200, { gid: "U_INT" });
     if (opts.method === "GET" && caminho === "/attachments") return resp(200, [{ name: "poste12.jpg", permalink_url: "https://app.asana.com/app/asana/-/get_asset?asset_id=1", created_at: "2026-10-20T10:00:00Z" }]);
     if (opts.method === "GET" && caminho.startsWith("/sections/")) return resp(200, { name: { SEC_AND: "Em andamento", SEC_FIM: "Concluído", SEC_X: "Backlog" }[caminho.split("/")[2]] });
@@ -295,4 +299,21 @@ test("atividades do Asana viram comentário: imagem anexada, responsável; colun
   assert.match(textos.find((t) => t.includes("poste12")), /^🖼️ Anexou a imagem «poste12\.jpg» no Asana\nhttps:/);
   assert.ok(textos.includes("👤 Definiu João Silva como responsável no Asana"));
   assert.equal(db.docs.get("demandas/d1").comentarios[0].autor, "Ana Operação");
+});
+
+test("anexo enviado pelo sistema vai para a tarefa atual no Asana e vira comentário com link", async () => {
+  const db = firestoreFalso({ "demandas/d1": { asanaTaskId: "T1", comentarios: [] }, "demandas/d2": { comentarios: [] } });
+  const api = asanaFalso();
+  const base64 = Buffer.from("%PDF-1.4 teste").toString("base64");
+  const r = await asana.anexarArquivo({ ...base(db, api), demandaId: "d1", nome: "planta/rede.pdf", tipo: "application/pdf", base64, autor: "Vinicius Morais" });
+  assert.equal(r.nome, "planta_rede.pdf");
+  const envio = api.chamadas.find((c) => c.caminho === "/attachments");
+  assert.equal(envio.corpo.get("parent"), "T1");
+  assert.equal(envio.auth, "Bearer tok");
+  const c = db.docs.get("demandas/d1").comentarios[0];
+  assert.match(c.texto, /^📎 Anexou o arquivo «planta_rede\.pdf» no Asana\nhttps:/);
+  assert.equal(c.autor, "Vinicius Morais");
+  await assert.rejects(asana.anexarArquivo({ ...base(db, api), demandaId: "d2", nome: "a.pdf", base64 }), /ainda não tem tarefa/);
+  const grande = Buffer.alloc(asana.ANEXO_MAX_BYTES + 1).toString("base64");
+  await assert.rejects(asana.anexarArquivo({ ...base(db, api), demandaId: "d1", nome: "g.jpg", base64: grande }), /maior que 10 MB/);
 });

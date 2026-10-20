@@ -3979,6 +3979,25 @@ html[data-theme="light"] .comment-asana--sim { color: #9b1c1c; border-color: #f5
 .compose-card__asana[hidden] { display: none; }
 .compose-card__asana input { margin: 0; accent-color: var(--accent); }
 .asana-ref__anteriores { margin: 0; flex: 1 1 100%; }
+.asana-anexos { display: grid; gap: 0.35rem; margin: 0.75rem 0 0.5rem; }
+.asana-anexos__rotulo { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.asana-anexos__rotulo small { font-weight: 400; }
+.asana-anexos__soltar {
+  display: block; position: relative; padding: 0.7rem 0.8rem; border: 1.5px dashed var(--border); border-radius: 10px;
+  text-align: center; font-size: 0.85rem; color: var(--muted); cursor: pointer; background: var(--surface);
+}
+.asana-anexos__soltar strong { color: var(--accent); }
+.asana-anexos__soltar:focus-within, .asana-anexos.is-arrastando .asana-anexos__soltar { border-color: var(--accent); background: rgba(59, 130, 246, 0.08); }
+.asana-anexos__soltar input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.asana-anexos__lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.asana-anexos__lista:empty { display: none; }
+.asana-anexos__lista li {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.35rem 0.3rem 0.6rem; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 0.82rem;
+}
+.asana-anexos__nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asana-anexos__lista small { color: var(--muted); }
+.asana-anexos__lista .icon-btn { width: 1.6rem; height: 1.6rem; }
 .modal__inner { display: flex; flex-direction: column; max-height: min(92vh, 900px); min-height: 0; overflow: hidden; }
 .modal__head {
   display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem;

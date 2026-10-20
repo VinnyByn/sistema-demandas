@@ -191,6 +191,7 @@ initMetasEtapa();
 // ===== Integração com o Asana (envio à Operação e comentários) (js/07-asana.js) =====
 
 initAsanaEnvioDialog();
+initAsanaAnexos();
 
 // ===== Modal do projeto: campos, selects e sincronização do formulário (js/08-modal-projeto.js) =====
 

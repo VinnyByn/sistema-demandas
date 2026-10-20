@@ -352,6 +352,9 @@ function demSecaoLeituraHtml(key) {
         asana =
           `${escapeHtml(hint || "Tarefa criada")} ` +
           `<a class="seg-lv__link" href="${escapeHtml(link.getAttribute("href"))}" target="_blank" rel="noopener" data-lv-acao="1">Abrir no Asana ↗</a>` +
+          (!document.getElementById("btnAnexarAsana")?.hidden
+            ? ` <button type="button" class="btn btn--ghost btn--sm" data-lv-asana-anexar="1" data-lv-acao="1">📎 Anexar ao Asana</button>`
+            : "") +
           (!document.getElementById("btnNovaOrdemAsana")?.hidden
             ? ` <button type="button" class="btn btn--ghost btn--sm" data-lv-asana-nova="1" data-lv-acao="1">+ Nova ordem</button>`
             : "") +
@@ -434,6 +437,11 @@ function initDemSecoesLeitura() {
     fs.querySelector(":scope > legend")?.after(box);
     box.addEventListener("click", (e) => {
       const alvo = e.target instanceof Element ? e.target : null;
+      if (alvo?.closest("[data-lv-asana-anexar]")) {
+        e.preventDefault();
+        document.getElementById("btnAnexarAsana")?.click();
+        return;
+      }
       if (alvo?.closest("[data-lv-asana-nova]")) {
         e.preventDefault();
         document.getElementById("btnNovaOrdemAsana")?.click();

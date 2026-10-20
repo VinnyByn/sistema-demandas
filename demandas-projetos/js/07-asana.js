@@ -135,6 +135,133 @@ function lerUltimoProjetoAsana() {
 
 let asanaEnvioResolve = null;
 
+/* ---------- Anexos: vão direto para a tarefa no Asana (não ficam guardados no sistema) ---------- */
+const ASANA_ANEXO_MAX_BYTES = 10 * 1024 * 1024;
+const ASANA_ANEXOS_MAX_TOTAL = 25 * 1024 * 1024;
+const ASANA_ANEXOS_MAX_QTD = 10;
+let asanaEnvioArquivos = [];
+
+function formatTamanhoArquivo(b) {
+  return b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
+}
+
+/** Junta arquivos à lista, recusando os grandes demais. Devolve a lista nova. */
+function juntarArquivosAsana(lista, novos) {
+  const out = [...lista];
+  for (const f of novos) {
+    if (out.length >= ASANA_ANEXOS_MAX_QTD) {
+      toast(`Até ${ASANA_ANEXOS_MAX_QTD} arquivos por vez.`);
+      break;
+    }
+    if (f.size > ASANA_ANEXO_MAX_BYTES) {
+      toast(`«${f.name}» passa de 10 MB — anexe direto no Asana.`);
+      continue;
+    }
+    if (out.reduce((s, x) => s + x.size, 0) + f.size > ASANA_ANEXOS_MAX_TOTAL) {
+      toast("Os anexos passam de 25 MB juntos — envie o restante depois, pelo 📎 Anexar ao Asana.");
+      break;
+    }
+    if (!out.some((x) => x.name === f.name && x.size === f.size)) out.push(f);
+  }
+  return out;
+}
+
+function renderAsanaEnvioArquivos() {
+  const ul = document.getElementById("asanaEnvioArquivosLista");
+  if (!ul) return;
+  ul.innerHTML = asanaEnvioArquivos
+    .map(
+      (f, i) =>
+        `<li><span class="asana-anexos__nome" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>` +
+        `<small>${formatTamanhoArquivo(f.size)}</small>` +
+        `<button type="button" class="icon-btn" data-anexo-remover="${i}" aria-label="Remover ${escapeHtml(f.name)}">×</button></li>`,
+    )
+    .join("");
+}
+
+function lerArquivoBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result || "").replace(/^data:[^,]*,/, ""));
+    r.onerror = () => reject(r.error || new Error("Não foi possível ler o arquivo."));
+    r.readAsDataURL(file);
+  });
+}
+
+/** Envia os arquivos um por vez para a tarefa atual da demanda no Asana. */
+async function anexarArquivosAsana(id, arquivos) {
+  const lista = [...(arquivos || [])];
+  if (!lista.length) return { ok: 0, falhas: 0 };
+  const call = asanaFuncao("asanaAnexar");
+  if (!call) {
+    toast("Recarregue a página (Ctrl+F5) para carregar o Asana.");
+    return { ok: 0, falhas: lista.length };
+  }
+  let ok = 0;
+  const falhas = [];
+  for (const [i, f] of lista.entries()) {
+    toast(`Anexando no Asana ${i + 1}/${lista.length}: ${f.name}…`);
+    try {
+      const base64 = await lerArquivoBase64(f);
+      const res = await call({ demandaId: id, nome: f.name, tipo: f.type || "", base64, autor: getLoggedInComentarioAutor() });
+      aplicarRespostaAsanaLocal(id, null, res?.data?.comentario);
+      ok += 1;
+    } catch (err) {
+      falhas.push(`${f.name}: ${formatCallableError(err, "falhou")}`);
+    }
+  }
+  toast(
+    falhas.length
+      ? `${ok} anexo(s) enviados. Não foi: ${falhas.join(" · ")}`
+      : `${ok} anexo(s) enviados ao Asana`,
+  );
+  return { ok, falhas: falhas.length };
+}
+
+function initAsanaAnexos() {
+  const input = document.getElementById("asanaEnvioArquivos");
+  const box = document.getElementById("asanaEnvioAnexos");
+  const ul = document.getElementById("asanaEnvioArquivosLista");
+  input?.addEventListener("change", () => {
+    asanaEnvioArquivos = juntarArquivosAsana(asanaEnvioArquivos, input.files || []);
+    input.value = "";
+    renderAsanaEnvioArquivos();
+  });
+  box?.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    box.classList.add("is-arrastando");
+  });
+  box?.addEventListener("dragleave", () => box.classList.remove("is-arrastando"));
+  box?.addEventListener("drop", (e) => {
+    e.preventDefault();
+    box.classList.remove("is-arrastando");
+    asanaEnvioArquivos = juntarArquivosAsana(asanaEnvioArquivos, e.dataTransfer?.files || []);
+    renderAsanaEnvioArquivos();
+  });
+  ul?.addEventListener("click", (e) => {
+    const btn = e.target instanceof Element ? e.target.closest("[data-anexo-remover]") : null;
+    if (!btn) return;
+    asanaEnvioArquivos = asanaEnvioArquivos.filter((_, i) => i !== Number(btn.dataset.anexoRemover));
+    renderAsanaEnvioArquivos();
+  });
+  // Projeto já enviado: anexar depois, sem abrir nova ordem.
+  const avulso = document.getElementById("asanaAnexarInput");
+  document.getElementById("btnAnexarAsana")?.addEventListener("click", () => avulso?.click());
+  avulso?.addEventListener("change", async () => {
+    const id = (document.getElementById("demId")?.value || "").trim();
+    const arquivos = juntarArquivosAsana([], avulso.files || []);
+    avulso.value = "";
+    if (!id || !arquivos.length || !requireWriteAccess()) return;
+    const btn = document.getElementById("btnAnexarAsana");
+    if (btn) btn.disabled = true;
+    try {
+      await anexarArquivosAsana(id, arquivos);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
+}
+
 function initAsanaEnvioDialog() {
   const dlg = document.getElementById("modalAsanaEnvio");
   const ta = document.getElementById("asanaEnvioTexto");
@@ -167,7 +294,7 @@ function initAsanaEnvioDialog() {
     try {
       localStorage.setItem(ASANA_PROJETO_ULTIMO_KEY, projetoGid);
     } catch (_) {}
-    finish({ instrucoes: texto, projetoGid });
+    finish({ instrucoes: texto, projetoGid, arquivos: [...asanaEnvioArquivos] });
   });
   btnCancel.addEventListener("click", () => finish(null));
   btnClose?.addEventListener("click", () => finish(null));
@@ -196,6 +323,8 @@ function promptAsanaEnvio(titulo, { novaOrdem = false } = {}) {
     proj.hidden = !t;
   }
   ta.value = "";
+  asanaEnvioArquivos = [];
+  renderAsanaEnvioArquivos();
   renderAsanaProjetosOpcoes(asanaProjetosCache || ASANA_PROJETOS_PADRAO);
   void carregarProjetosAsana().then((lista) => {
     if (dlg.open) renderAsanaProjetosOpcoes(lista);
@@ -211,8 +340,8 @@ function promptAsanaEnvio(titulo, { novaOrdem = false } = {}) {
 function aplicarRespostaAsanaLocal(id, patch, comentario) {
   const idx = state.demandas.findIndex((x) => x.id === id);
   if (idx < 0) return;
-  const dem = { ...state.demandas[idx], ...patch };
-  if (!patch.asana) {
+  const dem = { ...state.demandas[idx], ...(patch || {}) };
+  if (patch && patch.asana === null) {
     delete dem.asana;
     delete dem.asanaTaskId;
   }
@@ -267,6 +396,7 @@ async function enviarDemandaAsana(id, btn, envio, { novaOrdem = false } = {}) {
         ? "Já existe no Asana"
         : `${novaOrdem ? "Nova ordem aberta" : "Demanda criada"} no Asana${asana.projetoNome ? ` (${asana.projetoNome})` : ""}`,
     );
+    if (envio.arquivos?.length) await anexarArquivosAsana(id, envio.arquivos);
   } catch (err) {
     toast(formatCallableError(err, "Não foi possível criar no Asana"));
   } finally {
@@ -302,7 +432,7 @@ async function cancelarDemandaAsana(id) {
   beginOwnDemandaWrite(id);
   try {
     const res = await call({ demandaId: id });
-    aplicarRespostaAsanaLocal(id, {}, res?.data?.comentario);
+    aplicarRespostaAsanaLocal(id, { asana: null }, res?.data?.comentario);
     setAsanaUiOverride(id, null);
     toast("Envio cancelado no Asana");
   } catch (err) {
@@ -353,6 +483,7 @@ function atualizarCampoAsana() {
   const link = document.getElementById("demAsanaLink");
   const btnCancel = document.getElementById("btnCancelarAsana");
   const btnNova = document.getElementById("btnNovaOrdemAsana");
+  const btnAnexar = document.getElementById("btnAnexarAsana");
   const anterioresEl = document.getElementById("demAsanaAnteriores");
   if (!hint || !btn || !link) return;
   const id = (document.getElementById("demId")?.value || "").trim();
@@ -374,6 +505,7 @@ function atualizarCampoAsana() {
     btnCancel.disabled = true;
   }
   if (btnNova) btnNova.hidden = true;
+  if (btnAnexar) btnAnexar.hidden = true;
   if (anterioresEl) {
     const ant = (d?.asanaAnteriores || []).map(normalizeAsana).filter((a) => a?.url);
     anterioresEl.hidden = !ant.length;
@@ -398,6 +530,7 @@ function atualizarCampoAsana() {
       btnNova.hidden = false;
       btnNova.disabled = false;
     }
+    if (btnAnexar && !readOnly) btnAnexar.hidden = false;
     return;
   }
   if (!id) {
