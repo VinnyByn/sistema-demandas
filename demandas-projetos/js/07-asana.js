@@ -60,7 +60,8 @@ function normalizeAsanaAviso(a) {
 
 function avisoAsanaPendente(d) {
   const a = normalizeAsanaAviso(d?.asanaAviso);
-  return a && !a.cienteEm ? a : null;
+  // "Ciente" vale só para o aviso que existia quando foi clicado: um aviso mais novo volta a aparecer.
+  return a && (!a.cienteEm || (a.em && a.em > a.cienteEm)) ? a : null;
 }
 
 function marcarAvisoAsanaCiente(id) {

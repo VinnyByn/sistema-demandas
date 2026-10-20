@@ -213,3 +213,18 @@ test("Asana: aviso aparece no sino mesmo com filtro ou em outra esteira", async 
   await expect(page.locator("#esteiraInboxAlertas .alerta", { hasText: "Hospital Central" })).toContainText("Concluída no Asana");
   await expect(page.locator("#esteiraInboxAlertas")).toContainText("Asana 1");
 });
+
+test("Asana: aviso mais novo que o último Ciente volta a aparecer no sino", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    const d = state.demandas.find((x) => x.id === "p1");
+    d.asanaTaskId = "T1";
+    d.asana = { taskId: "T1", url: "u", concluidaEm: new Date().toISOString() };
+    // dado já gravado assim no Firestore: aviso novo com o cienteEm do anterior
+    d.asanaAviso = { tipo: "concluida", texto: "A Operação concluiu a tarefa no Asana.", taskId: "T1", em: "2026-10-20T12:00:00.000Z", chave: "c", cienteEm: "2026-10-20T10:00:00.000Z" };
+    renderBoard();
+  });
+  await page.click("#btnNotif");
+  await expect(
+    page.locator("#esteiraInboxAlertas .alerta", { hasText: "Rota IJA" }).filter({ hasText: "Concluída no Asana" }),
+  ).toHaveCount(1);
+});
