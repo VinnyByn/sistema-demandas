@@ -55,7 +55,13 @@ function firestoreFalso(inicial = {}) {
       }),
     }),
     async runTransaction(fn) {
-      return fn({ get: (r) => r.get(), set: (r, d, o) => r.set(d, o) });
+      return fn({
+        get: (r) => r.get(),
+        set: (r, d, o) => r.set(d, o),
+        update: (r, d) => {
+          for (const [k, v] of Object.entries(d)) docs.get(r.path)[k] = structuredClone(v); // update troca o campo inteiro
+        },
+      });
     },
   };
   return db;
@@ -383,4 +389,21 @@ test("webhook antigo (só comentários): mudar para Concluído pelo 'section_cha
   // a mesma mudança chegando também como evento de tarefa (webhook novo) não repete
   await asana.processarEvento({ ...args, evento: { action: "added", resource: { gid: "T1", resource_type: "task" }, parent: { gid: "SEC_FIM", resource_type: "section" } } });
   assert.equal(d().comentarios.filter((c) => /concluiu/.test(c.texto)).length, 1);
+});
+
+test("aviso novo não herda o Ciente do aviso anterior", async () => {
+  const db = firestoreFalso({
+    "demandas/d1": {
+      asanaTaskId: "T1", asanaTaskIds: ["T1"], asana: { taskId: "T1", url: "u" }, comentarios: [],
+      asanaAviso: { tipo: "andamento", texto: "x", taskId: "T1", em: "2026-10-20T09:00:00.000Z", chave: "andamento:T1:SEC_AND", cienteEm: "2026-10-20T09:05:00.000Z" },
+    },
+  });
+  const api = asanaFalso();
+  await asana.processarEvento({
+    ...base(db, api), apagarCampo: () => APAGAR,
+    evento: { action: "added", resource: { gid: "T1", resource_type: "task" }, parent: { gid: "SEC_FIM", resource_type: "section" } },
+  });
+  const aviso = db.docs.get("demandas/d1").asanaAviso;
+  assert.equal(aviso.tipo, "concluida");
+  assert.equal(aviso.cienteEm, undefined);
 });

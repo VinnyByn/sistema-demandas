@@ -413,16 +413,9 @@ async function registrarAviso(db, ref, { tipo, taskGid, texto, extra = {} }) {
     }
     const cmt = comentarioIntegracao(texto);
     const lista = Array.isArray(d.comentarios) ? d.comentarios : [];
-    tx.set(
-      ref,
-      {
-        ...resto,
-        asanaAviso: { tipo, texto, taskId: taskGid, em: agora, chave },
-        comentarios: [cmt, ...lista],
-        comentariosServidorAt: agora,
-      },
-      { merge: true },
-    );
+    tx.set(ref, { ...resto, comentarios: [cmt, ...lista], comentariosServidorAt: agora }, { merge: true });
+    // update troca o aviso inteiro (com set+merge, o "cienteEm" do aviso anterior ficava e escondia o novo).
+    tx.update(ref, { asanaAviso: { tipo, texto, taskId: taskGid, em: agora, chave } });
   });
 }
 
