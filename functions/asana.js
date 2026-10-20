@@ -298,6 +298,50 @@ function assinaturaValida(secret, rawBody, assinatura) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/** Atividades que já viram aviso próprio (coluna, conclusão) ou não interessam — não viram comentário. */
+const ATIVIDADES_IGNORADAS = new Set([
+  "section_changed", "marked_complete", "marked_incomplete", "added_to_project", "removed_from_project",
+  "comment_liked", "liked", "unliked", "added_to_tag", "removed_from_tag", "member_added", "collaborator_added",
+  "follower_added", "attachment_liked",
+]);
+
+let gidDaIntegracao = null;
+async function ehUsuarioDaIntegracao(asana, gid) {
+  if (!gid) return false;
+  if (gidDaIntegracao === null) {
+    try {
+      gidDaIntegracao = String((await asana("/users/me?opt_fields=gid"))?.gid || "");
+    } catch {
+      return false;
+    }
+  }
+  return gid === gidDaIntegracao;
+}
+
+/** Texto em português da atividade do Asana (comentário, anexo, responsável, prazo…), ou "" para ignorar. */
+async function textoDaAtividade(asana, story, taskGid) {
+  const subtipo = String(story.resource_subtype || "");
+  const bruto = String(story.text || "").trim();
+  if (subtipo === "comment_added") return bruto || "(comentário vazio)";
+  if (ATIVIDADES_IGNORADAS.has(subtipo)) return "";
+  if (subtipo === "attachment_added") {
+    let anexo = null;
+    try {
+      const lista = await asana(`/attachments?parent=${taskGid}&opt_fields=name,permalink_url,created_at`);
+      const arr = Array.isArray(lista) ? lista : [];
+      anexo = arr.find((x) => x.name && bruto.includes(x.name)) || arr.sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)))[0];
+    } catch {}
+    const nome = anexo?.name || bruto.replace(/^.*?attached\s*/i, "") || "um arquivo";
+    const ehImagem = /\.(png|jpe?g|gif|webp|heic|bmp)$/i.test(nome);
+    return `${ehImagem ? "🖼️" : "📎"} Anexou ${ehImagem ? "a imagem" : "o arquivo"} «${nome}» no Asana${anexo?.permalink_url ? `\n${anexo.permalink_url}` : ""}`;
+  }
+  if (subtipo === "assigned") return `👤 Definiu ${story.assignee?.name || "um responsável"} como responsável no Asana`;
+  if (subtipo === "unassigned") return "👤 Removeu o responsável da tarefa no Asana";
+  if (subtipo === "due_date_changed") return `📅 Alterou o prazo no Asana${bruto ? ` (${bruto})` : ""}`;
+  if (story.type === "comment") return bruto;
+  return bruto ? `🔔 Asana: ${bruto}` : "";
+}
+
 /** Asana → sistema: aplica um evento de comentário (story) recebido pelo webhook. */
 function normTxt(s) {
   return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -411,18 +455,22 @@ async function processarEvento({ db, token, fetchImpl, evento, apagarCampo = () 
   if (evento.action === "added") {
     if (mapa) return "ja-conhecido"; // veio do próprio sistema ou já foi aplicado
     const story = await asana(
-      `/stories/${storyGid}?opt_fields=text,resource_subtype,created_at,created_by.name,target.gid`,
+      `/stories/${storyGid}?opt_fields=text,resource_subtype,type,created_at,created_by.gid,created_by.name,target.gid,assignee.name`,
       { okStatuses: [404] },
     );
-    if (!story || story.__status || story.resource_subtype !== "comment_added") return "ignorado";
-    if (ehComentarioDoSistema(story.text)) return "eco";
+    if (!story || story.__status) return "ignorado";
+    const subtipo = String(story.resource_subtype || "");
+    if (subtipo === "comment_added" && ehComentarioDoSistema(story.text)) return "eco";
+    if (subtipo !== "comment_added" && (await ehUsuarioDaIntegracao(asana, story.created_by?.gid))) return "eco"; // ações do próprio sistema
     const taskGid = String(story.target?.gid || evento.parent?.gid || "");
+    const texto = await textoDaAtividade(asana, story, taskGid);
+    if (!texto) return "ignorado";
     const doc = await demandaDaTarefa(db, taskGid);
     if (!doc) return "sem-demanda";
     const comentarioId = `asana_${storyGid}`;
     await acrescentarComentario(db, doc.ref, {
       id: comentarioId,
-      texto: String(story.text || "").trim() || "(comentário vazio)",
+      texto,
       autor: String(story.created_by?.name || "").trim() || "Asana",
       createdAt: story.created_at || new Date().toISOString(),
       origem: "asana",

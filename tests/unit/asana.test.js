@@ -88,6 +88,8 @@ function asanaFalso() {
       }
     }
     if (opts.method === "DELETE" && caminho.startsWith("/tasks/")) return resp(200, {});
+    if (opts.method === "GET" && caminho === "/users/me") return resp(200, { gid: "U_INT" });
+    if (opts.method === "GET" && caminho === "/attachments") return resp(200, [{ name: "poste12.jpg", permalink_url: "https://app.asana.com/app/asana/-/get_asset?asset_id=1", created_at: "2026-10-20T10:00:00Z" }]);
     if (opts.method === "GET" && caminho.startsWith("/sections/")) return resp(200, { name: { SEC_AND: "Em andamento", SEC_FIM: "Concluído", SEC_X: "Backlog" }[caminho.split("/")[2]] });
     if (opts.method === "GET" && /^\/tasks\/\w+$/.test(caminho)) return resp(200, { completed: true });
     return resp(404);
@@ -272,4 +274,25 @@ test("webhook antigo (só comentários) é recriado com os filtros novos", async
   assert.ok(novo.corpo.filters.some((x) => x.resource_type === "task" && x.action === "deleted"));
   const deNovo = await asana.garantirWebhook({ ...base(db, api), projetoGid: PROJ, endpoint: "https://x/asanaWebhook" });
   assert.equal(deNovo.criado, false, "já na versão nova: reaproveita");
+});
+
+test("atividades do Asana viram comentário: imagem anexada, responsável; coluna e ações do próprio sistema não", async () => {
+  const db = firestoreFalso({ "demandas/d1": { asanaTaskId: "T1", asanaTaskIds: ["T1"], comentarios: [] } });
+  const api = asanaFalso();
+  const story = (gid, extra) => api.stories.set(gid, { gid, created_at: "2026-10-20T10:00:00.000Z", created_by: { gid: "U_OP", name: "Ana Operação" }, target: { gid: "T1" }, ...extra });
+  story("A1", { resource_subtype: "attachment_added", type: "system", text: "Ana Operação attached poste12.jpg" });
+  story("A2", { resource_subtype: "assigned", type: "system", text: "Ana Operação assigned to João", assignee: { name: "João Silva" } });
+  story("A3", { resource_subtype: "section_changed", type: "system", text: "moved this task" });
+  story("A4", { resource_subtype: "assigned", type: "system", text: "x", assignee: { name: "Y" }, created_by: { gid: "U_INT", name: "Integração" } });
+  const ev = (gid) => ({ action: "added", resource: { gid, resource_type: "story" }, parent: { gid: "T1", resource_type: "task" } });
+  const args = base(db, api);
+  assert.equal(await asana.processarEvento({ ...args, evento: ev("A1") }), "adicionado");
+  assert.equal(await asana.processarEvento({ ...args, evento: ev("A2") }), "adicionado");
+  assert.equal(await asana.processarEvento({ ...args, evento: ev("A3") }), "ignorado");
+  assert.equal(await asana.processarEvento({ ...args, evento: ev("A4") }), "eco");
+  const textos = db.docs.get("demandas/d1").comentarios.map((c) => c.texto);
+  assert.equal(textos.length, 2);
+  assert.match(textos.find((t) => t.includes("poste12")), /^🖼️ Anexou a imagem «poste12\.jpg» no Asana\nhttps:/);
+  assert.ok(textos.includes("👤 Definiu João Silva como responsável no Asana"));
+  assert.equal(db.docs.get("demandas/d1").comentarios[0].autor, "Ana Operação");
 });
