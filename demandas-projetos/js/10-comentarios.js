@@ -293,7 +293,13 @@ function renderComentariosList() {
               escapeHtml(comentarioIniciais(c.autor)) + "</div>" +
               '<div class="comment-body"><div class="comment-head"><strong>' + escapeHtml(c.autor) +
               (meu ? ' <span class="comment-voce">você</span>' : "") +
-              (c.origem === "asana" ? ' <span class="comment-origem" title="Comentário feito no Asana">via Asana</span>' : "") +
+              (c.origem === "asana"
+                ? ' <span class="comment-origem" title="Comentário feito no Asana">via Asana</span>'
+                : c.paraAsana === true
+                  ? ' <span class="comment-asana comment-asana--sim" title="Também aparece na tarefa do Asana">↗ Asana</span>'
+                  : c.paraAsana === false
+                    ? ' <span class="comment-asana" title="Não foi enviado ao Asana">só no sistema</span>'
+                    : "") +
               '</strong><time class="comment-time" datetime="' + escapeHtml(c.createdAt) + '" title="' +
               escapeHtml(formatComentarioData(c.createdAt)) + '">' + escapeHtml(formatComentarioRelativo(c.createdAt)) +
               "</time>" + editado + "</div>" +
@@ -461,6 +467,7 @@ function addComentarioFromForm() {
     autor: getLoggedInComentarioAutor(),
     createdAt: new Date().toISOString(),
     mencoes: extrairMencoes(texto),
+    paraAsana: comentarioNovoParaAsana(editingDemandaOpenId),
   });
   if (c) editingComentarios.unshift(c);
   ta.value = "";
@@ -482,7 +489,7 @@ function setDemandaFormReadOnly(readOnly) {
   if (form) {
     form.querySelectorAll("input, select, textarea, button").forEach((el) => {
       if (el.dataset.uiNav) return;
-        if (el.id === "modalDemandaClose" || el.id === "btnFecharDemanda" || el.id === "btnEnviarAsana" || el.id === "btnCancelarAsana" || el.id === "btnChecklistExpand" || el.id === "btnChecklistGantt") return;
+        if (el.id === "modalDemandaClose" || el.id === "btnFecharDemanda" || el.id === "btnEnviarAsana" || el.id === "btnCancelarAsana" || el.id === "btnNovaOrdemAsana" || el.id === "btnChecklistExpand" || el.id === "btnChecklistGantt") return;
       if (el.closest(".comments-panel__toggle")) return;
       if (el.classList.contains("timeline-move-up") || el.classList.contains("timeline-move-down") || el.classList.contains("checklist-item__move-up") || el.classList.contains("checklist-item__move-down")) {
         if (readOnly) el.disabled = true;

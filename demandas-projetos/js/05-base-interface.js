@@ -131,6 +131,8 @@ function migrateDemanda(d) {
   const snooze = normalizeAlertaSnooze(d.alertaSnooze);
   if (snooze) base.alertaSnooze = snooze;
   if (!base.asana) delete base.asana;
+  const anteriores = Array.isArray(d.asanaAnteriores) ? d.asanaAnteriores.map(normalizeAsana).filter(Boolean) : [];
+  if (anteriores.length) base.asanaAnteriores = anteriores;
   if (!base.asanaTaskId) delete base.asanaTaskId;
   if (!base.historicoStatus.length) {
     const t = base.createdAt;

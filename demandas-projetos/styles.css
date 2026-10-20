@@ -3968,6 +3968,17 @@ html[data-theme="light"] .modal::backdrop {
   background: rgba(240, 106, 106, 0.16); color: #f8a5a5; vertical-align: 0.08rem;
 }
 html[data-theme="light"] .comment-origem { background: #fde8e8; color: #9b1c1c; }
+.comment-origem, .comment-asana { display: inline-block; white-space: nowrap; }
+.comment-asana {
+  margin-left: 0.35rem; padding: 0.05rem 0.4rem; border-radius: 999px; font-size: 0.66rem; font-weight: 600;
+  border: 1px dashed var(--border); color: var(--muted); vertical-align: 0.08rem;
+}
+.comment-asana--sim { border-style: solid; border-color: rgba(240, 106, 106, 0.45); color: #f8a5a5; }
+html[data-theme="light"] .comment-asana--sim { color: #9b1c1c; border-color: #f5b4b4; }
+.compose-card__asana { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: var(--muted); cursor: pointer; user-select: none; }
+.compose-card__asana[hidden] { display: none; }
+.compose-card__asana input { margin: 0; accent-color: var(--accent); }
+.asana-ref__anteriores { margin: 0; flex: 1 1 100%; }
 .modal__inner { display: flex; flex-direction: column; max-height: min(92vh, 900px); min-height: 0; overflow: hidden; }
 .modal__head {
   display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem;

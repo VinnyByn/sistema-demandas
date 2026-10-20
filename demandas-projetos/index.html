@@ -1004,7 +1004,9 @@
                 <p class="muted small asana-ref__hint" id="demAsanaHint" hidden></p>
                 <button type="button" class="btn btn--primary btn--sm" id="btnEnviarAsana">Enviar à Operação</button>
                 <a class="btn btn--ghost btn--sm asana-ref__link" id="demAsanaLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Abrir no Asana</a>
+                <button type="button" class="btn btn--ghost btn--sm" id="btnNovaOrdemAsana" hidden title="A tarefa atual continua no Asana; os próximos comentários vão para a nova">+ Nova ordem</button>
                 <button type="button" class="btn btn--danger btn--sm" id="btnCancelarAsana" hidden>Cancelar envio</button>
+                <p class="muted small asana-ref__anteriores" id="demAsanaAnteriores" hidden></p>
               </div>
             </div>
           </div>
@@ -1331,6 +1333,9 @@
                   <textarea id="demComentarioNovo" rows="2" maxlength="4000" placeholder="Escreva um comentário…" aria-label="Novo comentário"></textarea>
                   <div class="compose-card__barra">
                     <button type="button" class="compose-card__mencao" id="btnComentarioMencao" title="Mencionar alguém (@)" aria-label="Mencionar alguém">@</button>
+                    <label class="compose-card__asana" id="demComentarioAsanaBox" hidden title="Marque para o comentário aparecer também na tarefa do Asana">
+                      <input type="checkbox" id="demComentarioAsana" checked /> Enviar ao Asana
+                    </label>
                     <span class="comments-compose__hint" id="demComentarioHint">Ctrl+Enter envia</span>
                     <button type="button" class="comments-compose__send" id="btnAddComentario" title="Enviar comentário (Ctrl+Enter)" disabled>
                       Enviar

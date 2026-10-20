@@ -803,6 +803,8 @@ function normalizeComentario(c) {
   // Gravados pelo servidor: "asana" (comentário feito no Asana) ou "integracao" (avisos de envio).
   if (c?.origem === "asana" || c?.origem === "integracao") out.origem = c.origem;
   if (c?.asanaStoryGid) out.asanaStoryGid = String(c.asanaStoryGid);
+  // Escrito aqui num projeto com tarefa no Asana: true = foi também para o Asana; false = só no sistema.
+  if (typeof c?.paraAsana === "boolean") out.paraAsana = c.paraAsana;
   return out;
 }
 

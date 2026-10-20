@@ -351,7 +351,13 @@ function demSecaoLeituraHtml(key) {
       if (link && !link.hidden && link.getAttribute("href")) {
         asana =
           `${escapeHtml(hint || "Tarefa criada")} ` +
-          `<a class="seg-lv__link" href="${escapeHtml(link.getAttribute("href"))}" target="_blank" rel="noopener" data-lv-acao="1">Abrir no Asana ↗</a>`;
+          `<a class="seg-lv__link" href="${escapeHtml(link.getAttribute("href"))}" target="_blank" rel="noopener" data-lv-acao="1">Abrir no Asana ↗</a>` +
+          (!document.getElementById("btnNovaOrdemAsana")?.hidden
+            ? ` <button type="button" class="btn btn--ghost btn--sm" data-lv-asana-nova="1" data-lv-acao="1">+ Nova ordem</button>`
+            : "") +
+          (!document.getElementById("demAsanaAnteriores")?.hidden
+            ? `<br><span class="muted small">${document.getElementById("demAsanaAnteriores").innerHTML}</span>`
+            : "");
       } else if (podeEnviar) {
         asana = `<button type="button" class="btn btn--primary btn--sm" data-lv-asana="1" data-lv-acao="1">Enviar à Operação</button>`;
       } else {
@@ -428,6 +434,11 @@ function initDemSecoesLeitura() {
     fs.querySelector(":scope > legend")?.after(box);
     box.addEventListener("click", (e) => {
       const alvo = e.target instanceof Element ? e.target : null;
+      if (alvo?.closest("[data-lv-asana-nova]")) {
+        e.preventDefault();
+        document.getElementById("btnNovaOrdemAsana")?.click();
+        return;
+      }
       if (alvo?.closest("[data-lv-asana]")) {
         e.preventDefault();
         document.getElementById("btnEnviarAsana")?.click();

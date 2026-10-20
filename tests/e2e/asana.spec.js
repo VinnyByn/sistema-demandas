@@ -13,8 +13,8 @@ async function simularFuncoes(page) {
       }),
       createAsanaOperacao: (d) => ({
         already: false,
-        taskId: "T1",
-        url: "https://app.asana.com/0/1219543786224599/T1",
+        taskId: d.novaOrdem ? "T2" : "T1",
+        url: `https://app.asana.com/0/1219543786224599/${d.novaOrdem ? "T2" : "T1"}`,
         projetoGid: d.projetoGid,
         projetoNome: "Operação B2B",
         comentario: { id: "asana_sis_1", texto: "Demanda enviada à Operação no Asana (Operação B2B).", autor: "Asana · Operação", createdAt: new Date().toISOString(), origem: "integracao" },
@@ -94,4 +94,38 @@ test("Asana: projeto sem tarefa no Asana não envia comentários para lá", asyn
   await page.click("#btnAddComentario");
   await page.waitForTimeout(200);
   expect(await page.evaluate(() => window.__chamadas.length)).toBe(0);
+});
+
+test("Asana: comentário marcado só para o sistema não vai; nova ordem guarda a anterior", async ({ app: { page } }) => {
+  await simularFuncoes(page);
+  await page.evaluate(() => {
+    const d = state.demandas.find((x) => x.id === "p1");
+    d.asanaTaskId = "T1";
+    d.asana = { taskId: "T1", url: "https://app.asana.com/0/x/T1", projetoGid: "1211582012771845", projetoNome: "Operação Rede" };
+    openDemandaModal("p1");
+  });
+  await expect(page.locator("#demComentarioAsanaBox")).toBeVisible();
+  await page.uncheck("#demComentarioAsana");
+  await page.fill("#demComentarioNovo", "Nota interna");
+  await page.click("#btnAddComentario");
+  await expect(page.locator(".comment-row", { hasText: "Nota interna" })).toContainText("só no sistema");
+  await page.check("#demComentarioAsana");
+  await page.fill("#demComentarioNovo", "Para a Operação");
+  await page.click("#btnAddComentario");
+  await expect(page.locator(".comment-row", { hasText: "Para a Operação" })).toContainText("↗ Asana");
+  await expect
+    .poll(() => page.evaluate(() => window.__chamadas.filter((c) => c.nome === "asanaComentario").map((c) => c.dados.texto)))
+    .toEqual(["Para a Operação"]);
+
+  await page.click("[data-lv-asana-nova]");
+  await page.locator("#asanaEnvioProjetosLista input").first().check();
+  await expect(page.locator("#asanaEnvioOk")).toHaveText("Abrir nova ordem");
+  await page.fill("#asanaEnvioTexto", "Refazer emenda");
+  await page.click("#asanaEnvioOk");
+  const envio = await page.evaluate(() => window.__chamadas.filter((c) => c.nome === "createAsanaOperacao").at(-1).dados);
+  expect(envio).toMatchObject({ novaOrdem: true, instrucoes: "Refazer emenda" });
+  const d = await page.evaluate(() => state.demandas.find((x) => x.id === "p1"));
+  expect(d.asanaTaskId).toBe("T2");
+  expect(d.asanaAnteriores.map((a) => a.taskId)).toEqual(["T1"]);
+  await expect(page.locator(".seg-leitura", { hasText: "Asana (Operação)" }).first()).toContainText("Ordens anteriores");
 });
