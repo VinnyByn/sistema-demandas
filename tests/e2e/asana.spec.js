@@ -199,3 +199,17 @@ test("Asana: aviso novo vira notificação na tela e faixa no projeto aberto", a
   await page.click("#btnDemAsanaCiente");
   await expect(page.locator("#demAsanaAvisoBanner")).toBeHidden();
 });
+
+test("Asana: aviso aparece no sino mesmo com filtro ou em outra esteira", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    const d = state.demandas.find((x) => x.id === "p3");
+    d.asanaTaskId = "T7";
+    d.asana = { taskId: "T7", url: "u", concluidaEm: new Date().toISOString() };
+    d.asanaAviso = { tipo: "concluida", texto: "A Operação concluiu a tarefa no Asana.", taskId: "T7", em: new Date().toISOString(), chave: "c" };
+    document.getElementById("filterBusca").value = "Rota IJA"; // filtro que esconde o Hospital Central
+    document.getElementById("filterBusca").dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.click("#btnNotif");
+  await expect(page.locator("#esteiraInboxAlertas .alerta", { hasText: "Hospital Central" })).toContainText("Concluída no Asana");
+  await expect(page.locator("#esteiraInboxAlertas")).toContainText("Asana 1");
+});

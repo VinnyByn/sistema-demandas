@@ -298,24 +298,33 @@ function alertaEsteiraSortIndex(d, linha) {
   return idx < 0 ? keys.length : idx;
 }
 
+/** Avisos do Asana: valem para todos os projetos (não dependem da esteira nem dos filtros, como as menções). */
+function avisosAsanaRows() {
+  const rows = [];
+  for (const raw of state.demandas || []) {
+    if (raw?.excluidoEm) continue;
+    const d = migrateDemanda(raw);
+    const aviso = avisoAsanaPendente(d);
+    if (!aviso) continue;
+    const tipo = ASANA_AVISO_TIPOS[aviso.tipo];
+    rows.push({
+      severity: tipo.tom === "bad" ? "bad" : "ok",
+      kind: ALERTA_KIND_ASANA,
+      d,
+      dias: 0,
+      msg: aviso.texto || tipo.curta,
+      curta: tipo.curta,
+      meta: aviso.em ? `Asana · ${formatComentarioRelativo(aviso.em)}` : "Asana",
+      ico: tipo.ico,
+    });
+  }
+  return rows.sort((a, b) => String(b.d.asanaAviso?.em || "").localeCompare(String(a.d.asanaAviso?.em || "")));
+}
+
 function buildInboxAlertasRows(list, linha) {
   const rows = [];
   for (const raw of list) {
     const d = migrateDemanda(raw);
-    const aviso = avisoAsanaPendente(d);
-    if (aviso) {
-      const tipo = ASANA_AVISO_TIPOS[aviso.tipo];
-      rows.push({
-        severity: tipo.tom === "bad" ? "bad" : "ok",
-        kind: ALERTA_KIND_ASANA,
-        d,
-        dias: 0,
-        msg: aviso.texto || tipo.curta,
-        curta: tipo.curta,
-        meta: aviso.em ? `Asana · ${formatComentarioRelativo(aviso.em)}` : "Asana",
-        ico: tipo.ico,
-      });
-    }
     if (isStatusConcluidoDemanda(d) || isDemandaEncerrada(d)) continue;
 
     const semAtrib = !normalizeResponsavel(d.responsavel);
@@ -384,7 +393,7 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   const el = document.getElementById("esteiraInboxAlertas");
   if (!el) return;
   const list = filteredDemandasForEsteira(linha, { rapido: false });
-  const rows = [...mencoesParaMimRows(), ...buildInboxAlertasRows(list, linha)];
+  const rows = [...mencoesParaMimRows(), ...avisosAsanaRows(), ...buildInboxAlertasRows(list, linha)];
   syncNotifBadge(rows);
   const canal = linha === LINHA_ESTEIRA_B2B ? "Esteira B2B" : "Esteira Projetos";
   const head = (extra = "") =>

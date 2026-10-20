@@ -290,20 +290,18 @@ test("webhook antigo (só comentários) é recriado com os filtros novos", async
   assert.equal(deNovo.criado, false, "já na versão nova: reaproveita");
 });
 
-test("atividades do Asana viram comentário: imagem anexada, responsável; coluna e ações do próprio sistema não", async () => {
+test("atividades do Asana viram comentário: imagem anexada e responsável (também pela conta do token)", async () => {
   const db = firestoreFalso({ "demandas/d1": { asanaTaskId: "T1", asanaTaskIds: ["T1"], comentarios: [] } });
   const api = asanaFalso();
   const story = (gid, extra) => api.stories.set(gid, { gid, created_at: "2026-10-20T10:00:00.000Z", created_by: { gid: "U_OP", name: "Ana Operação" }, target: { gid: "T1" }, ...extra });
   story("A1", { resource_subtype: "attachment_added", type: "system", text: "Ana Operação attached poste12.jpg" });
   story("A2", { resource_subtype: "assigned", type: "system", text: "Ana Operação assigned to João", assignee: { name: "João Silva" } });
-  story("A3", { resource_subtype: "section_changed", type: "system", text: "moved this task" });
   // feito pela própria conta dona do token (quem também usa o Asana): precisa aparecer
   story("A4", { resource_subtype: "assigned", type: "system", text: "x", assignee: { name: "Maria Lima" }, created_by: { gid: "U_INT", name: "Vinicius" } });
   const ev = (gid) => ({ action: "added", resource: { gid, resource_type: "story" }, parent: { gid: "T1", resource_type: "task" } });
   const args = base(db, api);
   assert.equal(await asana.processarEvento({ ...args, evento: ev("A1") }), "adicionado");
   assert.equal(await asana.processarEvento({ ...args, evento: ev("A2") }), "adicionado");
-  assert.equal(await asana.processarEvento({ ...args, evento: ev("A3") }), "ignorado");
   assert.equal(await asana.processarEvento({ ...args, evento: ev("A4") }), "adicionado");
   const textos = db.docs.get("demandas/d1").comentarios.map((c) => c.texto);
   assert.equal(textos.length, 3);
@@ -352,4 +350,37 @@ test("ordem concluída pela coluna libera nova ordem; voltar a abrir no Asana tr
   await asana.processarEvento({ ...args, evento: ev({ action: "added", parent: { gid: "SEC_FIM", resource_type: "section" } }) });
   assert.ok(d().asana.concluidaEm);
   assert.equal(d().comentarios.filter((c) => /concluiu/.test(c.texto)).length, 2, "concluir de novo avisa de novo");
+});
+
+test("webhook antigo (só comentários): mudar para Concluído pelo 'section_changed' também gera o aviso", async () => {
+  const db = firestoreFalso({
+    "demandas/d1": { asanaTaskId: "T1", asanaTaskIds: ["T1"], asana: { taskId: "T1", url: "u", projetoGid: PROJ }, comentarios: [] },
+  });
+  const api = asanaFalso();
+  let situacao = { completed: false, memberships: [{ project: { gid: PROJ }, section: { gid: "SEC_AND", name: "Em andamento" } }] };
+  const f = api.fetchImpl;
+  api.fetchImpl = async (url, opts) =>
+    opts.method === "GET" && /^\/api\/1\.0\/tasks\/T1$/.test(new URL(url).pathname)
+      ? { ok: true, status: 200, text: async () => JSON.stringify({ data: situacao }) }
+      : f(url, opts);
+  const story = (gid, sub) => api.stories.set(gid, { gid, resource_subtype: sub, type: "system", text: "moved", created_by: { name: "Op" }, target: { gid: "T1" } });
+  const ev = (gid) => ({ action: "added", resource: { gid, resource_type: "story" }, parent: { gid: "T1", resource_type: "task" } });
+  const args = { ...base(db, api), apagarCampo: () => APAGAR };
+  const d = () => db.docs.get("demandas/d1");
+
+  story("S1", "section_changed");
+  assert.equal(await asana.processarEvento({ ...args, evento: ev("S1") }), "andamento");
+  assert.equal(d().asanaAviso.tipo, "andamento");
+  situacao = { completed: true, memberships: [{ project: { gid: PROJ }, section: { gid: "SEC_FIM", name: "Concluído" } }] };
+  story("S2", "section_changed");
+  assert.equal(await asana.processarEvento({ ...args, evento: ev("S2") }), "concluida");
+  story("S3", "marked_complete");
+  await asana.processarEvento({ ...args, evento: ev("S3") });
+  assert.equal(d().asanaAviso.tipo, "concluida");
+  assert.ok(d().asana.concluidaEm);
+  assert.equal(d().asana.url, "u", "não apaga o resto do vínculo");
+  assert.equal(d().comentarios.filter((c) => /concluiu/.test(c.texto)).length, 1, "aviso de concluída uma vez só");
+  // a mesma mudança chegando também como evento de tarefa (webhook novo) não repete
+  await asana.processarEvento({ ...args, evento: { action: "added", resource: { gid: "T1", resource_type: "task" }, parent: { gid: "SEC_FIM", resource_type: "section" } } });
+  assert.equal(d().comentarios.filter((c) => /concluiu/.test(c.texto)).length, 1);
 });
