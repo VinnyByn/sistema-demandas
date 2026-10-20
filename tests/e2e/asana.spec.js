@@ -224,5 +224,7 @@ test("Asana: aviso mais novo que o último Ciente volta a aparecer no sino", asy
     renderBoard();
   });
   await page.click("#btnNotif");
-  await expect(page.locator("#esteiraInboxAlertas .alerta", { hasText: "Rota IJA" })).toContainText("Concluída no Asana");
+  await expect(
+    page.locator("#esteiraInboxAlertas .alerta", { hasText: "Rota IJA" }).filter({ hasText: "Concluída no Asana" }),
+  ).toHaveCount(1);
 });
