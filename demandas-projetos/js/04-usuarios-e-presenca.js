@@ -916,6 +916,7 @@ const HISTORICO_ALERTAS_LIMITE = 80;
 const ALERTA_KIND_SEM_ATRIB = "sem_atribuicao";
 const ALERTA_KIND_COLUNA = "coluna";
 const ALERTA_KIND_MENCAO = "mencao";
+const ALERTA_KIND_ASANA = "asana";
 const ALERTA_DIAS_MESMA_COLUNA = 6;
 const ALERTA_SNOOZE_DIAS_PADRAO = 4;
 

@@ -302,6 +302,20 @@ function buildInboxAlertasRows(list, linha) {
   const rows = [];
   for (const raw of list) {
     const d = migrateDemanda(raw);
+    const aviso = avisoAsanaPendente(d);
+    if (aviso) {
+      const tipo = ASANA_AVISO_TIPOS[aviso.tipo];
+      rows.push({
+        severity: tipo.tom === "bad" ? "bad" : "ok",
+        kind: ALERTA_KIND_ASANA,
+        d,
+        dias: 0,
+        msg: aviso.texto || tipo.curta,
+        curta: tipo.curta,
+        meta: aviso.em ? `Asana · ${formatComentarioRelativo(aviso.em)}` : "Asana",
+        ico: tipo.ico,
+      });
+    }
     if (isStatusConcluidoDemanda(d) || isDemandaEncerrada(d)) continue;
 
     const semAtrib = !normalizeResponsavel(d.responsavel);
@@ -347,6 +361,8 @@ function buildInboxAlertasRows(list, linha) {
     }
   }
   return rows.sort((a, b) => {
+    if (a.kind === ALERTA_KIND_ASANA && b.kind !== ALERTA_KIND_ASANA) return -1;
+    if (b.kind === ALERTA_KIND_ASANA && a.kind !== ALERTA_KIND_ASANA) return 1;
     const ia = alertaEsteiraSortIndex(a.d, linha);
     const ib = alertaEsteiraSortIndex(b.d, linha);
     if (ia !== ib) return ia - ib;
@@ -361,6 +377,7 @@ const ALERTAS_ABAS = [
   { kind: ALERTA_KIND_MENCAO, label: "Menções", tom: "mencao" },
   { kind: ALERTA_KIND_SEM_ATRIB, label: "Sem projetista", tom: "bad" },
   { kind: ALERTA_KIND_COLUNA, label: "Parados", tom: "coluna" },
+  { kind: ALERTA_KIND_ASANA, label: "Asana", tom: "ok" },
 ];
 
 function renderInboxAlertas(linha = activeEsteiraCanal) {
@@ -373,7 +390,7 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
   const head = (extra = "") =>
     `<div class="inbox-alertas__head"><h4 class="inbox-alertas__title">Alertas${extra}</h4>` +
     `<span class="inbox-alertas__canal">${canal}${esteiraFiltrosAtivosCount() ? " · com filtros" : ""}</span>` +
-    `<span class="inbox-alertas__ajuda" tabindex="0" title="Vermelho: sem projetista. Laranja: passou da meta de dias da etapa. @: menções a você.&#10;Adiar registra um comentário e silencia o alerta por alguns dias." aria-label="Como funcionam os alertas">?</span></div>`;
+    `<span class="inbox-alertas__ajuda" tabindex="0" title="Vermelho: sem projetista. Laranja: passou da meta de dias da etapa. @: menções a você. Asana: tarefa em andamento, concluída ou excluída lá.&#10;Adiar registra um comentário e silencia o alerta por alguns dias." aria-label="Como funcionam os alertas">?</span></div>`;
 
   if (!rows.length) {
     el.innerHTML =
@@ -411,12 +428,16 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
       const dias =
         r.kind === ALERTA_KIND_MENCAO
           ? `<span class="alerta__dias alerta__dias--ico" aria-hidden="true">@</span>`
+          : r.kind === ALERTA_KIND_ASANA
+          ? `<span class="alerta__dias alerta__dias--ico" aria-hidden="true">${r.ico}</span>`
           : `<span class="alerta__dias" title="${escapeHtml(r.msg)}"><b>${r.dias}</b><small>${r.dias === 1 ? "dia" : "dias"}</small></span>`;
       const acao = r.kind === ALERTA_KIND_MENCAO
         ? `<button type="button" class="alerta__acao" data-mencao-ciente="${escapeHtml(r.cid)}" title="Marcar como lida" aria-label="Marcar menção em ${escapeHtml(r.d.titulo)} como lida"><span aria-hidden="true">✓</span> Ciente</button>`
         : ro
         ? ""
-        : `<button type="button" class="alerta__acao" data-alerta-snooze="${escapeHtml(r.d.id)}" data-kind="${escapeHtml(r.kind)}" title="Registrar e silenciar por alguns dias" aria-label="Adiar alerta de ${escapeHtml(r.d.titulo)}"><span aria-hidden="true">⏰</span> Adiar</button>`;
+        : r.kind === ALERTA_KIND_ASANA
+          ? `<button type="button" class="alerta__acao" data-asana-ciente="${escapeHtml(r.d.id)}" title="Tirar o aviso da lista" aria-label="Marcar aviso do Asana em ${escapeHtml(r.d.titulo)} como ciente"><span aria-hidden="true">✓</span> Ciente</button>`
+          : `<button type="button" class="alerta__acao" data-alerta-snooze="${escapeHtml(r.d.id)}" data-kind="${escapeHtml(r.kind)}" title="Registrar e silenciar por alguns dias" aria-label="Adiar alerta de ${escapeHtml(r.d.titulo)}"><span aria-hidden="true">⏰</span> Adiar</button>`;
       return (
         `<li class="alerta alerta--${r.severity}">` +
         `<button type="button" class="alerta__abrir" data-alerta-abrir="${escapeHtml(r.d.id)}"${r.cid ? ` data-cid="${escapeHtml(r.cid)}"` : ""} title="Abrir projeto">` +
@@ -457,6 +478,9 @@ function renderInboxAlertas(linha = activeEsteiraCanal) {
       setNotifAberto(false);
       openAlertaSnoozeModal(row);
     });
+  });
+  el.querySelectorAll("[data-asana-ciente]").forEach((btn) => {
+    btn.addEventListener("click", () => marcarAvisoAsanaCiente(btn.dataset.asanaCiente));
   });
   el.querySelectorAll("[data-mencao-ciente]").forEach((btn) => {
     btn.addEventListener("click", () => {

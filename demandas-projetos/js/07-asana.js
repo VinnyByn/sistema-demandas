@@ -33,7 +33,48 @@ function normalizeAsana(a) {
     createdBy: String(a.createdBy || "").trim(),
     instrucoes: String(a.instrucoes || "").trim(),
     ...(a.substituidaEm ? { substituidaEm: String(a.substituidaEm) } : {}),
+    ...(a.excluidaNoAsanaEm ? { excluidaNoAsanaEm: String(a.excluidaNoAsanaEm) } : {}),
+    ...(a.concluidaEm ? { concluidaEm: String(a.concluidaEm) } : {}),
+    ...(a.secao ? { secao: String(a.secao) } : {}),
   };
+}
+
+/** Último aviso vindo do Asana (moveu para andamento, concluiu, excluiu); some do painel com "Ciente". */
+const ASANA_AVISO_TIPOS = {
+  andamento: { curta: "Em andamento no Asana", tom: "coluna", ico: "▶" },
+  concluida: { curta: "Concluída no Asana", tom: "ok", ico: "✓" },
+  excluida: { curta: "Excluída no Asana", tom: "bad", ico: "✕" },
+};
+
+function normalizeAsanaAviso(a) {
+  if (!a || typeof a !== "object" || !ASANA_AVISO_TIPOS[a.tipo]) return null;
+  return {
+    tipo: a.tipo,
+    texto: String(a.texto || "").trim(),
+    taskId: String(a.taskId || ""),
+    em: String(a.em || ""),
+    chave: String(a.chave || ""),
+    ...(a.cienteEm ? { cienteEm: String(a.cienteEm) } : {}),
+  };
+}
+
+function avisoAsanaPendente(d) {
+  const a = normalizeAsanaAviso(d?.asanaAviso);
+  return a && !a.cienteEm ? a : null;
+}
+
+function marcarAvisoAsanaCiente(id) {
+  if (!requireWriteAccess()) return;
+  const idx = state.demandas.findIndex((x) => x.id === id);
+  const aviso = idx >= 0 ? avisoAsanaPendente(state.demandas[idx]) : null;
+  if (!aviso) return;
+  const now = new Date().toISOString();
+  beginOwnDemandaWrite(id);
+  const dem = migrateDemanda({ ...state.demandas[idx], asanaAviso: { ...aviso, cienteEm: now }, updatedAt: now });
+  state.demandas[idx] = dem;
+  noteOwnDemandaWrite(id, now);
+  saveState({ demanda: dem });
+  renderBoard();
 }
 
 function demandaTemAsana(demId) {
@@ -345,7 +386,8 @@ function atualizarCampoAsana() {
 
   if (as?.url) {
     hint.hidden = false;
-    hint.textContent = `Tarefa criada no Asana${as.projetoNome ? ` · ${as.projetoNome}` : ""} · comentários sincronizados`;
+    const situacao = as.concluidaEm ? "concluída" : as.secao ? `coluna «${as.secao}»` : "";
+    hint.textContent = `Tarefa criada no Asana${as.projetoNome ? ` · ${as.projetoNome}` : ""}${situacao ? ` · ${situacao}` : ""} · comentários sincronizados`;
     link.hidden = false;
     link.href = as.url;
     if (btnCancel && !readOnly) {
