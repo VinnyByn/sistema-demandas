@@ -170,6 +170,9 @@ async function criarTarefa({ db, token, fetchImpl, demandaId, instrucoes, projet
   if (temAtual && !novaOrdem) {
     return { already: true, taskId: d.asanaTaskId, url: d.asana.url, projetoGid: d.asana.projetoGid || "" };
   }
+  if (temAtual && novaOrdem && !d.asana?.concluidaEm) {
+    throw new AsanaErro("A ordem atual ainda não foi concluída no Asana — conclua (ou exclua) lá antes de abrir outra.", 400);
+  }
 
   const asana = criarCliente(token, fetchImpl);
   const nomes = await nomesDosProjetos({ token, fetchImpl });
@@ -403,8 +406,11 @@ async function registrarAviso(db, ref, { tipo, taskGid, texto, extra = {} }) {
     if (!s.exists) return;
     const d = s.data() || {};
     const chave = `${tipo}:${taskGid}:${extra.__chave || ""}`;
-    if (d.asanaAviso?.chave === chave) return;
     const { __chave, ...resto } = extra;
+    if (d.asanaAviso?.chave === chave) {
+      if (Object.keys(resto).length) tx.set(ref, resto, { merge: true });
+      return;
+    }
     const cmt = comentarioIntegracao(texto);
     const lista = Array.isArray(d.comentarios) ? d.comentarios : [];
     tx.set(
@@ -418,6 +424,11 @@ async function registrarAviso(db, ref, { tipo, taskGid, texto, extra = {} }) {
       { merge: true },
     );
   });
+}
+
+/** Tarefa voltou a ficar aberta no Asana: trava de novo a "nova ordem" e permite avisar outra conclusão. */
+async function reabrirOrdem(ref, apagarCampo) {
+  await ref.set({ asana: { concluidaEm: apagarCampo() }, asanaAviso: { chave: `reaberta:${Date.now()}` } }, { merge: true });
 }
 
 /** Asana → sistema: tarefa mudou de coluna, foi concluída ou foi excluída. */
@@ -450,7 +461,11 @@ async function processarEventoTarefa({ db, token, fetchImpl, evento, apagarCampo
 
   if (evento.action === "changed" && evento.change?.field === "completed") {
     const t = await asana(`/tasks/${taskGid}?opt_fields=completed`, { okStatuses: [404] });
-    if (!t || t.__status || !t.completed) return "ignorado";
+    if (!t || t.__status) return "ignorado";
+    if (!t.completed) {
+      if (atual && d.asana?.concluidaEm) await reabrirOrdem(doc.ref, apagarCampo);
+      return atual && d.asana?.concluidaEm ? "reaberta" : "ignorado";
+    }
     await registrarAviso(db, doc.ref, {
       tipo: "concluida",
       taskGid,
@@ -465,11 +480,15 @@ async function processarEventoTarefa({ db, token, fetchImpl, evento, apagarCampo
     const nome = String(secao?.name || "").trim();
     const n = normTxt(nome);
     const tipo = n.includes("conclu") ? "concluida" : n.includes("andamento") ? "andamento" : "";
-    const extraSecao = atual ? { asana: { ...(d.asana || {}), secao: nome } } : {};
+    const extraSecao = atual
+      ? { asana: { ...(d.asana || {}), secao: nome, ...(tipo === "concluida" ? { concluidaEm: d.asana?.concluidaEm || new Date().toISOString() } : {}) } }
+      : {};
+    if (tipo !== "concluida" && atual && d.asana?.concluidaEm) await reabrirOrdem(doc.ref, apagarCampo);
     if (!tipo) {
-      if (atual) await doc.ref.set(extraSecao, { merge: true });
+      if (atual) await doc.ref.set({ asana: { secao: nome } }, { merge: true });
       return "secao";
     }
+    if (tipo === "andamento" && atual) delete extraSecao.asana.concluidaEm;
     await registrarAviso(db, doc.ref, {
       tipo,
       taskGid,

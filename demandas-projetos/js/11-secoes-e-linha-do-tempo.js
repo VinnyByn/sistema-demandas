@@ -356,7 +356,11 @@ function demSecaoLeituraHtml(key) {
             ? ` <button type="button" class="btn btn--ghost btn--sm" data-lv-asana-anexar="1" data-lv-acao="1">📎 Anexar ao Asana</button>`
             : "") +
           (!document.getElementById("btnNovaOrdemAsana")?.hidden
-            ? ` <button type="button" class="btn btn--ghost btn--sm" data-lv-asana-nova="1" data-lv-acao="1">+ Nova ordem</button>`
+            ? ` <button type="button" class="btn btn--ghost btn--sm" data-lv-asana-nova="1" data-lv-acao="1"${
+                document.getElementById("btnNovaOrdemAsana").disabled
+                  ? ` disabled title="${escapeHtml(document.getElementById("btnNovaOrdemAsana").title)}"`
+                  : ""
+              }>+ Nova ordem</button>`
             : "") +
           (!document.getElementById("demAsanaAnteriores")?.hidden
             ? `<br><span class="muted small">${document.getElementById("demAsanaAnteriores").innerHTML}</span>`
