@@ -9,5 +9,7 @@ window.FIREBASE_CONFIG = {
   storageBucket: "demproj-fdeac.firebasestorage.app",
   messagingSenderId: "719814995582",
   appId: "1:719814995582:web:98511552b8771569cf722f",
-  measurementId: "G-9R1JWR2T4V"
+  measurementId: "G-9R1JWR2T4V",
+  // Opcional: chave do reCAPTCHA Enterprise para o App Check (Console → App Check). Ver FIREBASE.md.
+  // appCheckSiteKey: "",
 };

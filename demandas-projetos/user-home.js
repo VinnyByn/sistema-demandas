@@ -6,10 +6,9 @@
  *
  * Use o e-mail completo em minúsculas, igual ao login.
  */
-window.DEMANDAS_USER_HOME = {
-  "alberto.soares@soumaster.com.br": { esteira: "b2b" },
-  "rafael.mesquita@soumaster.com.br": { esteira: "b2b" },
-};
+// A esteira de cada conta agora fica no doc meta (userHomes), definida pelo admin na aba Usuários
+// — a lista de e-mails não vai mais no código público. Este mapa fica só como reserva local.
+window.DEMANDAS_USER_HOME = {};
 
 window.DemandasUserHome = {
   defaultHome: { tab: "esteira", esteira: "operacional" },
@@ -19,7 +18,11 @@ window.DemandasUserHome = {
       .trim()
       .toLowerCase();
     const map = window.DEMANDAS_USER_HOME || {};
-    const raw = email ? map[email] : null;
+    const daNuvem =
+      email && typeof DemandasRoles !== "undefined" && DemandasRoles.homeEsteiraForEmail
+        ? DemandasRoles.homeEsteiraForEmail(email)
+        : "operacional";
+    const raw = email ? (daNuvem !== "operacional" ? { esteira: daNuvem } : map[email]) : null;
     if (!raw || typeof raw !== "object") {
       return { ...this.defaultHome };
     }

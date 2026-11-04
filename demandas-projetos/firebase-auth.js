@@ -2,6 +2,8 @@
  * Login e-mail/senha — Firebase Authentication.
  */
 const DemandasAuth = (function () {
+  /** Tamanho mínimo de senha (o mesmo da função criarContaLogin). */
+  const SENHA_MIN = 8;
   let auth = null;
   let onUserCallback = () => {};
 
@@ -104,10 +106,8 @@ const DemandasAuth = (function () {
         handleCodeInApp: false,
       });
     } catch (err) {
-      const code = err?.code || "";
-      if (code === "auth/user-not-found") {
-        throw new Error("Não há conta Firebase com este e-mail.");
-      }
+      // Não conta para quem pede se o e-mail tem conta (evita descobrir quem é da equipe).
+      if (err?.code === "auth/user-not-found") return;
       throw new Error(mapAuthError(err));
     }
   }
@@ -117,7 +117,7 @@ const DemandasAuth = (function () {
     const user = a?.currentUser;
     if (!a || !user) throw new Error("Faça login novamente para trocar a senha.");
     const next = String(newPassword || "");
-    if (next.length < 6) throw new Error("A senha deve ter ao menos 6 caracteres.");
+    if (next.length < SENHA_MIN) throw new Error(`A senha deve ter ao menos ${SENHA_MIN} caracteres.`);
     const cred = firebase.auth.EmailAuthProvider.credential(user.email, String(currentPassword || ""));
     try {
       await user.reauthenticateWithCredential(cred);
@@ -132,7 +132,7 @@ const DemandasAuth = (function () {
         throw new Error("Senha atual incorreta.");
       }
       if (code === "auth/weak-password") {
-        throw new Error("Senha fraca. Use ao menos 6 caracteres.");
+        throw new Error(`Senha fraca. Use ao menos ${SENHA_MIN} caracteres.`);
       }
       if (code === "auth/requires-recent-login") {
         throw new Error("Entre de novo e tente trocar a senha.");
@@ -142,18 +142,49 @@ const DemandasAuth = (function () {
   }
 
   /**
-   * Cria usuário com e-mail/senha sem trocar a sessão do admin
-   * (segunda instância Firebase App).
-   * @returns {{ user: object|null, existed: boolean }}
+   * Cria o login pela função criarContaLogin (Admin SDK; o servidor confere se é administrador).
+   * Sem senha, a conta nasce com senha aleatória e `invite: true` — mande o e-mail de definir senha.
+   * Se a função ainda não foi publicada, cai no cadastro antigo pelo navegador (só com senha).
+   * @returns {{ existed: boolean|null, created: boolean, invite: boolean }}
+   *   existed null = não deu para conferir (cadastro antigo, sem senha).
    */
-  async function createUser(email, password) {
+  async function createUser(email, password, { nome = "" } = {}) {
     if (typeof firebase === "undefined") throw new Error("Firebase Auth não carregou.");
     if (!isConfigured()) throw new Error("Firebase não configurado.");
-    const mail = String(email || "").trim();
+    const mail = String(email || "")
+      .trim()
+      .toLowerCase();
     const pass = String(password || "");
-    if (!mail || !pass) throw new Error("Informe e-mail e senha.");
-    if (pass.length < 6) throw new Error("A senha deve ter ao menos 6 caracteres.");
+    if (!mail) throw new Error("Informe o e-mail.");
+    if (pass && pass.length < SENHA_MIN) throw new Error(`A senha deve ter ao menos ${SENHA_MIN} caracteres.`);
 
+    if (firebase.functions) {
+      try {
+        const res = await firebase.app().functions("us-central1").httpsCallable("criarContaLogin")({
+          email: mail,
+          senha: pass,
+          nome,
+        });
+        const d = res?.data || {};
+        return { existed: !!d.existia, created: !!d.criada, invite: !!d.convite };
+      } catch (err) {
+        const code = String(err?.code || "");
+        // Função não publicada (404, ou a falha de CORS que o navegador mostra como "internal").
+        const naoPublicada = code === "functions/not-found" || (code === "functions/internal" && err?.message === "internal");
+        if (!naoPublicada) throw new Error(err?.message || "Não foi possível criar a conta.");
+        console.warn("criarContaLogin indisponível; usando o cadastro pelo navegador:", err);
+      }
+    }
+    if (!pass) return { existed: null, created: false, invite: false };
+    const legado = await createUserInBrowser(mail, pass);
+    return { existed: legado.existed, created: !legado.existed, invite: false };
+  }
+
+  /**
+   * Cadastro antigo, pelo navegador, sem trocar a sessão do admin (segunda instância Firebase App).
+   * Só funciona com o cadastro público ligado no Firebase — fica como reserva até a função estar no ar.
+   */
+  async function createUserInBrowser(mail, pass) {
     let secondaryApp;
     try {
       secondaryApp = firebase.app("adminCreate");
@@ -174,7 +205,10 @@ const DemandasAuth = (function () {
         return { user: null, existed: true };
       }
       if (code === "auth/weak-password") {
-        throw new Error("Senha fraca. Use ao menos 6 caracteres.");
+        throw new Error(`Senha fraca. Use ao menos ${SENHA_MIN} caracteres.`);
+      }
+      if (code === "auth/admin-restricted-operation" || code === "auth/operation-not-allowed") {
+        throw new Error("O cadastro pelo navegador está desligado. Publique a função criarContaLogin (firebase deploy --only functions).");
       }
       throw new Error(mapAuthError(err));
     }
@@ -190,5 +224,6 @@ const DemandasAuth = (function () {
     sendPasswordReset,
     updatePassword,
     mapAuthError,
+    SENHA_MIN,
   };
 })();

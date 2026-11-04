@@ -9,12 +9,24 @@ service firebase.storage {
     }
 
     function userEmail() {
-      return signedIn() ? request.auth.token.email.lower() : '';
+      return signedIn() ? string(request.auth.token.get('email', '')).lower() : '';
     }
 
+    function marcado(v) {
+      return v == true || v == 1 || (v is string && v.lower() in ['1', 'true']);
+    }
+
+    // Administrador ativo: mesma regra do firestore.rules (meta.roles, sem estar desabilitado nem removido).
     function isAdmin() {
-      return userEmail() == 'vinicius.morais@soumaster.com.br'
-        || firestore.get(/databases/(default)/documents/demandasSistema/meta).data.roles[userEmail()] == 'admin';
+      let email = userEmail();
+      let m = firestore.get(/databases/(default)/documents/demandasSistema/meta).data;
+      let papel = m.get('roles', {}).get(email, '');
+      return email != ''
+        && (email == 'vinicius.morais@soumaster.com.br'
+            || (papel is string
+                && papel.lower() in ['admin', 'administrador', 'administrator']
+                && !marcado(m.get('disabledUsers', {}).get(email, false))
+                && !marcado(m.get('purgedUsers', {}).get(email, false))));
     }
 
     // Backups automáticos: gravados só pelas Cloud Functions (Admin SDK); só administradores baixam.

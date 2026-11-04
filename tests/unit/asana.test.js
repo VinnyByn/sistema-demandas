@@ -157,6 +157,22 @@ test("comentário do sistema vai ao Asana uma vez só; editar e apagar seguem ju
   assert.deepEqual(await asana.sincronizarComentario({ ...base(semTarefa, api), demandaId: "d2", comentarioId: "c", acao: "criar", texto: "x" }), { ignorado: "sem-tarefa" });
 });
 
+test("editar comentário no Asana: só quem publicou ou admin, e o nome continua o de quem publicou", async () => {
+  const db = firestoreFalso({ "demandas/d1": { asanaTaskId: "T1", comentarios: [] } });
+  const api = asanaFalso();
+  const args = { ...base(db, api), demandaId: "d1", comentarioId: "c7" };
+  const { storyGid } = await asana.sincronizarComentario({ ...args, acao: "criar", texto: "Primeira versão", autor: "Bia", email: "Bia@x.com" });
+  await assert.rejects(
+    asana.sincronizarComentario({ ...args, acao: "editar", texto: "Invadido", autor: "Caio", email: "caio@x.com" }),
+    /Só quem escreveu/,
+  );
+  assert.match(api.stories.get(storyGid).text, /Primeira versão$/);
+  await asana.sincronizarComentario({ ...args, acao: "editar", texto: "Corrigido pelo admin", autor: "Ana", email: "ana@x.com", admin: true });
+  assert.equal(api.stories.get(storyGid).text, "Bia (pelo sistema):\nCorrigido pelo admin");
+  await asana.sincronizarComentario({ ...args, acao: "editar", texto: "Revisado", autor: "Bia", email: "bia@x.com" });
+  assert.match(api.stories.get(storyGid).text, /^Bia .*Revisado$/s);
+});
+
 test("comentário feito no Asana aparece no sistema; edição e exclusão também; o eco do sistema é ignorado", async () => {
   const db = firestoreFalso({ "demandas/d1": { asanaTaskId: "T1", comentarios: [{ id: "c0", texto: "antigo", autor: "X" }] } });
   const api = asanaFalso();

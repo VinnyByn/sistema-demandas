@@ -373,13 +373,15 @@ function usuariosModalAberto() {
 
 function openUsuariosModal() {
   if (!isAdminUser()) {
-    toast("Apenas administrador acessa Usuarios");
+    toast("Apenas administrador acessa Usuários");
     return;
   }
   const dlg = document.getElementById("panelUsuarios");
   if (!dlg) return;
   if (!dlg.open) dlg.showModal();
   renderUsuariosPanel();
+  void carregarContasLogin({ forcar: true });
+  if (document.getElementById("usuariosHistorico")?.open) void carregarHistoricoAcessos();
 }
 
 function switchMainTab(tab) {

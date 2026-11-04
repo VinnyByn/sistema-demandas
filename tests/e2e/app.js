@@ -17,6 +17,13 @@ const test = base.extend({
   app: async ({ page }, use) => {
     const erros = [];
     page.on("pageerror", (e) => erros.push(e.message));
+    // Violações do Content-Security-Policy (inclusive o Report-Only) do firebase.json, que o servidor de teste aplica.
+    await page.addInitScript(() => {
+      window.__violacoesCsp = [];
+      document.addEventListener("securitypolicyviolation", (e) =>
+        window.__violacoesCsp.push(`${e.disposition} ${e.effectiveDirective} ${e.blockedURI || "(inline)"}`),
+      );
+    });
     // Sem rede externa: Firebase/CDNs ficam de fora e o app cai no modo local.
     await page.route(/gstatic|jsdelivr|cdnjs|googleapis|firebaseio/, (r) => r.abort());
     await page.goto("/index.html");
@@ -33,6 +40,12 @@ const test = base.extend({
       window.getLoggedInComentarioAutor = () => "Vinicius Morais";
       window.confirm = () => true;
       window.confirmDialog = async () => true;
+      // Lista de acessos do teste (a da equipe não fica mais no código; em produção vem do doc meta).
+      DemandasRoles.setRolesMap({
+        "vinicius.morais@soumaster.com.br": "admin",
+        "matheus.costa@x.com": "projetista",
+        "alberto.soares@x.com": "projetista",
+      });
       window.__salvos = [];
       const salvarOriginal = window.saveState;
       window.saveState = (patch) => {
@@ -45,6 +58,8 @@ const test = base.extend({
     }, projetosExemplo());
     await use({ page, erros });
     expect(erros, "erros de JavaScript na página").toEqual([]);
+    const csp = page.isClosed() ? [] : await page.evaluate(() => window.__violacoesCsp || []).catch(() => []);
+    expect(csp, "violações do Content-Security-Policy (firebase.json)").toEqual([]);
   },
 });
 

@@ -105,9 +105,20 @@ function clearEditingPresenceForEmail(email) {
   }
 }
 
+/** A lista de acessos já veio da nuvem? (Antes disso o mapa local só tem o administrador principal.) */
+function acessosProntos() {
+  const api = typeof persistenceApi !== "undefined" ? persistenceApi : null;
+  if (!api) return false;
+  if (api.mode !== "firebase") return true;
+  return !!(api.acessosCarregados?.() || api.acessoNegado?.());
+}
+
 async function enforceAccessOrSignOut() {
   const info = currentRoleInfo();
   if (!info?.email || !info.isBlocked) return false;
+  // Demora para carregar a lista não é "acesso removido": só tira quando a lista chegou
+  // (e a pessoa não está nela) ou o servidor recusou a leitura.
+  if (!acessosProntos()) return false;
   const msg =
     "Seu acesso foi removido do sistema. Peça ao administrador para adicionar seu e-mail na lista de usuários.";
   try {
@@ -327,10 +338,11 @@ function syncTrocarSenhaForm() {
   const nova2 = document.getElementById("userSenhaNova2")?.value || "";
   const hint = document.getElementById("userSenhaHint");
   const btn = document.getElementById("btnTrocarSenha");
-  let msg = "Use ao menos 6 caracteres.";
+  const min = DemandasAuth?.SENHA_MIN || 8;
+  let msg = `Use ao menos ${min} caracteres.`;
   let state = "";
-  if (nova && nova.length < 6) {
-    msg = "A nova senha precisa de ao menos 6 caracteres.";
+  if (nova && nova.length < min) {
+    msg = `A nova senha precisa de ao menos ${min} caracteres.`;
     state = "is-bad";
   } else if (nova && atual && nova === atual) {
     msg = "A nova senha precisa ser diferente da atual.";
@@ -430,8 +442,8 @@ function initShellUi() {
     const nova2 = document.getElementById("userSenhaNova2")?.value || "";
     if (err) { err.hidden = true; err.textContent = ""; }
     if (ok) ok.hidden = true;
-    if (nova.length < 6) {
-      if (err) { err.hidden = false; err.textContent = "A nova senha precisa de ao menos 6 caracteres."; }
+    if (nova.length < (DemandasAuth?.SENHA_MIN || 8)) {
+      if (err) { err.hidden = false; err.textContent = `A nova senha precisa de ao menos ${DemandasAuth?.SENHA_MIN || 8} caracteres.`; }
       return;
     }
     if (nova === atual) {

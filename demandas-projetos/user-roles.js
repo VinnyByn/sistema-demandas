@@ -9,17 +9,14 @@
  * E-mail fora do mapa de papéis ou removido (purged) → sem acesso.
  * E-mail no mapa com disabled → somente leitura.
  */
+/*
+ * Fonte de verdade dos acessos: o doc demandasSistema/meta (roles, disabledUsers, purgedUsers),
+ * que as regras do Firestore e as funções também leem. Aqui fica só o administrador principal
+ * (o mesmo de firestore.rules, storage.rules e functions/acesso.js) — a lista da equipe não vai
+ * mais no código público.
+ */
 window.DEMANDAS_ROLES_SEED = {
   "vinicius.morais@soumaster.com.br": "admin",
-  "alberto.soares@soumaster.com.br": "projetista",
-  "rafael.mesquita@soumaster.com.br": "projetista",
-  "rafael.machado@soumaster.com.br": "projetista",
-  "matheus.costa@soumaster.com.br": "projetista",
-  "daniel.rodrigues@soumaster.com.br": "projetista",
-  "joao.bosco@soumaster.com.br": "projetista",
-  "eduardo.pereira@soumaster.com.br": "projetista",
-  "thiago.coelho@soumaster.com.br": "projetista",
-  "hanver.junior@soumaster.com.br": "projetista",
 };
 
 window.DEMANDAS_ADMIN_EMAIL = "vinicius.morais@soumaster.com.br";
@@ -49,6 +46,8 @@ window.DemandasRoles = (function () {
   let regionalsMap = {};
   /** E-mail → nome de exibição da conta. */
   let namesMap = {};
+  /** E-mail → tela inicial ({ esteira: "b2b" }); ausente = Esteira Projetos. */
+  let homesMap = {};
 
   function normalizeEmail(email) {
     return String(email || "")
@@ -196,6 +195,36 @@ window.DemandasRoles = (function () {
     return namesMap[e] || "";
   }
 
+  const ESTEIRAS_INICIAIS = ["operacional", "b2b"];
+
+  /** Só guarda o que difere do padrão (Esteira Projetos). */
+  function normalizeHomesMap(map) {
+    const out = {};
+    if (!map || typeof map !== "object") return out;
+    for (const [email, home] of Object.entries(map)) {
+      const e = normalizeEmail(email);
+      const esteira = String(home?.esteira || "").trim().toLowerCase();
+      if (!e || !ESTEIRAS_INICIAIS.includes(esteira) || esteira === "operacional") continue;
+      out[e] = { esteira };
+    }
+    return out;
+  }
+
+  function setHomesMap(map) {
+    homesMap = normalizeHomesMap(map);
+    return getHomesMap();
+  }
+
+  function getHomesMap() {
+    return JSON.parse(JSON.stringify(homesMap));
+  }
+
+  /** Esteira em que a conta abre: "operacional" (padrão) ou "b2b". */
+  function homeEsteiraForEmail(email) {
+    const e = normalizeEmail(email);
+    return (e && homesMap[e]?.esteira) || "operacional";
+  }
+
   function isDisabled(email) {
     const e = normalizeEmail(email);
     if (!e) return false;
@@ -310,9 +339,9 @@ window.DemandasRoles = (function () {
       return { ok: false, reason: "Apenas administrador" };
     }
     if (e === actor) {
-    if (disabled) return { ok: false, reason: "Você não pode desabilitar a si mesmo" };
-    return { ok: true };
-  }
+      if (disabled) return { ok: false, reason: "Você não pode desabilitar a si mesmo" };
+      return { ok: true };
+    }
     if (e === normalizeEmail(window.DEMANDAS_ADMIN_EMAIL) && disabled) {
       return { ok: false, reason: "Não é possível desabilitar o administrador principal" };
     }
@@ -377,6 +406,9 @@ window.DemandasRoles = (function () {
     getNamesMap,
     displayNameForEmail,
     normalizeDisplayName,
+    setHomesMap,
+    getHomesMap,
+    homeEsteiraForEmail,
     isDisabled,
     isPurged,
     roleForEmail,

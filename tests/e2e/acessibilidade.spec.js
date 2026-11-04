@@ -1,11 +1,14 @@
 // Auditoria automática de acessibilidade (axe-core) nas telas principais, nos dois temas.
+const fs = require("fs");
 const path = require("path");
 const { test, expect } = require("./app");
 
-const AXE = path.join(__dirname, "..", "node_modules", "axe-core", "axe.min.js");
+const AXE = fs.readFileSync(path.join(__dirname, "..", "node_modules", "axe-core", "axe.min.js"), "utf8");
 
 async function violacoes(page, contexto) {
-  await page.addScriptTag({ path: AXE });
+  // Pelo protocolo do navegador (não como <script> inline), para não esbarrar no CSP da página.
+  if (!(await page.evaluate(() => typeof window.axe !== "undefined"))) await page.evaluate(`${AXE}
+;true`);
   return page.evaluate(async (ctx) => {
     const r = await axe.run(ctx || document, { resultTypes: ["violations"] });
     return r.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`);
@@ -29,6 +32,20 @@ for (const tema of ["dark", "light"]) {
 
     await page.evaluate(() => document.getElementById("modalUserConta")?.showModal());
     expect(await violacoes(page, "#modalUserConta"), "minha conta").toEqual([]);
+    await page.evaluate(() => document.getElementById("modalUserConta")?.close());
+
+    await page.evaluate(() => {
+      DemandasAuth.currentUser = () => ({ email: "vinicius.morais@soumaster.com.br", displayName: "" });
+      DemandasRoles.setDisabledMap({ "duda.lima@x.com": true });
+      DemandasRoles.setRolesMap({ "bia.souza@x.com": "projetista", "caio.rocha@x.com": "visibilidade", "duda.lima@x.com": "projetista" });
+      openUsuariosModal();
+      usuariosAbertas.add("bia.souza@x.com");
+      renderUsuariosPanel();
+      document.querySelector('.usuarios-row[data-email="bia.souza@x.com"] .user-nome-input').value = "Bia S.";
+      syncLinhaUsuario(document.querySelector('.usuarios-row[data-email="bia.souza@x.com"]'));
+      setFormNovaContaAberto(true);
+    });
+    expect(await violacoes(page, "#panelUsuarios"), "usuários").toEqual([]);
   });
 }
 

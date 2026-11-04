@@ -905,6 +905,17 @@ function applyUserHomeOnLogin(user) {
   renderBoard();
 }
 
+/**
+ * A tela inicial de cada conta vem do doc meta (userHomes), que chega um instante depois do login.
+ * Quando chega, troca para a Esteira B2B se for o caso (só se a pessoa ainda está na esteira padrão).
+ */
+function aplicarEsteiraInicialDaNuvem(user) {
+  const home = getUserHomePreference(user);
+  if (home.tab !== "esteira" || home.esteira !== LINHA_ESTEIRA_B2B) return;
+  if (activeEsteiraCanal !== LINHA_ESTEIRA_OPERACIONAL) return;
+  setActiveEsteiraCanal(LINHA_ESTEIRA_B2B);
+}
+
 /** Cards com o painel de detalhes aberto — sobrevive aos re-renders do board. */
 const cardsExpandidos = new Set();
 

@@ -1,10 +1,13 @@
 const { initializeApp } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { aggregateViabilidade } = require("./viabilidade");
-const { gerarBackup, isAdminEmail } = require("./backup");
+const { gerarBackup } = require("./backup");
+const { lerAcesso, normalizarEmail } = require("./acesso");
+const { criarContaLogin, listarContasLogin } = require("./contas");
 const asanaLib = require("./asana");
 
 initializeApp();
@@ -32,13 +35,28 @@ function erroCallable(e, padrao) {
   return new HttpsError("unavailable", String(e?.message || padrao));
 }
 
-function exigirLogin(request, acao) {
+/**
+ * Confere no servidor (doc meta) se quem chamou pode fazer a ação — a tela sozinha não basta.
+ * nivel: "acesso" (está no mapa e não foi removido) | "escrita" (e não é somente leitura) | "admin".
+ * @returns o acesso do usuário (inclui o nome de exibição salvo pelo admin).
+ */
+async function exigirNivel(request, nivel, acao) {
   if (!request.auth) throw new HttpsError("unauthenticated", `Faça login para ${acao}.`);
+  const acesso = await lerAcesso(request.auth.token.email || "", getFirestore());
+  if (!acesso.temAcesso) throw new HttpsError("permission-denied", "Seu e-mail não tem acesso ao sistema.");
+  if (nivel === "admin" && !acesso.admin) throw new HttpsError("permission-denied", `Só administradores podem ${acao}.`);
+  if (nivel === "escrita" && !acesso.podeEscrever) {
+    throw new HttpsError(
+      "permission-denied",
+      acesso.desabilitado ? "Sua conta está desabilitada." : `Seu perfil é somente leitura: não dá para ${acao}.`,
+    );
+  }
+  return acesso;
 }
 
 /** Nomes dos dois projetos do Asana em que a demanda pode entrar (para o seletor do app). */
 exports.asanaProjetos = onCall({ region: REGION, secrets: [asanaToken], cors: true }, async (request) => {
-  exigirLogin(request, "ver os projetos do Asana");
+  await exigirNivel(request, "acesso", "ver os projetos do Asana");
   try {
     const token = tokenAsana();
     // Aproveita para atualizar os webhooks (ex.: novos avisos de coluna/conclusão/exclusão).
@@ -56,7 +74,7 @@ exports.asanaProjetos = onCall({ region: REGION, secrets: [asanaToken], cors: tr
 });
 
 exports.createAsanaOperacao = onCall({ region: REGION, secrets: [asanaToken], cors: true }, async (request) => {
-  exigirLogin(request, "enviar ao Asana");
+  await exigirNivel(request, "escrita", "enviar ao Asana");
   const demandaId = String(request.data?.demandaId || "").trim();
   if (!demandaId) throw new HttpsError("invalid-argument", "Informe a demanda.");
   const instrucoes = String(request.data?.instrucoes || "").trim();
@@ -79,7 +97,7 @@ exports.createAsanaOperacao = onCall({ region: REGION, secrets: [asanaToken], co
 });
 
 exports.cancelAsanaOperacao = onCall({ region: REGION, secrets: [asanaToken], cors: true }, async (request) => {
-  exigirLogin(request, "cancelar no Asana");
+  await exigirNivel(request, "escrita", "cancelar no Asana");
   const demandaId = String(request.data?.demandaId || "").trim();
   if (!demandaId) throw new HttpsError("invalid-argument", "Informe a demanda.");
   try {
@@ -96,7 +114,7 @@ exports.cancelAsanaOperacao = onCall({ region: REGION, secrets: [asanaToken], co
 
 /** Anexa um arquivo (PDF, Word, imagem…) na tarefa do Asana; um arquivo por chamada. */
 exports.asanaAnexar = onCall({ region: REGION, secrets: [asanaToken], cors: true, timeoutSeconds: 120, memory: "512MiB" }, async (request) => {
-  exigirLogin(request, "anexar no Asana");
+  const acesso = await exigirNivel(request, "escrita", "anexar no Asana");
   const demandaId = String(request.data?.demandaId || "").trim();
   if (!demandaId) throw new HttpsError("invalid-argument", "Informe a demanda.");
   try {
@@ -107,7 +125,8 @@ exports.asanaAnexar = onCall({ region: REGION, secrets: [asanaToken], cors: true
       nome: request.data?.nome,
       tipo: request.data?.tipo,
       base64: request.data?.base64,
-      autor: String(request.data?.autor || request.auth.token.name || request.auth.token.email || "").slice(0, 120),
+      // Nome de quem está logado (não o que o navegador mandar), para ninguém assinar por outro.
+      autor: acesso.nome.slice(0, 120),
     });
   } catch (e) {
     throw erroCallable(e, "Não foi possível anexar no Asana.");
@@ -116,7 +135,7 @@ exports.asanaAnexar = onCall({ region: REGION, secrets: [asanaToken], cors: true
 
 /** Sistema → Asana: comentário digitado (ou editado/apagado) no projeto vira comentário na tarefa. */
 exports.asanaComentario = onCall({ region: REGION, secrets: [asanaToken], cors: true }, async (request) => {
-  exigirLogin(request, "comentar no Asana");
+  const acesso = await exigirNivel(request, "escrita", "comentar no Asana");
   const demandaId = String(request.data?.demandaId || "").trim();
   const comentarioId = String(request.data?.comentarioId || "").trim();
   const acao = String(request.data?.acao || "");
@@ -125,9 +144,20 @@ exports.asanaComentario = onCall({ region: REGION, secrets: [asanaToken], cors: 
   if (!["criar", "editar", "apagar"].includes(acao)) throw new HttpsError("invalid-argument", "Ação inválida.");
   if (acao !== "apagar" && !texto) throw new HttpsError("invalid-argument", "Comentário vazio.");
   if (texto.length > 4000) throw new HttpsError("invalid-argument", "Comentário longo demais.");
-  const autor = String(request.data?.autor || request.auth.token.name || request.auth.token.email || "Equipe").slice(0, 120);
+  // Autor vem do servidor: o nome salvo pelo admin (ou o do e-mail) de quem está logado.
+  const autor = (acesso.nome || "Equipe").slice(0, 120);
   try {
-    return await asanaLib.sincronizarComentario({ db: getFirestore(), token: tokenAsana(), demandaId, acao, comentarioId, texto, autor });
+    return await asanaLib.sincronizarComentario({
+      db: getFirestore(),
+      token: tokenAsana(),
+      demandaId,
+      acao,
+      comentarioId,
+      texto,
+      autor,
+      email: acesso.email,
+      admin: acesso.admin,
+    });
   } catch (e) {
     throw erroCallable(e, "Não foi possível enviar o comentário ao Asana.");
   }
@@ -250,10 +280,10 @@ exports.getViabilidadePortas = onCall(
   { region: REGION, cors: true, timeoutSeconds: 300, memory: "1GiB" },
   async (request) => {
     try {
-      if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Faça login para ver a viabilidade.");
-      }
+      const acesso = await exigirNivel(request, "acesso", "ver a viabilidade");
       const force = Boolean(request.data?.force);
+      // Forçar dispara a exportação inteira na API Leclerc (cara): só administradores.
+      if (force && !acesso.admin) throw new HttpsError("permission-denied", "Só administradores podem forçar a atualização da viabilidade.");
       const db = getFirestore();
       const ref = db.doc("demandasSistema/viabilidadePortas");
       if (!force) {
@@ -290,13 +320,46 @@ exports.backupDiario = onSchedule(
 
 /** Backup sob demanda (botão no app) — só administradores. */
 exports.backupAgora = onCall({ region: REGION, memory: "512MiB", timeoutSeconds: 300 }, async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "Faça login para gerar o backup.");
-  const email = request.auth.token.email || "";
-  if (!(await isAdminEmail(email))) throw new HttpsError("permission-denied", "Só administradores geram backup.");
+  const acesso = await exigirNivel(request, "admin", "gerar o backup");
   try {
-    return await gerarBackup({ motivo: "manual", autor: email });
+    return await gerarBackup({ motivo: "manual", autor: acesso.email });
   } catch (e) {
     console.error("backupAgora", e);
     throw new HttpsError("internal", String(e?.message || "Falha ao gerar o backup."));
+  }
+});
+
+/**
+ * Cria o login (Firebase Auth) de um usuário novo — só administradores, conferido no servidor.
+ * Substitui o cadastro feito no navegador, para o cadastro público do Firebase poder ficar desligado.
+ * Sem senha: cria com uma senha aleatória e o app manda o e-mail para a pessoa definir a dela.
+ */
+exports.criarContaLogin = onCall({ region: REGION, cors: true }, async (request) => {
+  const acesso = await exigirNivel(request, "admin", "criar contas");
+  try {
+    return await criarContaLogin({
+      auth: getAuth(),
+      email: normalizarEmail(request.data?.email),
+      senha: request.data?.senha,
+      nome: request.data?.nome,
+      autor: acesso.email,
+    });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    if (e?.codigo === "invalid-argument") throw new HttpsError("invalid-argument", e.message);
+    console.error("criarContaLogin", e);
+    throw new HttpsError("internal", String(e?.message || "Não foi possível criar a conta."));
+  }
+});
+
+/** Situação do login (existe, último acesso) de cada conta da lista de papéis — só administradores. */
+exports.listarContasLogin = onCall({ region: REGION, cors: true }, async (request) => {
+  await exigirNivel(request, "admin", "ver as contas de login");
+  const meta = (await getFirestore().doc("demandasSistema/meta").get()).data() || {};
+  try {
+    return { contas: await listarContasLogin({ auth: getAuth(), emails: Object.keys(meta.roles || {}) }) };
+  } catch (e) {
+    console.error("listarContasLogin", e);
+    throw new HttpsError("internal", String(e?.message || "Não foi possível ler as contas de login."));
   }
 });

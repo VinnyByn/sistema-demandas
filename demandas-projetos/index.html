@@ -10,17 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
-  <script>
-    (function () {
-      try {
-        var t = localStorage.getItem("demandas-theme");
-        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
-        var f = localStorage.getItem("demandas-fonte");
-        if (f === "grande" || f === "maior") document.documentElement.setAttribute("data-fonte", f);
-        if (localStorage.getItem("demandas-menos-animacao") === "1") document.documentElement.setAttribute("data-menos-animacao", "1");
-      } catch (e) {}
-    })();
-  </script>
+  <script src="tema-inicial.js"></script>
 </head>
 <body>
   <div class="login-screen" id="loginScreen">
@@ -291,52 +281,94 @@
             <h2 id="usuariosTitulo">Usuários</h2>
             <p class="muted">Nome, papel, regional e acesso de cada conta.</p>
           </div>
-          <button type="button" class="icon-btn" data-close-user-modal aria-label="Fechar">×</button>
+          <div class="usuarios-modal__acoes">
+            <button type="button" class="btn btn--primary btn--sm" id="btnNovaConta" aria-expanded="false" aria-controls="formNovoUsuario">+ Nova conta</button>
+            <button type="button" class="icon-btn" id="btnFecharUsuarios" aria-label="Fechar">×</button>
+          </div>
         </div>
         <div class="usuarios-modal__body">
-        <div class="usuarios-layout">
-          <form class="usuarios-form" id="formNovoUsuario" autocomplete="off">
-            <div class="usuarios-form__head">
+        <div class="usuarios-barra">
+          <div class="usuarios-resumo" id="usuariosResumo" role="group" aria-label="Filtrar contas por papel e situação"></div>
+          <label class="usuarios-busca">
+            <span class="visually-hidden">Buscar e-mail ou nome</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input type="search" id="usuariosBusca" placeholder="Buscar e-mail ou nome" autocomplete="off" />
+          </label>
+        </div>
+        <div class="usuarios-layout is-form-fechado" id="usuariosLayout">
+          <form class="usuarios-form usuarios-nova" id="formNovoUsuario" autocomplete="off" hidden>
+            <div class="usuarios-nova__head">
               <h3 class="usuarios-form__title">Nova conta</h3>
               <p class="muted small">Quem entra e o que pode fazer.</p>
             </div>
-            <label class="field">
-              <span>E-mail</span>
-              <input type="email" id="userNovoEmail" required placeholder="nome@soumaster.com.br" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>Nome</span>
-              <input type="text" id="userNovoNome" maxlength="80" placeholder="Como aparece no perfil e nos comentários" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>Senha inicial</span>
-              <input type="password" id="userNovoSenha" minlength="6" placeholder="Mínimo de 6 caracteres" autocomplete="new-password" />
-              <small class="usuarios-form__help">Em branco se esse e-mail já tiver login.</small>
-            </label>
-            <label class="field">
-              <span>Papel</span>
-              <select id="userNovoRole">
-                <option value="projetista" selected>Projetista</option>
-                <option value="visibilidade">Visibilidade</option>
-                <option value="admin">Administrador</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Regional</span>
-              <select id="userNovoRegional">
-                <option value="" selected>Todas</option>
-              </select>
-            </label>
-            <p class="usuarios-form__hint" id="userNovoHint">Pode operar as demandas. Entra vendo todas as regionais.</p>
-            <button type="submit" class="btn btn--primary usuarios-form__submit" id="btnCriarUsuario">Criar conta</button>
+            <div class="usuarios-nova__campos">
+              <label class="field usuarios-nova__email">
+                <span>E-mail</span>
+                <input type="email" id="userNovoEmail" required placeholder="nome@soumaster.com.br" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Nome</span>
+                <input type="text" id="userNovoNome" maxlength="80" placeholder="Como aparece no perfil e nos comentários" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Papel</span>
+                <select id="userNovoRole">
+                  <option value="projetista" selected>Projetista</option>
+                  <option value="visibilidade">Visibilidade</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Regional</span>
+                <select id="userNovoRegional">
+                  <option value="" selected>Todas</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Tela inicial</span>
+                <select id="userNovoEsteira">
+                  <option value="operacional" selected>Esteira Projetos</option>
+                  <option value="b2b">Esteira B2B</option>
+                </select>
+              </label>
+            </div>
+            <div class="usuarios-nova__acesso">
+              <fieldset class="usuarios-form__acesso">
+                <legend>Primeiro acesso</legend>
+                <label class="usuarios-form__opcao">
+                  <input type="radio" name="userNovoAcesso" value="convite" checked />
+                  <span>Enviar convite por e-mail <small class="muted">a pessoa cria a própria senha</small></span>
+                </label>
+                <label class="usuarios-form__opcao">
+                  <input type="radio" name="userNovoAcesso" value="senha" />
+                  <span>Definir a senha agora</span>
+                </label>
+              </fieldset>
+              <label class="field" id="userNovoSenhaCampo" hidden>
+                <span>Senha inicial</span>
+                <input type="password" id="userNovoSenha" minlength="8" placeholder="Mínimo de 8 caracteres" autocomplete="new-password" />
+                <small class="usuarios-form__help">Passe para a pessoa por um canal seguro; ela pode trocar depois em Minha conta.</small>
+              </label>
+            </div>
+            <div class="usuarios-nova__rodape">
+              <p class="usuarios-form__hint" id="userNovoHint">Pode operar as demandas. Entra vendo todas as regionais.</p>
+              <button type="button" class="btn btn--ghost" id="btnCancelarNovaConta">Cancelar</button>
+              <button type="submit" class="btn btn--primary" id="btnCriarUsuario">Criar conta</button>
+            </div>
           </form>
           <div class="usuarios-list-wrap">
-            <div class="usuarios-list-head">
-              <h3 class="usuarios-form__title">Contas</h3>
-              <input type="search" id="usuariosBusca" placeholder="Buscar e-mail ou nome" aria-label="Buscar e-mail ou nome" autocomplete="off" />
+            <p class="visually-hidden" id="usuariosStatus" role="status"></p>
+            <div class="usuarios-list usuarios-tabela" id="usuariosList"></div>
+            <div class="usuarios-vazio" id="usuariosVazio" hidden>
+              <p class="muted" id="usuariosVazioTexto">Nenhuma conta encontrada.</p>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnUsuariosLimparFiltro">Limpar busca e filtro</button>
             </div>
-            <div class="usuarios-list" id="usuariosList" aria-live="polite"></div>
           </div>
+          <details class="usuarios-historico" id="usuariosHistorico">
+            <summary>Histórico de acessos</summary>
+            <p class="muted small" id="usuariosHistoricoStatus">Carregando…</p>
+            <ol class="usuarios-historico__lista" id="usuariosHistoricoLista"></ol>
+          </details>
         </div>
         </div>
       </dialog>
@@ -1738,7 +1770,7 @@
             <label class="field">
               <span>Nova senha</span>
               <span class="seg-input">
-                <input type="password" id="userSenhaNova" required minlength="6" autocomplete="new-password" />
+                <input type="password" id="userSenhaNova" required minlength="8" autocomplete="new-password" />
                 <button type="button" class="seg-eye" data-seg-eye="userSenhaNova" aria-label="Mostrar nova senha">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></svg>
                 </button>
@@ -1747,13 +1779,13 @@
             <label class="field">
               <span>Confirmar nova senha</span>
               <span class="seg-input">
-                <input type="password" id="userSenhaNova2" required minlength="6" autocomplete="new-password" />
+                <input type="password" id="userSenhaNova2" required minlength="8" autocomplete="new-password" />
                 <button type="button" class="seg-eye" data-seg-eye="userSenhaNova2" aria-label="Mostrar confirmação">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></svg>
                 </button>
               </span>
             </label>
-            <p class="seg-hint" id="userSenhaHint">Use ao menos 6 caracteres.</p>
+            <p class="seg-hint" id="userSenhaHint">Use ao menos 8 caracteres.</p>
             <p class="login-form__error" id="userSenhaError" role="alert" hidden></p>
             <p class="login-form__ok" id="userSenhaOk" role="status" hidden></p>
             <button type="submit" class="btn btn--primary seg-submit" id="btnTrocarSenha" disabled>Salvar nova senha</button>
@@ -1808,6 +1840,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+  <!-- App Check (opcional): veja FIREBASE.md antes de incluir o firebase-app-check-compat.js aqui. -->
+  <script src="app-check.js"></script>
   <script src="carregar-sob-demanda.js"></script>
   <script src="firebase-auth.js"></script>
   <script src="firebase-persist.js"></script>

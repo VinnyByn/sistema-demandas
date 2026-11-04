@@ -1,9 +1,9 @@
 const { getFirestore, Timestamp } = require("firebase-admin/firestore");
 const { getStorage } = require("firebase-admin/storage");
+const { lerAcesso } = require("./acesso");
 
 const BACKUP_PREFIX = "backups/";
 const BACKUPS_MANTIDOS = 30;
-const ADMIN_SEED = "vinicius.morais@soumaster.com.br";
 
 /** Converte Timestamps do Firestore em ISO para o JSON ficar legível e reimportável. */
 function serializar(v) {
@@ -17,12 +17,9 @@ function serializar(v) {
   return v;
 }
 
+/** Administrador ativo (no mapa, sem estar desabilitado nem removido). */
 async function isAdminEmail(email) {
-  const e = String(email || "").trim().toLowerCase();
-  if (!e) return false;
-  if (e === ADMIN_SEED) return true;
-  const meta = await getFirestore().doc("demandasSistema/meta").get();
-  return String(meta.data()?.roles?.[e] || "").toLowerCase() === "admin";
+  return (await lerAcesso(email, getFirestore())).admin;
 }
 
 /**

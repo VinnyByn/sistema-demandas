@@ -861,10 +861,15 @@ document.getElementById("formNovoUsuario")?.addEventListener("submit", async (e)
     toast("Apenas administrador");
     return;
   }
+  // Antes de criar o login: sem a lista da nuvem, o papel não teria como ser gravado com segurança.
+  if (avisarAcessosCarregando()) return;
   const email = String(document.getElementById("userNovoEmail")?.value || "")
     .trim()
     .toLowerCase();
-  const senha = String(document.getElementById("userNovoSenha")?.value || "");
+  const modoAcesso = document.querySelector('input[name="userNovoAcesso"]:checked')?.value || "convite";
+  // Convite: a conta nasce sem senha conhecida e a pessoa recebe o e-mail para criar a dela.
+  const senha = modoAcesso === "senha" ? String(document.getElementById("userNovoSenha")?.value || "") : "";
+  const esteiraNova = document.getElementById("userNovoEsteira")?.value === "b2b" ? "b2b" : "operacional";
   const nomeNovo = normalizeAccountDisplayName(document.getElementById("userNovoNome")?.value || "");
   const role = String(document.getElementById("userNovoRole")?.value || "projetista")
     .trim()
@@ -889,25 +894,40 @@ document.getElementById("formNovoUsuario")?.addEventListener("submit", async (e)
     toast(check.reason || "Papel inválido");
     return;
   }
+  const senhaMin = DemandasAuth?.SENHA_MIN || 8;
+  if (modoAcesso === "senha" && !senha) {
+    toast("Informe a senha inicial ou escolha enviar convite");
+    return;
+  }
+  if (senha && senha.length < senhaMin) {
+    toast(`A senha deve ter ao menos ${senhaMin} caracteres`);
+    return;
+  }
+  // Já está na lista? Confirma antes de trocar o papel de quem já tem acesso.
+  const papelAtual = typeof DemandasRoles !== "undefined" ? DemandasRoles.roleForEmail?.(email) : null;
+  if (papelAtual) {
+    const rotulo = (r) => DemandasRoles.ROLE_LABELS?.[r] || r;
+    const ok = await confirmDialog({
+      title: "Esse e-mail já tem acesso",
+      message: `«${email}» já está na lista como ${rotulo(papelAtual)}.`,
+      hint:
+        papelAtual === role
+          ? "Confirmar só atualiza nome, regional e tela inicial. A senha não muda."
+          : `Confirmar troca o papel para ${rotulo(role)}. A senha não muda.`,
+      confirmText: papelAtual === role ? "Atualizar" : `Trocar para ${rotulo(role)}`,
+      variant: papelAtual === role ? "default" : papelAtual === "admin" ? "danger" : "warn",
+    });
+    if (!ok) return;
+  }
   const btn = document.getElementById("btnCriarUsuario");
   if (btn) btn.disabled = true;
+  const acessosAntes = snapshotAcessos();
   try {
-    let existed = false;
-    let created = false;
-    if (senha) {
-      if (senha.length < 6) {
-        toast("A senha deve ter ao menos 6 caracteres");
-        return;
-      }
-      if (typeof DemandasAuth?.createUser !== "function") {
-        throw new Error("Criação de usuário indisponível neste modo");
-      }
-      const result = await DemandasAuth.createUser(email, senha);
-      existed = !!result?.existed;
-      created = !existed;
-    } else {
-      existed = true;
+    if (typeof DemandasAuth?.createUser !== "function") {
+      throw new Error("Criação de usuário indisponível neste modo");
     }
+    // O login é criado (ou conferido) antes de dar o papel: sem conta criada, outra pessoa poderia se cadastrar com o e-mail.
+    const result = await DemandasAuth.createUser(email, senha, { nome: nomeNovo });
 
     const map = { ...(typeof DemandasRoles !== "undefined" ? DemandasRoles.getRolesMap() : {}) };
     map[email] = role;
@@ -926,21 +946,45 @@ document.getElementById("formNovoUsuario")?.addEventListener("submit", async (e)
       DemandasRoles.setPurgedMap(purged);
       DemandasRoles.setRegionalsMap(regionals);
       DemandasRoles.setNamesMap(names);
+      const homes = DemandasRoles.getHomesMap?.() || {};
+      if (esteiraNova === "b2b") homes[email] = { esteira: "b2b" };
+      else delete homes[email];
+      DemandasRoles.setHomesMap?.(homes);
     }
     await persistRolesMap(map);
+    usuariosRascunhos.delete(email);
+    registrarMudancasDeAcesso(
+      acessosAntes,
+      result?.created ? [{ alvo: email, acao: "login-criado", para: senha ? "senha definida pelo admin" : "convite por e-mail" }] : [],
+    );
+    void carregarContasLogin({ forcar: true });
     document.getElementById("userNovoEmail").value = "";
     document.getElementById("userNovoSenha").value = "";
     if (document.getElementById("userNovoNome")) document.getElementById("userNovoNome").value = "";
     document.getElementById("userNovoRole").value = "projetista";
     if (document.getElementById("userNovoRegional")) document.getElementById("userNovoRegional").value = "";
+    if (document.getElementById("userNovoEsteira")) document.getElementById("userNovoEsteira").value = "operacional";
+    syncNovoUsuarioHint();
+    document.getElementById("userNovoEmail")?.focus();
+    let convite = "";
+    if (result?.invite) {
+      try {
+        await DemandasAuth.sendPasswordReset(email);
+        convite = " Enviamos um e-mail para a pessoa criar a senha.";
+      } catch (errConvite) {
+        console.warn("Convite (definir senha):", errConvite);
+        convite = " Não deu para enviar o e-mail de senha: use ⋯ → Recuperar senha na lista.";
+      }
+    }
     toast(
-      created
-        ? "Usuário criado e adicionado à lista"
-        : existed
-          ? "Conta já existia no login — papel adicionado à lista"
-          : "Usuário atualizado na lista",
+      (result?.created
+        ? "Conta criada e adicionada à lista."
+        : result?.existed
+          ? "Esse e-mail já tinha login — acesso adicionado à lista."
+          : "Acesso adicionado à lista.") + convite,
     );
   } catch (err) {
+    restaurarAcessos(acessosAntes);
     toast(err?.message || "Não foi possível criar o usuário");
   } finally {
     if (btn) btn.disabled = false;

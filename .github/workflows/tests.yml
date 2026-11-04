@@ -36,6 +36,16 @@ jobs:
         working-directory: tests
         run: npm run test:unit
 
+      - name: Java (emuladores do Firebase)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Testes das regras (Firestore e Storage no emulador, projeto demo)
+        working-directory: tests
+        run: npm run test:regras
+
       - name: Instalar navegador (Chromium)
         working-directory: tests
         run: npx playwright install --with-deps chromium

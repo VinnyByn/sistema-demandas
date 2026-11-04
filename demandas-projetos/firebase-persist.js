@@ -9,7 +9,7 @@ const DemandasFirebase = (function () {
   const COL_SYSTEM = "demandasSistema";
   const DOC_META = "meta";
   const DOC_LEGACY = "state";
-  const DOC_ROLES = "roles";
+  const COL_HISTORICO_ACESSOS = "acessosHistorico";
   const BATCH_SIZE = 450;
   const REQ_TIMEOUT_MS = 15000;
   const LISTENER_TIMEOUT_MS = 12000;
@@ -17,7 +17,6 @@ const DemandasFirebase = (function () {
   let db = null;
   let metaRef = null;
   let legacyRef = null;
-  let rolesRef = null;
   let onStatusFn = () => {};
   let statusAtual = "";
   let onDataFn = null;
@@ -53,6 +52,14 @@ const DemandasFirebase = (function () {
   /** Após gravar roles/disabled/purged — ignora snapshot atrasado que reaplicava «Desabilitado». */
   let inflightAccessUntil = 0;
   const INFLIGHT_ACCESS_MS = 4000;
+  /**
+   * A lista de acessos já veio da nuvem (servidor ou cópia do aparelho)? Antes disso o mapa local
+   * tem só o administrador principal: gravar acessos nesse estado apagaria a equipe inteira, e
+   * "não estar no mapa" ainda não quer dizer "sem acesso".
+   */
+  let acessosCarregados = false;
+  /** O servidor recusou ler o doc meta (permission-denied): aí sim a pessoa não tem acesso. */
+  let acessoNegadoPeloServidor = false;
 
   function cfg() {
     return window.FIREBASE_CONFIG || {};
@@ -457,7 +464,6 @@ const DemandasFirebase = (function () {
     } catch (_) {}
     metaRef = db.collection(COL_SYSTEM).doc(DOC_META);
     legacyRef = db.collection(COL_SYSTEM).doc(DOC_LEGACY);
-    rolesRef = db.collection(COL_SYSTEM).doc(DOC_ROLES);
     return db;
   }
 
@@ -491,7 +497,7 @@ const DemandasFirebase = (function () {
     return out;
   }
 
-  function applyAccessMaps({ roles, disabled, purged, regionals, names, source = "merge" } = {}) {
+  function applyAccessMaps({ roles, disabled, purged, regionals, names, homes, source = "merge" } = {}) {
     const hasRoles = roles && typeof roles === "object";
     const hasDisabled = disabled !== undefined && disabled !== null && typeof disabled === "object";
     const hasPurged = purged !== undefined && purged !== null && typeof purged === "object";
@@ -587,6 +593,12 @@ const DemandasFirebase = (function () {
       }
     }
 
+    if (homes && typeof homes === "object" && typeof DemandasRoles !== "undefined" && DemandasRoles.setHomesMap) {
+      DemandasRoles.setHomesMap(
+        source === "remote" || source === "replace" ? homes : { ...(DemandasRoles.getHomesMap?.() || {}), ...homes },
+      );
+    }
+
     if (typeof onRolesFn === "function") {
       onRolesFn(DemandasRoles?.getRolesMap?.() || {});
     }
@@ -596,7 +608,8 @@ const DemandasFirebase = (function () {
     applyAccessMaps({ roles: map, source });
   }
 
-  function emitAccessFromMeta(d, source = "remote") {
+  /** doServidor: os dados vieram do servidor (não da cópia do aparelho, que pode estar velha). */
+  function emitAccessFromMeta(d, source = "remote", { doServidor = false } = {}) {
     if (!d || typeof d !== "object") return;
     // Sempre substitui disabled/purged quando o doc meta chega: campo ausente = mapa vazio
     // (senão «Habilitar» falhava se o Firestore omitisse disabledUsers:{}).
@@ -605,8 +618,11 @@ const DemandasFirebase = (function () {
       Object.prototype.hasOwnProperty.call(d, "disabledUsers") ||
       Object.prototype.hasOwnProperty.call(d, "purgedUsers") ||
       Object.prototype.hasOwnProperty.call(d, "userRegionals") ||
-      Object.prototype.hasOwnProperty.call(d, "userDisplayNames");
+      Object.prototype.hasOwnProperty.call(d, "userDisplayNames") ||
+      Object.prototype.hasOwnProperty.call(d, "userHomes");
     if (!hasAccessFields) return;
+    // Antes de aplicar: o onRoles disparado aqui já precisa saber que a lista é a do servidor.
+    if (doServidor && d.roles && typeof d.roles === "object") acessosCarregados = true;
     applyAccessMaps({
       roles: d.roles && typeof d.roles === "object" ? d.roles : undefined,
       disabled: Object.prototype.hasOwnProperty.call(d, "disabledUsers")
@@ -631,6 +647,11 @@ const DemandasFirebase = (function () {
       names: Object.prototype.hasOwnProperty.call(d, "userDisplayNames")
         ? d.userDisplayNames && typeof d.userDisplayNames === "object"
           ? d.userDisplayNames
+          : {}
+        : undefined,
+      homes: Object.prototype.hasOwnProperty.call(d, "userHomes")
+        ? d.userHomes && typeof d.userHomes === "object"
+          ? d.userHomes
           : {}
         : undefined,
       source,
@@ -717,9 +738,9 @@ const DemandasFirebase = (function () {
           if (Date.now() < inflightAccessUntil) {
             /* gravação local de acesso em voo — não reaplicar mapa antigo */
           } else if (d.roles && typeof d.roles === "object") {
-            emitAccessFromMeta(d, "remote");
+            emitAccessFromMeta(d, "remote", { doServidor: !snap.metadata?.fromCache });
           } else if (d.disabledUsers || d.purgedUsers) {
-            emitAccessFromMeta(d, "remote");
+            emitAccessFromMeta(d, "remote", { doServidor: !snap.metadata?.fromCache });
           }
           if (inflightMeta && Date.now() < inflightMeta.until) {
             /* mantém inflight até timeout — merge usa inflightMeta */
@@ -734,6 +755,10 @@ const DemandasFirebase = (function () {
       },
       (err) => {
         console.warn("Listener meta:", err);
+        if (err?.code === "permission-denied") {
+          acessoNegadoPeloServidor = true;
+          if (typeof onRolesFn === "function") onRolesFn(DemandasRoles?.getRolesMap?.() || {});
+        }
         metaLoaded = true;
         snapMeta = { diarias: [], projetistas: {}, deletedDemandaIds: [], deletedDiariaIds: [] };
         onStatusFn("error");
@@ -907,8 +932,10 @@ const DemandasFirebase = (function () {
     const seedBase = { ...(window.DEMANDAS_ROLES_SEED || {}) };
     let remote = {};
     let metaData = null;
+    let leuDoServidor = false;
     try {
       const snap = await withTimeout(metaRef.get(), REQ_TIMEOUT_MS);
+      leuDoServidor = !snap.metadata?.fromCache;
       if (snap.exists) {
         metaData = snap.data() || {};
         remote = normalizeRolesMap(metaData.roles);
@@ -916,7 +943,9 @@ const DemandasFirebase = (function () {
     } catch (e) {
       console.warn("Ler roles em meta:", e);
     }
-    if (metaData) emitAccessFromMeta(metaData, "remote");
+    // Sem a leitura, "remote vazio" não quer dizer "meta sem papéis": completar daqui apagaria a equipe.
+    if (!leuDoServidor) return;
+    if (metaData) emitAccessFromMeta(metaData, "remote", { doServidor: true });
     const merged =
       typeof DemandasRoles !== "undefined" && DemandasRoles.getRolesMap
         ? DemandasRoles.getRolesMap()
@@ -950,12 +979,15 @@ const DemandasFirebase = (function () {
           typeof DemandasRoles !== "undefined" && DemandasRoles.getNamesMap
             ? DemandasRoles.getNamesMap()
             : {};
+        const homes =
+          typeof DemandasRoles !== "undefined" && DemandasRoles.getHomesMap ? DemandasRoles.getHomesMap() : undefined;
         await writeAccessMaps(metaRef, {
           roles: merged,
           disabled,
           purged,
           regionals,
           names,
+          homes,
         });
         applyAccessMaps({
           roles: merged,
@@ -963,6 +995,7 @@ const DemandasFirebase = (function () {
           purged,
           regionals,
           names,
+          homes,
           source: "replace",
         });
       } catch (e) {
@@ -983,7 +1016,8 @@ const DemandasFirebase = (function () {
     return patch;
   }
 
-  async function writeAccessMaps(targetRef, { roles, disabled, purged, regionals, names }) {
+  /** `homes` ausente = não mexe em userHomes (nunca apaga as telas iniciais por esquecimento). */
+  async function writeAccessMaps(targetRef, { roles, disabled, purged, regionals, names, homes }) {
     if (!targetRef) return;
     const nextRoles = roles || {};
     const nextDisabled = disabled || {};
@@ -996,6 +1030,7 @@ const DemandasFirebase = (function () {
       purgedUsers: nextPurged,
       userRegionals: nextRegionals,
       userDisplayNames: nextNames,
+      ...(homes && typeof homes === "object" ? { userHomes: homes } : {}),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
     // update() com mapa novo deveria substituir o campo; set({merge:true}) NÃO remove chaves.
@@ -1021,6 +1056,9 @@ const DemandasFirebase = (function () {
   }
 
   async function persistRoles(roles) {
+    if (!acessosCarregados) {
+      throw new Error("A lista de acessos ainda não carregou da nuvem. Aguarde alguns segundos e tente de novo.");
+    }
     await ensureAuth();
     if (!metaRef) getDb();
     const map = normalizeRolesMap(roles);
@@ -1044,6 +1082,8 @@ const DemandasFirebase = (function () {
       typeof DemandasRoles !== "undefined" && DemandasRoles.getNamesMap
         ? DemandasRoles.getNamesMap()
         : {};
+    const homes =
+      typeof DemandasRoles !== "undefined" && DemandasRoles.getHomesMap ? DemandasRoles.getHomesMap() : undefined;
     if (adminEmail) {
       delete disabled[adminEmail];
       delete purged[adminEmail];
@@ -1051,20 +1091,15 @@ const DemandasFirebase = (function () {
     onStatusFn("saving");
     inflightAccessUntil = Date.now() + INFLIGHT_ACCESS_MS;
     try {
-      await writeAccessMaps(metaRef, { roles: map, disabled, purged, regionals, names });
-      try {
-        if (rolesRef) {
-          await writeAccessMaps(rolesRef, { roles: map, disabled, purged, regionals, names });
-        }
-      } catch (e) {
-        console.warn("Espelho roles doc (opcional):", e);
-      }
+      // Fonte única dos acessos: o doc meta (as regras do Firestore/Storage e as funções leem dele).
+      await writeAccessMaps(metaRef, { roles: map, disabled, purged, regionals, names, homes });
       applyAccessMaps({
         roles: map,
         disabled,
         purged,
         regionals,
         names,
+        homes,
         source: "replace",
       });
       onStatusFn("synced");
@@ -1075,6 +1110,41 @@ const DemandasFirebase = (function () {
     return typeof DemandasRoles !== "undefined" && DemandasRoles.getRolesMap
       ? DemandasRoles.getRolesMap()
       : map;
+  }
+
+  /** Histórico de acessos: grava as mudanças (só admin; as regras conferem quem grava e a hora). */
+  async function appendAccessHistory(entries) {
+    const lista = (entries || []).filter((e) => e && e.alvo && e.acao);
+    if (!lista.length) return;
+    await ensureAuth();
+    const database = getDb();
+    const por = String(firebase.auth().currentUser?.email || "").toLowerCase();
+    const batch = database.batch();
+    for (const e of lista.slice(0, 400)) {
+      const doc = {
+        em: firebase.firestore.FieldValue.serverTimestamp(),
+        por,
+        alvo: String(e.alvo).slice(0, 200),
+        acao: String(e.acao).slice(0, 40),
+      };
+      if (e.de != null) doc.de = String(e.de).slice(0, 200);
+      if (e.para != null) doc.para = String(e.para).slice(0, 200);
+      batch.set(database.collection(COL_HISTORICO_ACESSOS).doc(), doc);
+    }
+    await withTimeout(batch.commit(), REQ_TIMEOUT_MS);
+  }
+
+  /** Últimas mudanças de acesso, da mais recente para a mais antiga. */
+  async function loadAccessHistory(limite = 30) {
+    await ensureAuth();
+    const snap = await withTimeout(
+      getDb().collection(COL_HISTORICO_ACESSOS).orderBy("em", "desc").limit(limite).get(),
+      REQ_TIMEOUT_MS,
+    );
+    return snap.docs.map((d) => {
+      const v = d.data() || {};
+      return { id: d.id, ...v, em: v.em?.toDate ? v.em.toDate().toISOString() : String(v.em || "") };
+    });
   }
 
   async function importFullState(data) {
@@ -1175,12 +1245,16 @@ const DemandasFirebase = (function () {
 
     return {
       mode: "firebase",
+      acessosCarregados: () => acessosCarregados,
+      acessoNegado: () => acessoNegadoPeloServidor,
       upsertDemanda,
       deleteDemanda,
       patchDemandaPresence,
       persistMeta,
       persistMetaFields,
       persistRoles,
+      appendAccessHistory,
+      loadAccessHistory,
       importFullState,
       migrateLegacyPayload,
     };
@@ -1200,6 +1274,8 @@ const DemandasFirebase = (function () {
     const noop = async () => {};
     return {
       mode: "local",
+      acessosCarregados: () => true,
+      acessoNegado: () => false,
       upsertDemanda: noop,
       deleteDemanda: noop,
       patchDemandaPresence: noop,
@@ -1224,6 +1300,8 @@ const DemandasFirebase = (function () {
             typeof DemandasRoles !== "undefined" && DemandasRoles.getNamesMap
               ? DemandasRoles.getNamesMap()
               : {},
+          homes:
+            typeof DemandasRoles !== "undefined" && DemandasRoles.getHomesMap ? DemandasRoles.getHomesMap() : undefined,
           source: "replace",
         });
         return typeof DemandasRoles !== "undefined" && DemandasRoles.getRolesMap
@@ -1255,7 +1333,8 @@ const DemandasFirebase = (function () {
     db = null;
     metaRef = null;
     legacyRef = null;
-    rolesRef = null;
+    acessosCarregados = false;
+    acessoNegadoPeloServidor = false;
     onDataFn = null;
     onRolesFn = null;
     snapDemandas = [];

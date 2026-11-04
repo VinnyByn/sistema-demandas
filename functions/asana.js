@@ -287,8 +287,12 @@ async function anexarArquivo({ db, token, fetchImpl = fetch, demandaId, nome, ti
   return { gid: String(anexo.gid || ""), nome: anexo.name || arquivo, url: anexo.permalink_url || "", comentario: cmt };
 }
 
-/** Sistema → Asana: publica, edita ou apaga no Asana o comentário digitado no sistema. */
-async function sincronizarComentario({ db, token, fetchImpl, demandaId, acao, comentarioId, texto, autor }) {
+/**
+ * Sistema → Asana: publica, edita ou apaga no Asana o comentário digitado no sistema.
+ * `autor`/`email` vêm do servidor (quem está logado). Editar: só quem publicou ou um administrador,
+ * e o nome que aparece no Asana continua o de quem publicou.
+ */
+async function sincronizarComentario({ db, token, fetchImpl, demandaId, acao, comentarioId, texto, autor, email = "", admin = false }) {
   const snap = await db.collection("demandas").doc(demandaId).get();
   if (!snap.exists) throw new AsanaErro("Demanda não encontrada.", 404);
   const taskId = String(snap.data()?.asanaTaskId || "").trim();
@@ -298,7 +302,14 @@ async function sincronizarComentario({ db, token, fetchImpl, demandaId, acao, co
 
   if (acao === "criar") {
     try {
-      await envioRef.create({ demandaId, comentarioId, estado: "enviando", criadoEm: new Date().toISOString() });
+      await envioRef.create({
+        demandaId,
+        comentarioId,
+        estado: "enviando",
+        criadoEm: new Date().toISOString(),
+        ...(email ? { email: String(email).toLowerCase() } : {}),
+        ...(autor ? { autor: String(autor) } : {}),
+      });
     } catch {
       return { ignorado: "ja-enviado" }; // outra chamada já está enviando/enviou este comentário
     }
@@ -323,7 +334,10 @@ async function sincronizarComentario({ db, token, fetchImpl, demandaId, acao, co
   const envio = (await envioRef.get()).data();
   if (!envio?.storyGid) return { ignorado: "nao-enviado" };
   if (acao === "editar") {
-    await asana(`/stories/${envio.storyGid}`, { method: "PUT", data: { text: textoComentarioSistema(autor, texto) } });
+    if (envio.email && email && envio.email !== String(email).toLowerCase() && !admin) {
+      throw new AsanaErro("Só quem escreveu o comentário (ou um administrador) pode editá-lo.", 403);
+    }
+    await asana(`/stories/${envio.storyGid}`, { method: "PUT", data: { text: textoComentarioSistema(envio.autor || autor, texto) } });
     return { storyGid: envio.storyGid };
   }
   if (acao === "apagar") {

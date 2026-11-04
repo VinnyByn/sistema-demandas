@@ -128,7 +128,7 @@
     setForgotLoading(true);
     try {
       await DemandasAuth.sendPasswordReset(email);
-      showOk(`Enviamos um link para ${email}. Abra o e-mail e defina uma nova senha.`);
+      showOk(`Se ${email} tiver conta, enviamos um link para definir uma nova senha. Confira também o spam.`);
     } catch (err) {
       console.error("Reset senha:", err);
       showErr(err?.message || "Não foi possível enviar o e-mail de recuperação.");
