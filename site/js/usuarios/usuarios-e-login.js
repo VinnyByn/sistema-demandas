@@ -174,6 +174,17 @@ function usuariosComAlteracao() {
  *    nenhuma outra conta puder ter o mesmo nome; senão ficam como "nome em comum" (ambíguos).
  * Calculado uma vez por renderização (roda a cada mudança remota).
  */
+/** "+8 como «Rafael»": demandas com um nome que serve para esta conta e para outra (ex.: dois Rafael). */
+function notaNomeEmComum(email, qtd, indice) {
+  const nomes = indice.nomesAmbiguos(email);
+  const outros = indice.outrosComMesmoNome(email).map((e) => projetistaLabelForEmail(e) || e);
+  const comoTexto = nomes.length ? ` como ${nomes.map((n) => `«${n}»`).join(", ")}` : " com nome em comum";
+  const dica =
+    `${qtd} demanda${qtd > 1 ? "s estão" : " está"} com o projetista escrito${comoTexto}, ` +
+    `que também pode ser ${outros.join(", ") || "outra conta"}. Para contar certo, abra a demanda e escolha o nome completo no campo Projetista.`;
+  return `<span class="usuarios-row__nota" title="${escapeHtml(dica)}">+${qtd}${escapeHtml(comoTexto)}</span>`;
+}
+
 function indiceDemandasPorConta(emails) {
   const primarios = new Map();
   for (const row of projetistaEmailRowsFromRoles({ includeDisabled: true })) {
@@ -198,6 +209,7 @@ function indiceDemandasPorConta(emails) {
   const certas = new Map();
   const ambiguas = new Map();
   const comNome = new Map(); // e-mail → outros e-mails com o mesmo nome
+  const nomesAmbiguos = new Map(); // e-mail → nomes escritos nas demandas que servem para mais de uma conta
   const push = (mapa, email, d) => {
     if (!mapa.has(email)) mapa.set(email, []);
     mapa.get(email).push(d);
@@ -227,6 +239,7 @@ function indiceDemandasPorConta(emails) {
         else {
           push(ambiguas, e, d);
           comNome.set(e, new Set([...(comNome.get(e) || []), ...[...donos].filter((x) => x !== e)]));
+          nomesAmbiguos.set(e, new Set([...(nomesAmbiguos.get(e) || []), n]));
         }
       }
     }
@@ -235,6 +248,7 @@ function indiceDemandasPorConta(emails) {
     certas: (email) => certas.get(email) || [],
     ambiguas: (email) => (ambiguas.get(email) || []).filter((d) => !(certas.get(email) || []).includes(d)),
     outrosComMesmoNome: (email) => [...(comNome.get(email) || [])],
+    nomesAmbiguos: (email) => [...(nomesAmbiguos.get(email) || [])],
   };
 }
 
@@ -422,7 +436,7 @@ function renderUsuariosPanel() {
           (certas
             ? `<span class="usuarios-row__qtd"><strong>${certas}</strong> demanda${certas > 1 ? "s" : ""}</span>`
             : `<span class="muted">Sem demandas</span>`) +
-          (ambiguas ? `<span class="usuarios-row__nota" title="Demandas com um nome que também pode ser de outra conta">+${ambiguas} com nome em comum</span>` : "");
+          (ambiguas ? notaNomeEmComum(email, ambiguas, indice) : "");
         const c = usuariosContasLogin?.[email];
         const semLogin = c && !c.existe;
         const loginHtml = !c

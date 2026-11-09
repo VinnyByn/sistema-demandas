@@ -131,7 +131,7 @@ test("nome em comum (dois Rafaéis) não bloqueia a remoção, mas avisa", async
     state.demandas.push(migrateDemanda({ id: "p9", titulo: "Antiga do Rafael", tipo: "Backbone", status: "novo", responsavel: "Rafael", cidade: "Goiânia" }));
   });
   await abrirUsuarios(page);
-  await expect(linha(page, "rafael.machado@x.com")).toContainText("+1 com nome em comum");
+  await expect(linha(page, "rafael.machado@x.com")).toContainText("+1 como «Rafael»");
   await linha(page, "rafael.machado@x.com").locator(".user-row-more").click();
   await linha(page, "rafael.machado@x.com").locator(".user-role-del").click();
   const pedido = await page.evaluate(() => window.__confirmacoes.at(-1));
