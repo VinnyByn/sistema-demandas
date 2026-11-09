@@ -44,7 +44,7 @@ test("histórico lista as mudanças e o registro não inventa troca de nome", as
   ]);
 
   await page.locator("#usuariosHistorico summary").click();
-  await expect(page.locator("#usuariosHistoricoStatus")).toContainText("Disponível só com o Firebase");
+  await expect(page.locator("#usuariosHistoricoStatus")).toContainText("Disponível só com a nuvem");
   await page.evaluate((eu) => {
     usuariosHistorico = [
       { em: "2026-11-04T12:30:00.000Z", por: eu, alvo: "bia.souza@x.com", acao: "papel", de: "Projetista", para: "Administrador" },

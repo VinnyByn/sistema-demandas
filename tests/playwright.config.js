@@ -5,9 +5,10 @@ const porta = Number(process.env.E2E_PORT || 4173);
 
 module.exports = defineConfig({
   testDir: "e2e",
+  outputDir: "test-results",
   timeout: 30000,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
+  reporter: process.env.CI ? [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]] : "list",
   use: {
     baseURL: `http://localhost:${porta}`,
     viewport: { width: 1360, height: 900 },

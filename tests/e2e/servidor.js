@@ -4,11 +4,11 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const raiz = path.join(__dirname, "../../demandas-projetos");
+const raiz = path.join(__dirname, "../../site");
 const porta = Number(process.env.PORT || 4173);
 const tipos = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json", ".svg": "image/svg+xml" };
 
-/** Glob do Firebase Hosting (**, *, @(a|b)) → RegExp. */
+/** Glob da hospedagem (**, *, @(a|b)) → RegExp. */
 function globParaRegex(glob) {
   let re = "";
   for (let i = 0; i < glob.length; i++) {

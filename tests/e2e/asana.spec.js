@@ -1,4 +1,4 @@
-// Asana no app (funções do Firebase simuladas): escolher o projeto, enviar e sincronizar comentários.
+// Asana no app (funções do servidor simuladas): escolher o projeto, enviar e sincronizar comentários.
 const { test, expect } = require("./app");
 
 async function simularFuncoes(page) {
@@ -22,18 +22,9 @@ async function simularFuncoes(page) {
       asanaComentario: () => ({ storyGid: "S1" }),
       asanaAnexar: (d) => ({ gid: "AT", nome: d.nome, comentario: { id: `asana_sis_anexo_${d.nome}`, texto: `📎 Anexou o arquivo «${d.nome}» no Asana`, autor: d.autor, createdAt: new Date().toISOString(), origem: "integracao" } }),
     };
-    window.firebase = {
-      apps: [1],
-      auth: () => ({ currentUser: null, onAuthStateChanged: () => () => {} }),
-      functions: () => {},
-      app: () => ({
-        functions: () => ({
-          httpsCallable: (nome) => async (dados) => {
-            window.__chamadas.push({ nome, dados });
-            return { data: respostas[nome](dados) };
-          },
-        }),
-      }),
+    DemandasNuvem.chamar = async (nome, dados) => {
+      window.__chamadas.push({ nome, dados });
+      return { data: respostas[nome](dados) };
     };
   });
 }

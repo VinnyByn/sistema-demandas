@@ -1,4 +1,4 @@
-// Abre o app em modo local (sem Firebase), com login dispensado e dados de exemplo.
+// Abre o app sem rede (nuvem configurada, mas a biblioteca não carrega), com login dispensado e dados de exemplo.
 const { test: base, expect } = require("@playwright/test");
 
 const hoje = () => new Date();
@@ -13,19 +13,27 @@ function projetosExemplo() {
   ];
 }
 
+// O que nenhuma mensagem do console pode conter, em nenhum teste: nomes de projeto e e-mails da equipe.
+const DADOS_QUE_NAO_VAO_AO_CONSOLE = [...projetosExemplo().map((p) => p.titulo), "vinicius.morais@soumaster.com.br", "matheus.costa@x.com", "alberto.soares@x.com"];
+
 const test = base.extend({
   app: async ({ page }, use) => {
     const erros = [];
+    const saidaConsole = [];
     page.on("pageerror", (e) => erros.push(e.message));
-    // Violações do Content-Security-Policy (inclusive o Report-Only) do firebase.json, que o servidor de teste aplica.
+    page.on("console", (m) => saidaConsole.push(m.text()));
+    // Violações do Content-Security-Policy do firebase.json, que o servidor de teste aplica.
     await page.addInitScript(() => {
       window.__violacoesCsp = [];
       document.addEventListener("securitypolicyviolation", (e) =>
         window.__violacoesCsp.push(`${e.disposition} ${e.effectiveDirective} ${e.blockedURI || "(inline)"}`),
       );
     });
-    // Sem rede externa: Firebase/CDNs ficam de fora e o app cai no modo local.
-    await page.route(/gstatic|jsdelivr|cdnjs|googleapis|firebaseio/, (r) => r.abort());
+    // Sem rede externa: Supabase e CDNs ficam de fora. A configuração é fixa para o teste não depender do arquivo real.
+    await page.route(/gstatic|jsdelivr|cdnjs|googleapis|supabase\.co/, (r) => r.abort());
+    await page.route("**/supabase-config.js", (r) =>
+      r.fulfill({ contentType: "text/javascript", body: 'window.SUPABASE_CONFIG = { url: "https://teste.supabase.co", publishableKey: "sb_publishable_teste" };' }),
+    );
     await page.goto("/index.html");
     await page.waitForFunction(() => typeof window.applyLoadedState === "function");
     await page.evaluate((dados) => {
@@ -37,6 +45,7 @@ const test = base.extend({
       window.setDemandaEditingBy = () => {};
       window.startPresenceHeartbeat = () => {};
       window.getCurrentUserEmail = () => "vinicius.morais@soumaster.com.br";
+      DemandasRoles.definirAdminPrincipal("vinicius.morais@soumaster.com.br");
       window.getLoggedInComentarioAutor = () => "Vinicius Morais";
       window.confirm = () => true;
       window.confirmDialog = async () => true;
@@ -56,8 +65,11 @@ const test = base.extend({
       fillFilterProjetistaSelect();
       renderBoard();
     }, projetosExemplo());
-    await use({ page, erros });
+    await use({ page, erros, saidaConsole });
     expect(erros, "erros de JavaScript na página").toEqual([]);
+    for (const dado of DADOS_QUE_NAO_VAO_AO_CONSOLE) {
+      expect(saidaConsole.filter((linha) => linha.includes(dado)), `«${dado}» apareceu no console`).toEqual([]);
+    }
     const csp = page.isClosed() ? [] : await page.evaluate(() => window.__violacoesCsp || []).catch(() => []);
     expect(csp, "violações do Content-Security-Policy (firebase.json)").toEqual([]);
   },

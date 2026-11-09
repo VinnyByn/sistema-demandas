@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { test, expect } = require("./app");
 
-const AXE = fs.readFileSync(path.join(__dirname, "..", "node_modules", "axe-core", "axe.min.js"), "utf8");
+const AXE = fs.readFileSync(path.join(__dirname, "..", "..", "node_modules", "axe-core", "axe.min.js"), "utf8");
 
 async function violacoes(page, contexto) {
   // Pelo protocolo do navegador (não como <script> inline), para não esbarrar no CSP da página.

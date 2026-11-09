@@ -1,0 +1,27 @@
+# Configuração do projeto para a CLI do Supabase (`supabase config push` aplica o bloco [auth] no projeto real).
+project_id = "sistema-demandas"
+
+[auth]
+site_url = "https://demproj-fdeac.web.app"
+additional_redirect_urls = ["https://demproj-fdeac.web.app/", "https://demproj-fdeac.firebaseapp.com/", "http://localhost:4173/"]
+# Conta só nasce pela função criarContaLogin: com cadastro aberto, alguém se registraria com o e-mail de um colega e herdaria o papel dele.
+enable_signup = false
+enable_anonymous_sign_ins = false
+minimum_password_length = 8
+
+# `enabled` liga o login por e-mail; quem fecha o cadastro é o enable_signup acima.
+[auth.email]
+enabled = true
+double_confirm_changes = true
+enable_confirmations = true
+
+# Convite e "esqueci a senha" usam este e-mail; o padrão do Supabase é em inglês.
+[auth.email.template.recovery]
+subject = "Defina sua senha — Projetos Master"
+content_path = "./supabase/templates/definir-senha.html"
+
+[functions.asana-webhook]
+verify_jwt = false
+
+[functions.backup-diario]
+verify_jwt = false

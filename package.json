@@ -1,0 +1,24 @@
+{
+  "name": "sistema-demandas",
+  "private": true,
+  "description": "Sistema de demandas: site estático no Firebase Hosting, com banco, login e funções no Supabase.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node tests/e2e/servidor.js",
+    "segredos": "node --env-file=.env scripts/enviar-segredos.mjs",
+    "test": "npm run test:unit && npm run test:deno && npm run test:e2e",
+    "test:unit": "node --test tests/unit/pdf-custo.test.js tests/unit/backup.test.mjs tests/unit/asana.test.mjs tests/unit/repositorio-contrato.test.mjs tests/unit/banco-regras.test.mjs tests/unit/nuvem-persist.test.mjs tests/unit/nuvem-cliente.test.mjs tests/unit/api.test.mjs tests/unit/acesso.test.mjs tests/unit/contas-supabase.test.mjs tests/unit/importar-firebase.test.mjs tests/unit/seguranca.test.mjs",
+    "test:deno": "deno test --no-lock --node-modules-dir=none --allow-env --allow-net --allow-read --allow-sys tests/deno/funcoes.test.ts",
+    "test:e2e": "playwright test --config tests/playwright.config.js"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.16",
+    "@playwright/test": "1.56.1",
+    "@supabase/auth-js": "2.118.0",
+    "@supabase/supabase-js": "2.118.0",
+    "axe-core": "^4.10.2",
+    "deno": "^2.9.6"
+  }
+}

@@ -1,0 +1,426 @@
+/**
+ * Hierarquia de papéis (e-mail do login).
+ *
+ * admin         — tudo, inclusive gerenciar usuários
+ * projetista    — operação completa (sem gerenciar usuários)
+ * visibilidade  — somente leitura
+ * disabled      — conta no mapa, sem operação (somente leitura / fora das listas)
+ *
+ * E-mail fora do mapa de papéis ou removido (purged) → sem acesso.
+ * E-mail no mapa com disabled → somente leitura.
+ */
+/*
+ * Fonte de verdade dos acessos: a tabela sistema_meta (roles, disabledUsers, purgedUsers), que as regras do banco e as
+ * funções também leem. O administrador principal chega do banco depois do login: este arquivo é público, e o e-mail dele aqui
+ * mostraria a qualquer visitante qual é a conta mais valiosa.
+ */
+window.DEMANDAS_ROLES_SEED = {};
+
+window.DEMANDAS_ADMIN_EMAIL = "";
+
+window.DemandasRoles = (function () {
+  const ROLE_ADMIN = "admin";
+  const ROLE_PROJETISTA = "projetista";
+  const ROLE_VISIBILIDADE = "visibilidade";
+  const ROLES = [ROLE_ADMIN, ROLE_PROJETISTA, ROLE_VISIBILIDADE];
+  const DEFAULT_ROLE = ROLE_PROJETISTA;
+
+  const ROLE_LABELS = {
+    admin: "Administrador",
+    projetista: "Projetista",
+    visibilidade: "Visibilidade",
+  };
+
+  /** Mapa e-mail → papel (seed + nuvem). */
+  let rolesMap = { ...(window.DEMANDAS_ROLES_SEED || {}) };
+  /** Incrementa a cada mudança de papéis/bloqueios — permite cache das listas derivadas. */
+  let version = 0;
+  /** E-mails desabilitados (permanecem no mapa, sem operar). */
+  let disabledMap = {};
+  /** Removidos do sistema (impede o seed de reaparecer). */
+  let purgedMap = {};
+  /** E-mail → regional preferida ("" = todas). */
+  let regionalsMap = {};
+  /** E-mail → nome de exibição da conta. */
+  let namesMap = {};
+  /** E-mail → tela inicial ({ esteira: "b2b" }); ausente = Esteira Projetos. */
+  let homesMap = {};
+
+  function normalizeEmail(email) {
+    return String(email || "")
+      .trim()
+      .toLowerCase();
+  }
+
+  function normalizeRole(role) {
+    const r = String(role || "").toLowerCase();
+    if (r === "administrador" || r === "administrator") return ROLE_ADMIN;
+    return ROLES.includes(r) ? r : ROLE_VISIBILIDADE;
+  }
+
+  function normalizeFlagMap(map) {
+    const out = {};
+    if (!map || typeof map !== "object") return out;
+    for (const [email, flag] of Object.entries(map)) {
+      const e = normalizeEmail(email);
+      if (!e) continue;
+      if (flag === true || flag === 1 || flag === "1" || String(flag).toLowerCase() === "true") {
+        out[e] = true;
+      }
+    }
+    return out;
+  }
+
+  function mergeSeed(map) {
+    const out = { ...(window.DEMANDAS_ROLES_SEED || {}) };
+    if (map && typeof map === "object") {
+      for (const [email, role] of Object.entries(map)) {
+        const e = normalizeEmail(email);
+        if (!e || typeof role !== "string" || !role) continue;
+        out[e] = normalizeRole(role);
+      }
+    }
+    const adminEmail = normalizeEmail(window.DEMANDAS_ADMIN_EMAIL);
+    for (const e of Object.keys(purgedMap)) {
+      if (e && e !== adminEmail) delete out[e];
+    }
+    if (adminEmail) {
+      out[adminEmail] = ROLE_ADMIN;
+      delete purgedMap[adminEmail];
+      delete disabledMap[adminEmail];
+    }
+    return out;
+  }
+
+  function definirAdminPrincipal(email) {
+    const e = normalizeEmail(email);
+    window.DEMANDAS_ADMIN_EMAIL = e;
+    window.DEMANDAS_ROLES_SEED = e ? { [e]: ROLE_ADMIN } : {};
+    return setRolesMap(rolesMap);
+  }
+
+  function setRolesMap(map) {
+    rolesMap = mergeSeed(map);
+    version++;
+    return rolesMap;
+  }
+
+  function getRolesMap() {
+    return { ...rolesMap };
+  }
+
+  function setDisabledMap(map) {
+    disabledMap = normalizeFlagMap(map);
+    const adminEmail = normalizeEmail(window.DEMANDAS_ADMIN_EMAIL);
+    if (adminEmail) delete disabledMap[adminEmail];
+    version++;
+    return { ...disabledMap };
+  }
+
+  function getDisabledMap() {
+    return { ...disabledMap };
+  }
+
+  function setPurgedMap(map) {
+    purgedMap = normalizeFlagMap(map);
+    const adminEmail = normalizeEmail(window.DEMANDAS_ADMIN_EMAIL);
+    if (adminEmail) delete purgedMap[adminEmail];
+    return { ...purgedMap };
+  }
+
+  function getPurgedMap() {
+    return { ...purgedMap };
+  }
+
+  function normalizeRegionalValue(v) {
+    const s = String(v || "").trim();
+    if (!s || s === "__all__" || s.toLowerCase() === "todas" || s === "*") return "";
+    return s;
+  }
+
+  function normalizeRegionalsMap(map) {
+    const out = {};
+    if (!map || typeof map !== "object") return out;
+    for (const [email, regional] of Object.entries(map)) {
+      const e = normalizeEmail(email);
+      if (!e) continue;
+      out[e] = normalizeRegionalValue(regional);
+    }
+    return out;
+  }
+
+  function setRegionalsMap(map) {
+    regionalsMap = normalizeRegionalsMap(map);
+    return { ...regionalsMap };
+  }
+
+  function getRegionalsMap() {
+    return { ...regionalsMap };
+  }
+
+  /** Regional do usuário; string vazia = todas. */
+  function regionalForEmail(email) {
+    const e = normalizeEmail(email);
+    if (!e) return "";
+    return normalizeRegionalValue(regionalsMap[e]);
+  }
+
+  function normalizeDisplayName(v) {
+    return String(v || "").replace(/\s+/g, " ").trim();
+  }
+
+  function normalizeNamesMap(map) {
+    const out = {};
+    if (!map || typeof map !== "object") return out;
+    for (const [email, name] of Object.entries(map)) {
+      const e = normalizeEmail(email);
+      const n = normalizeDisplayName(name);
+      if (!e || !n) continue;
+      out[e] = n;
+    }
+    return out;
+  }
+
+  function setNamesMap(map) {
+    namesMap = normalizeNamesMap(map);
+    return { ...namesMap };
+  }
+
+  function getNamesMap() {
+    return { ...namesMap };
+  }
+
+  function displayNameForEmail(email) {
+    const e = normalizeEmail(email);
+    if (!e) return "";
+    return namesMap[e] || "";
+  }
+
+  const ESTEIRAS_INICIAIS = ["operacional", "b2b"];
+
+  /** Só guarda o que difere do padrão (Esteira Projetos). */
+  function normalizeHomesMap(map) {
+    const out = {};
+    if (!map || typeof map !== "object") return out;
+    for (const [email, home] of Object.entries(map)) {
+      const e = normalizeEmail(email);
+      const esteira = String(home?.esteira || "").trim().toLowerCase();
+      if (!e || !ESTEIRAS_INICIAIS.includes(esteira) || esteira === "operacional") continue;
+      out[e] = { esteira };
+    }
+    return out;
+  }
+
+  function setHomesMap(map) {
+    homesMap = normalizeHomesMap(map);
+    return getHomesMap();
+  }
+
+  function getHomesMap() {
+    return JSON.parse(JSON.stringify(homesMap));
+  }
+
+  /** Esteira em que a conta abre: "operacional" (padrão) ou "b2b". */
+  function homeEsteiraForEmail(email) {
+    const e = normalizeEmail(email);
+    return (e && homesMap[e]?.esteira) || "operacional";
+  }
+
+  function isDisabled(email) {
+    const e = normalizeEmail(email);
+    if (!e) return false;
+    if (e === normalizeEmail(window.DEMANDAS_ADMIN_EMAIL)) return false;
+    return !!disabledMap[e];
+  }
+
+  function isPurged(email) {
+    const e = normalizeEmail(email);
+    if (!e) return false;
+    if (e === normalizeEmail(window.DEMANDAS_ADMIN_EMAIL)) return false;
+    return !!purgedMap[e];
+  }
+
+  function roleForEmail(email) {
+    const e = normalizeEmail(email);
+    if (!e) return null;
+    if (isPurged(e)) return null;
+    if (!rolesMap[e]) return null;
+    return normalizeRole(rolesMap[e]);
+  }
+
+  function currentEmail() {
+    const user = typeof DemandasAuth !== "undefined" ? DemandasAuth.currentUser?.() : null;
+    return normalizeEmail(user?.email);
+  }
+
+  function resolve(user) {
+    const email = normalizeEmail(user?.email ?? currentEmail());
+    // Allowlist: só quem está no mapa (e não foi removido) acessa o sistema.
+    if (!email || isPurged(email) || !rolesMap[email]) {
+      return {
+        email,
+        role: "blocked",
+        label: "Sem acesso",
+        isAdmin: false,
+        isProjetista: false,
+        isVisibilidade: false,
+        isDisabled: false,
+        isBlocked: true,
+        isReadOnly: true,
+      };
+    }
+    const role = normalizeRole(rolesMap[email]);
+    const disabled = isDisabled(email);
+    return {
+      email,
+      role,
+      label: disabled ? `${ROLE_LABELS[role] || role} · desabilitado` : ROLE_LABELS[role] || role,
+      isAdmin: !disabled && role === ROLE_ADMIN,
+      isProjetista: !disabled && role === ROLE_PROJETISTA,
+      isVisibilidade: role === ROLE_VISIBILIDADE,
+      isDisabled: disabled,
+      isBlocked: false,
+      isReadOnly: disabled || role === ROLE_VISIBILIDADE,
+    };
+  }
+
+  function isAdmin(user) {
+    return resolve(user).isAdmin;
+  }
+
+  function isReadOnly(user) {
+    return resolve(user).isReadOnly;
+  }
+
+  /**
+   * Ações:
+   * - write: salvar demanda/diária/meta, drag, snooze, import
+   * - deleteDemanda / import / manageUsers
+   */
+  function can(action, user) {
+    const info = resolve(user);
+    if (info.isBlocked || info.isDisabled) return false;
+    if (info.isAdmin) return true;
+    if (info.isReadOnly) return false;
+    if (action === "manageUsers") return false;
+    if (action === "write" || action === "deleteDemanda" || action === "import" || action === "export") {
+      return true;
+    }
+    return false;
+  }
+
+  function countAdmins(map = rolesMap) {
+    return Object.entries(map).filter(([email, r]) => {
+      if (isDisabled(email)) return false;
+      return normalizeRole(r) === ROLE_ADMIN;
+    }).length;
+  }
+
+  function canChangeRole(email, newRole, actorEmail) {
+    const e = normalizeEmail(email);
+    const next = normalizeRole(newRole);
+    const actor = normalizeEmail(actorEmail || currentEmail());
+    if (!e || !actor) return { ok: false, reason: "Usuário inválido" };
+    if (roleForEmail(actor) !== ROLE_ADMIN || isDisabled(actor)) {
+      return { ok: false, reason: "Apenas administrador" };
+    }
+
+    const merged = { ...rolesMap, [e]: next };
+    if (countAdmins(merged) < 1) {
+      return { ok: false, reason: "É preciso manter ao menos um administrador ativo" };
+    }
+    return { ok: true };
+  }
+
+  function canToggleDisabled(email, disabled, actorEmail) {
+    const e = normalizeEmail(email);
+    const actor = normalizeEmail(actorEmail || currentEmail());
+    if (!e) return { ok: false, reason: "Usuário inválido" };
+    if (roleForEmail(actor) !== ROLE_ADMIN || isDisabled(actor)) {
+      return { ok: false, reason: "Apenas administrador" };
+    }
+    if (e === actor) {
+      if (disabled) return { ok: false, reason: "Você não pode desabilitar a si mesmo" };
+      return { ok: true };
+    }
+    if (e === normalizeEmail(window.DEMANDAS_ADMIN_EMAIL) && disabled) {
+      return { ok: false, reason: "Não é possível desabilitar o administrador principal" };
+    }
+    if (disabled && roleForEmail(e) === ROLE_ADMIN) {
+      const nextDisabled = { ...disabledMap, [e]: true };
+      const adminsLeft = Object.entries(rolesMap).filter(([mail, r]) => {
+        if (normalizeRole(r) !== ROLE_ADMIN) return false;
+        if (nextDisabled[mail]) return false;
+        return true;
+      }).length;
+      if (adminsLeft < 1) {
+        return { ok: false, reason: "É preciso manter ao menos um administrador ativo" };
+      }
+    }
+    return { ok: true };
+  }
+
+  function canRemoveUser(email, actorEmail) {
+    const e = normalizeEmail(email);
+    const actor = normalizeEmail(actorEmail || currentEmail());
+    if (!e) return { ok: false, reason: "Usuário inválido" };
+    if (roleForEmail(actor) !== ROLE_ADMIN || isDisabled(actor)) {
+      return { ok: false, reason: "Apenas administrador" };
+    }
+    if (e === actor) return { ok: false, reason: "Você não pode excluir a si mesmo" };
+    if (e === normalizeEmail(window.DEMANDAS_ADMIN_EMAIL)) {
+      return { ok: false, reason: "Não é possível remover o administrador principal" };
+    }
+    const next = { ...rolesMap };
+    delete next[e];
+    const prevPurged = { ...purgedMap };
+    purgedMap[e] = true;
+    const withSeed = mergeSeed(next);
+    purgedMap = prevPurged;
+    if (countAdmins(withSeed) < 1) {
+      return { ok: false, reason: "É preciso manter ao menos um administrador ativo" };
+    }
+    return { ok: true };
+  }
+
+  return {
+    ROLE_ADMIN,
+    ROLE_PROJETISTA,
+    ROLE_VISIBILIDADE,
+    ROLES,
+    ROLE_LABELS,
+    DEFAULT_ROLE,
+    normalizeEmail,
+    normalizeRole,
+    definirAdminPrincipal,
+    setRolesMap,
+    getRolesMap,
+    getVersion: () => version,
+    setDisabledMap,
+    getDisabledMap,
+    setPurgedMap,
+    getPurgedMap,
+    setRegionalsMap,
+    getRegionalsMap,
+    regionalForEmail,
+    normalizeRegionalValue,
+    setNamesMap,
+    getNamesMap,
+    displayNameForEmail,
+    normalizeDisplayName,
+    setHomesMap,
+    getHomesMap,
+    homeEsteiraForEmail,
+    isDisabled,
+    isPurged,
+    roleForEmail,
+    resolve,
+    isAdmin,
+    isReadOnly,
+    can,
+    countAdmins,
+    canChangeRole,
+    canToggleDisabled,
+    canRemoveUser,
+  };
+})();

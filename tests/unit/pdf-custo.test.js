@@ -3,7 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 
-require(path.join(__dirname, "../../demandas-projetos/pdf-custo-import.js"));
+require(path.join(__dirname, "../../site/js/importacao/pdf-custo-import.js"));
 const { parseCustoText } = globalThis.DemandasPdfCusto;
 const casos = require("../fixtures/pdf-casos.js");
 

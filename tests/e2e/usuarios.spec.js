@@ -1,4 +1,4 @@
-// Aba Usuários (modo local, sem Firebase): resumo, edições pendentes, busca, menu por teclado e remoção.
+// Aba Usuários (sem nuvem): resumo, edições pendentes, busca, menu por teclado e remoção.
 const { test, expect } = require("./app");
 
 const EU = "vinicius.morais@soumaster.com.br";
@@ -7,7 +7,7 @@ const EU = "vinicius.morais@soumaster.com.br";
 async function abrirUsuarios(page, { confirmar = true } = {}) {
   await page.evaluate(
     ({ eu, confirmar }) => {
-      // Sem Firebase no teste: quem está logado (DemandasRoles confere o admin por aqui).
+      // Sem nuvem no teste: quem está logado (DemandasRoles confere o admin por aqui).
       DemandasAuth.currentUser = () => ({ email: eu, displayName: "" });
       DemandasRoles.setPurgedMap({});
       DemandasRoles.setDisabledMap({ "duda.lima@x.com": true });
@@ -186,4 +186,29 @@ test("nova conta: o formulário abre pelo botão e o convite esconde a senha", a
   await page.check('input[name="userNovoAcesso"][value="senha"]');
   await expect(page.locator("#userNovoSenhaCampo")).toBeVisible();
   await expect(page.locator("#btnNovaConta")).toHaveAttribute("aria-expanded", "true");
+});
+
+test("quem chega pelo link do e-mail define a senha", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    window.__novaSenha = null;
+    DemandasAuth.precisaDefinirSenha = () => true;
+    DemandasAuth.definirNovaSenha = async (senha) => {
+      window.__novaSenha = senha;
+    };
+    abrirDefinirSenhaSeNecessario();
+  });
+  const dlg = page.locator("#modalDefinirSenha");
+  await expect(dlg).toBeVisible();
+  await page.fill("#definirSenhaNova", "curta");
+  await page.fill("#definirSenhaNova2", "curta");
+  await page.click("#btnDefinirSenha");
+  await expect(page.locator("#definirSenhaErro")).toContainText("ao menos 8");
+  await page.fill("#definirSenhaNova", "senha-boa-123");
+  await page.fill("#definirSenhaNova2", "outra-senha-123");
+  await page.click("#btnDefinirSenha");
+  await expect(page.locator("#definirSenhaErro")).toContainText("não conferem");
+  await page.fill("#definirSenhaNova2", "senha-boa-123");
+  await page.click("#btnDefinirSenha");
+  await expect(dlg).toBeHidden();
+  expect(await page.evaluate(() => window.__novaSenha)).toBe("senha-boa-123");
 });

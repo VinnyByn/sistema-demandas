@@ -1,0 +1,13 @@
+{
+  "name": "migracao-firebase",
+  "private": true,
+  "type": "module",
+  "description": "Ferramenta de uso único para copiar os dados do Firebase para o Supabase. Apague esta pasta depois da virada.",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0",
+    "firebase-admin": "^12.7.0"
+  }
+}
