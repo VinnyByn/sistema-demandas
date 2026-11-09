@@ -34,6 +34,11 @@ for (const tema of ["dark", "light"]) {
     expect(await violacoes(page, "#modalUserConta"), "minha conta").toEqual([]);
     await page.evaluate(() => document.getElementById("modalUserConta")?.close());
 
+    await page.click("#btnRelatorio");
+    await page.locator('#relFiltrosMulti details[data-rel-multi="regionais"] summary').click();
+    expect(await violacoes(page, "#modalRelatorio"), "relatório").toEqual([]);
+    await page.evaluate(() => document.getElementById("modalRelatorio")?.close());
+
     await page.evaluate(() => {
       DemandasAuth.currentUser = () => ({ email: "vinicius.morais@soumaster.com.br", displayName: "" });
       DemandasRoles.setDisabledMap({ "duda.lima@x.com": true });

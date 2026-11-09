@@ -187,6 +187,7 @@ initTimelineResumoInterativo();
 initLoteEsteira();
 initFiltrosSalvos();
 initMetasEtapa();
+initRelatorio();
 
 // ===== Integração com o Asana (envio à Operação e comentários) (js/projeto/asana.js) =====
 
