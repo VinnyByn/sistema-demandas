@@ -1581,14 +1581,23 @@
         <div class="rel-kpis" id="relKpis" aria-live="polite"></div>
 
         <div class="rel-barra-opcoes">
-          <label class="rel-campo rel-campo--inline">
-            <span>Agrupar por</span>
-            <select id="relAgrupar"></select>
-          </label>
+          <div class="rel-barra-opcoes__esq">
+            <label class="rel-campo rel-campo--inline">
+              <span>Agrupar por</span>
+              <select id="relAgrupar"></select>
+            </label>
+            <div class="rel-campo rel-campo--inline">
+              <span>Projetos em</span>
+              <div class="dash-seg" role="radiogroup" aria-label="Mostrar projetos em" id="relVistaSeg">
+                <button type="button" role="radio" data-vista="tabela">Tabela</button>
+                <button type="button" role="radio" data-vista="fichas" title="Ficha completa de cada projeto: custo, portas, cabos e datas">Fichas com detalhes</button>
+              </div>
+            </div>
+          </div>
           <details class="rel-multi rel-multi--colunas">
             <summary><span class="rel-multi__rotulo">Colunas</span><span class="rel-multi__valor" id="relColunasResumo"></span></summary>
             <div class="rel-multi__painel">
-              <div class="rel-multi__acoes"><button type="button" class="btn btn--ghost btn--sm" id="btnRelColunasPadrao">Colunas padrão</button></div>
+              <div class="rel-multi__acoes"><button type="button" class="btn btn--ghost btn--sm" data-rel-atalho="padrao">Padrão</button><button type="button" class="btn btn--ghost btn--sm" data-rel-atalho="custo">Custo e portas</button><button type="button" class="btn btn--ghost btn--sm" data-rel-atalho="todas">Todas</button></div>
               <div class="rel-multi__lista rel-multi__lista--colunas" id="relColunasLista"></div>
             </div>
           </details>

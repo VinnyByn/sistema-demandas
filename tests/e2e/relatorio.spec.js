@@ -111,3 +111,50 @@ test("relatório: escolhe colunas, lembra os filtros e abre o projeto ao clicar"
   await expect(page.locator("#modalRelatorio")).not.toBeVisible();
   await expect(page.locator("#modalDemanda")).toBeVisible();
 });
+
+test("relatório: custo e portas de cada projeto (colunas, filtro, fichas e CSV)", async ({ app: { page } }) => {
+  await abrir(page);
+  await page.evaluate(() => {
+    const p1 = state.demandas.find((d) => d.id === "p1");
+    p1.custo = {
+      temLevantamento: true, valorProjeto: 2000, temPortas: true, qtdCasas: 200, qtdPortasAtual: 50, qtdNovasPortas: 40,
+      temLancamento: true, lancamento: { cabos: [{ tipo: "FO-12", metragem: 300 }, { tipo: "Drop", metragem: 25.5 }] },
+      execucao: "Terceirizada", custoTerceirizada: 900,
+    };
+    state.demandas.forEach((d) => delete d.__isMigrated);
+  });
+  await page.click("#btnRelFechar");
+  await page.click("#btnRelatorio");
+  await expect(kpi(page, "Portas novas")).toHaveText("40");
+  await expect(kpi(page, "Metragem de cabo")).toHaveText("325,5 m");
+
+  await page.locator(".rel-multi--colunas summary").click();
+  await page.click('[data-rel-atalho="custo"]');
+  const cab = page.locator("#relDetalhe thead");
+  for (const t of ["Valor do projeto (R$)", "Portas novas", "Penetração atual", "Nova penetração", "Valor por porta nova (R$)", "Cabos (tipo e metragem)"]) await expect(cab).toContainText(t);
+  const linhaP1 = linhas(page).filter({ hasText: "Rota IJA x SRS" });
+  await expect(linhaP1).toContainText("R$ 2.100,00"); // valor final = projeto + 5%
+  await expect(linhaP1).toContainText("25%"); // 50 / 200
+  await expect(linhaP1).toContainText("45%"); // (50 + 40) / 200
+  await expect(linhaP1).toContainText("R$ 52,50"); // 2100 / 40
+  await expect(linhaP1).toContainText("FO-12: 300 m · Drop: 25,5 m");
+  await expect(linhaP1).toContainText("Terceirizada");
+  await page.keyboard.press("Escape");
+
+  await marcar(page, "dados", "portas");
+  await expect(linhas(page)).toHaveCount(1);
+
+  const [download] = await Promise.all([page.waitForEvent("download"), page.click("#btnRelCsv")]);
+  const csv = require("fs").readFileSync(await download.path(), "utf8");
+  expect(csv).toContain("Filtros: Dados: Com portas");
+  expect(csv).toContain("2100,00");
+  expect(csv).toContain("45,00");
+
+  await page.click('#relVistaSeg [data-vista="fichas"]');
+  const ficha = page.locator("#relDetalhe .rel-ficha");
+  await expect(ficha).toHaveCount(1);
+  for (const t of ["Custo", "Valor do projeto", "R$ 2.000,00", "Portas", "Casas (HPs)", "200", "Lançamento de cabo", "FO-12", "300 m", "Custo execução terceirizada", "R$ 900,00"])
+    await expect(ficha).toContainText(t);
+  await ficha.click();
+  await expect(page.locator("#modalDemanda")).toBeVisible();
+});
