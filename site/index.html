@@ -98,6 +98,13 @@
           <span class="sidebar__label">Metas por etapa</span>
         </button>
 
+        <button type="button" class="sidebar__item" id="btnRelatorio" data-tip="Relatório" aria-label="Relatório">
+          <span class="sidebar__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 18v-3"/><path d="M12 18v-6"/><path d="M16 18v-4"/></svg>
+          </span>
+          <span class="sidebar__label">Relatório</span>
+        </button>
+
         <div class="sidebar__group import-menu sidebar__admin" id="exportMenu" hidden>
           <button type="button" class="sidebar__item import-menu__toggle" id="btnExportToggle" aria-expanded="false" aria-haspopup="menu" aria-controls="exportMenuPanel" data-tip="Exportar" aria-label="Exportar">
             <span class="sidebar__icon" aria-hidden="true">
@@ -1517,6 +1524,88 @@
     </div>
   </dialog>
 
+  <dialog class="modal modal--wide rel-modal" id="modalRelatorio" aria-labelledby="modalRelatorioTitulo">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <div class="rel-modal__titulo">
+          <h2 id="modalRelatorioTitulo">Relatório</h2>
+          <p class="muted small">Escolha os filtros, confira o resumo e exporte para Excel ou PDF. Clique num projeto para abri-lo.</p>
+        </div>
+        <button type="button" class="icon-btn" id="modalRelatorioClose" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal__body rel-modal__body">
+        <section class="rel-filtros" aria-label="Filtros do relatório">
+          <div class="rel-filtros__linha">
+            <div class="rel-campo">
+              <span>Esteira</span>
+              <div class="dash-seg" role="radiogroup" aria-label="Esteira" id="relEsteiraSeg">
+                <button type="button" role="radio" data-esteira="">Todas</button>
+                <button type="button" role="radio" data-esteira="operacional">Projetos</button>
+                <button type="button" role="radio" data-esteira="b2b">B2B</button>
+              </div>
+            </div>
+            <label class="rel-campo rel-campo--busca">
+              <span>Buscar</span>
+              <input type="search" id="relBusca" placeholder="Nome, cidade, chamado, OS, descrição…" autocomplete="off" />
+            </label>
+          </div>
+          <div class="rel-filtros__multi" id="relFiltrosMulti"></div>
+          <div class="rel-filtros__linha">
+            <label class="rel-campo">
+              <span>Prazo</span>
+              <select id="relPrazo"></select>
+            </label>
+            <label class="rel-campo">
+              <span>Período por</span>
+              <select id="relCampoData"></select>
+            </label>
+            <label class="rel-campo">
+              <span>De</span>
+              <input type="date" id="relDe" />
+            </label>
+            <label class="rel-campo">
+              <span>Até</span>
+              <input type="date" id="relAte" />
+            </label>
+            <label class="rel-check">
+              <input type="checkbox" id="relArquivados" />
+              <span>Incluir arquivados</span>
+            </label>
+          </div>
+          <div class="rel-filtros__rodape">
+            <p class="rel-filtros__ativos" id="relFiltrosAtivos" aria-live="polite"></p>
+            <button type="button" class="btn btn--ghost btn--sm" id="btnRelLimpar" hidden>✕ Limpar filtros</button>
+          </div>
+        </section>
+
+        <div class="rel-kpis" id="relKpis" aria-live="polite"></div>
+
+        <div class="rel-barra-opcoes">
+          <label class="rel-campo rel-campo--inline">
+            <span>Agrupar por</span>
+            <select id="relAgrupar"></select>
+          </label>
+          <details class="rel-multi rel-multi--colunas">
+            <summary><span class="rel-multi__rotulo">Colunas</span><span class="rel-multi__valor" id="relColunasResumo"></span></summary>
+            <div class="rel-multi__painel">
+              <div class="rel-multi__acoes"><button type="button" class="btn btn--ghost btn--sm" id="btnRelColunasPadrao">Colunas padrão</button></div>
+              <div class="rel-multi__lista rel-multi__lista--colunas" id="relColunasLista"></div>
+            </div>
+          </details>
+        </div>
+
+        <div id="relResumo"></div>
+        <div id="relDetalhe"></div>
+      </div>
+      <div class="modal__foot">
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn--ghost" id="btnRelFechar">Fechar</button>
+        <button type="button" class="btn btn--ghost" id="btnRelImprimir" title="Abre a impressão — escolha «Salvar como PDF» para gerar o arquivo">Imprimir / PDF</button>
+        <button type="button" class="btn btn--primary" id="btnRelCsv" title="Planilha CSV com «;» — abre direto no Excel">Exportar Excel</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog class="modal modal--wide" id="modalImportCsv">
     <div class="modal__inner">
       <div class="modal__head">
@@ -1896,6 +1985,7 @@
   <script src="js/dashboard/cidades-e-projetistas.js"></script>
   <script src="js/dashboard/b2b-e-tempo.js"></script>
   <script src="js/importacao/exportar-e-importar.js"></script>
+  <script src="js/relatorio/relatorio.js"></script>
   <script src="js/usuarios/usuarios-e-login.js"></script>
   <script src="js/nucleo/app.js"></script>
 </body>
