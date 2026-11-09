@@ -136,47 +136,114 @@ function relUltimoComentario(d) {
   return [quando, quem].filter(Boolean).join(" · ") + (texto ? ` — ${texto}` : "");
 }
 
-/** Colunas disponíveis. `num` marca as numéricas (alinhadas à direita e somadas no total). */
+/** Levantamento de custo normalizado (portas e lançamento só valem com levantamento). */
+function relCusto(d) {
+  return normalizeCusto(d.custo);
+}
+
+function relNumOuZero(v) {
+  if (v === "" || v == null) return 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function relExecucao(d) {
+  const ex = String(relCusto(d).execucao || "").trim();
+  return ex && ex !== CUSTO_EXECUCAO_NAO_APLICA ? ex : "";
+}
+
+function relCabosTexto(d) {
+  const c = relCusto(d);
+  if (!c.temLancamento) return "";
+  return (c.lancamento?.cabos || [])
+    .filter((x) => relNumOuZero(x.metragem) > 0)
+    .map((x) => `${x.tipo}: ${relNumero(x.metragem, 2)} m`)
+    .join(" · ");
+}
+
+/** O que o projeto tem preenchido (filtro «Dados do projeto»). */
+function relDadosDoProjeto(d) {
+  const c = relCusto(d);
+  const out = [c.temLevantamento ? "custo" : "sem_custo"];
+  if (c.temPortas) out.push("portas");
+  if (c.temLancamento) out.push("lancamento");
+  if (relExecucao(d)) out.push("execucao");
+  if (relValorRealizado(d)) out.push("realizado");
+  return out;
+}
+
+const REL_DADOS = [
+  ["custo", "Com levantamento de custo"],
+  ["sem_custo", "Sem levantamento de custo"],
+  ["portas", "Com portas"],
+  ["lancamento", "Com lançamento de cabo"],
+  ["execucao", "Com execução definida"],
+  ["realizado", "Com valor realizado"],
+];
+
+/**
+ * Colunas disponíveis. `num` marca as numéricas (alinhadas à direita); `moeda` e `pct` dizem o formato;
+ * `semSoma` tira do total do rodapé (dias, percentuais, médias).
+ */
 const REL_COLUNAS = [
-  { key: "titulo", label: "Projeto", padrao: true, val: (d) => d.titulo || "" },
-  { key: "esteira", label: "Esteira", padrao: true, val: (d) => relEsteiraLabel(inferLinhaEsteira(d)) },
-  { key: "tipo", label: "Tipo", padrao: true, val: (d) => normalizeTipo(d.tipo) || "" },
-  { key: "produto", label: "Produto B2B", val: (d) => d.produtoB2b || "" },
-  { key: "segmento", label: "Segmento B2C", val: (d) => d.segmentoB2c || "" },
-  { key: "etapa", label: "Etapa", padrao: true, val: relEtapaLabel },
-  { key: "situacao", label: "Situação", padrao: true, val: relSituacaoLabel },
-  { key: "regional", label: "Regional", padrao: true, val: (d) => demandaRegionaisLabels(d).map(regionalSelectLabel).join(" · ") },
-  { key: "cidades", label: "Cidade(s)", padrao: true, val: (d) => demandaCidadesLabels(d).join(" · ") },
-  { key: "projetistas", label: "Projetista(s)", padrao: true, val: (d) => formatProjetistasDemanda(d) || "Não atribuído" },
-  { key: "solicitante", label: "Solicitante", val: (d) => d.solicitante || "" },
-  { key: "chegada", label: "Chegada", padrao: true, val: (d) => relDataBr(demandaDataChegadaDash(d)) },
-  { key: "prazo", label: "Prazo previsto", padrao: true, val: (d) => relDataBr(d.dataFimPrevista) },
-  { key: "prazoAtual", label: "Prazo atualizado", val: (d) => relDataBr(d.dataFimAtualizada) },
-  { key: "termino", label: "Término", padrao: true, val: (d) => relDataBr(demandaDataTermino(d)) },
-  { key: "diasAberto", label: "Dias em aberto", padrao: true, num: (d) => demandaDiasAberto(d) },
-  { key: "diasAtraso", label: "Dias de atraso", padrao: true, num: (d) => demandaDiasAtraso(d) },
-  { key: "motivoAtraso", label: "Motivo do atraso", val: (d) => d.motivosAtraso || "" },
-  { key: "statusAtual", label: "Situação atual (texto)", val: (d) => d.statusAtual || "" },
-  { key: "execucao", label: "Execução", val: (d) => {
-    const ex = String(d.custo?.execucao || "").trim();
-    return ex && ex !== CUSTO_EXECUCAO_NAO_APLICA ? ex : "";
-  } },
-  { key: "valorFinal", label: "Valor final (R$)", padrao: true, num: relValorFinal, moeda: true },
-  { key: "valorRealizado", label: "Valor realizado (R$)", num: relValorRealizado, moeda: true },
-  { key: "portas", label: "Portas novas", num: (d) => demandaPortasNovas(d) },
-  { key: "metragem", label: "Metragem (m)", num: (d) => demandaMetragemLancamento(d), casas: 2 },
-  { key: "ocomon", label: "Chamado Ocomon", val: (d) => d.chamadoOcomon || "" },
-  { key: "aniel", label: "OS Aniel", val: (d) => d.osAniel || "" },
-  { key: "asana", label: "Asana", val: (d) => (d.asana?.taskId || d.asanaTaskId ? "Sim" : "") },
-  { key: "resumo", label: "Resumo", val: relResumoDescricao },
-  { key: "ultimoComentario", label: "Último comentário", val: relUltimoComentario },
-  { key: "arquivado", label: "Arquivado", val: (d) => (d.arquivadoEm ? relDataBr(d.arquivadoEm) : "") },
-  { key: "criadoEm", label: "Cadastrado em", val: (d) => relDataHoraBr(d.createdAt) },
-  { key: "atualizadoEm", label: "Alterado em", val: (d) => relDataHoraBr(d.updatedAt) },
-  { key: "id", label: "ID", val: (d) => d.id || "" },
+  { key: "titulo", grupo: "Projeto", label: "Projeto", padrao: true, val: (d) => d.titulo || "" },
+  { key: "esteira", grupo: "Projeto", label: "Esteira", padrao: true, val: (d) => relEsteiraLabel(inferLinhaEsteira(d)) },
+  { key: "tipo", grupo: "Projeto", label: "Tipo", padrao: true, val: (d) => normalizeTipo(d.tipo) || "" },
+  { key: "produto", grupo: "Projeto", label: "Produto B2B", val: (d) => d.produtoB2b || "" },
+  { key: "segmento", grupo: "Projeto", label: "Segmento B2C", val: (d) => d.segmentoB2c || "" },
+  { key: "etapa", grupo: "Projeto", label: "Etapa", padrao: true, val: relEtapaLabel },
+  { key: "situacao", grupo: "Projeto", label: "Situação", padrao: true, val: relSituacaoLabel },
+  { key: "regional", grupo: "Projeto", label: "Regional", padrao: true, val: (d) => demandaRegionaisLabels(d).map(regionalSelectLabel).join(" · ") },
+  { key: "cidades", grupo: "Projeto", label: "Cidade(s)", padrao: true, val: (d) => demandaCidadesLabels(d).join(" · ") },
+  { key: "projetistas", grupo: "Projeto", label: "Projetista(s)", padrao: true, val: (d) => formatProjetistasDemanda(d) || "Não atribuído" },
+  { key: "solicitante", grupo: "Projeto", label: "Solicitante", val: (d) => d.solicitante || "" },
+  { key: "chegada", grupo: "Datas e prazos", label: "Chegada", padrao: true, val: (d) => relDataBr(demandaDataChegadaDash(d)) },
+  { key: "prazo", grupo: "Datas e prazos", label: "Prazo previsto", padrao: true, val: (d) => relDataBr(d.dataFimPrevista) },
+  { key: "prazoAtual", grupo: "Datas e prazos", label: "Prazo atualizado", val: (d) => relDataBr(d.dataFimAtualizada) },
+  { key: "termino", grupo: "Datas e prazos", label: "Término", padrao: true, val: (d) => relDataBr(demandaDataTermino(d)) },
+  { key: "diasAberto", grupo: "Datas e prazos", label: "Dias em aberto", padrao: true, num: (d) => demandaDiasAberto(d), semSoma: true },
+  { key: "diasAtraso", grupo: "Datas e prazos", label: "Dias de atraso", padrao: true, num: (d) => demandaDiasAtraso(d), semSoma: true },
+  { key: "motivoAtraso", grupo: "Datas e prazos", label: "Motivo do atraso", val: (d) => d.motivosAtraso || "" },
+  { key: "temCusto", grupo: "Custo", label: "Levantamento de custo", val: (d) => (relCusto(d).temLevantamento ? "Sim" : "Não") },
+  { key: "valorProjeto", grupo: "Custo", label: "Valor do projeto (R$)", num: (d) => relNumOuZero(relCusto(d).valorProjeto), moeda: true },
+  { key: "valor5", grupo: "Custo", label: "Acréscimo 5% (R$)", num: (d) => relNumOuZero(relCusto(d).valor5), moeda: true },
+  { key: "valorFinal", grupo: "Custo", label: "Valor final (R$)", padrao: true, num: relValorFinal, moeda: true },
+  { key: "valorRealizado", grupo: "Custo", label: "Valor realizado (R$)", num: relValorRealizado, moeda: true },
+  { key: "execucao", grupo: "Custo", label: "Execução", val: relExecucao },
+  { key: "custoRegional", grupo: "Custo", label: "Custo execução regional (R$)", num: (d) => relNumOuZero(relCusto(d).custoRegional), moeda: true },
+  { key: "custoTerceirizada", grupo: "Custo", label: "Custo execução terceirizada (R$)", num: (d) => relNumOuZero(relCusto(d).custoTerceirizada), moeda: true },
+  { key: "casas", grupo: "Portas", label: "Casas (HPs)", num: (d) => relNumOuZero(relCusto(d).qtdCasas) },
+  { key: "portasAtual", grupo: "Portas", label: "Portas existentes", num: (d) => relNumOuZero(relCusto(d).qtdPortasAtual) },
+  { key: "portas", grupo: "Portas", label: "Portas novas", num: (d) => demandaPortasNovas(d) },
+  { key: "penetracaoAtual", grupo: "Portas", label: "Penetração atual", num: (d) => relNumOuZero(relCusto(d).penetracaoAtual), pct: true, semSoma: true },
+  { key: "novaPenetracao", grupo: "Portas", label: "Nova penetração", num: (d) => relNumOuZero(relCusto(d).novaPenetracao), pct: true, semSoma: true },
+  { key: "valorPorPorta", grupo: "Portas", label: "Valor por porta nova (R$)", num: (d) => relNumOuZero(relCusto(d).valorPorPortaNova), moeda: true, semSoma: true },
+  { key: "metragem", grupo: "Lançamento de cabo", label: "Metragem total (m)", num: (d) => demandaMetragemLancamento(d), casas: 2 },
+  { key: "cabos", grupo: "Lançamento de cabo", label: "Cabos (tipo e metragem)", val: relCabosTexto },
+  { key: "statusAtual", grupo: "Outros", label: "Situação atual (texto)", val: (d) => d.statusAtual || "" },
+  { key: "ocomon", grupo: "Outros", label: "Chamado Ocomon", val: (d) => d.chamadoOcomon || "" },
+  { key: "aniel", grupo: "Outros", label: "OS Aniel", val: (d) => d.osAniel || "" },
+  { key: "asana", grupo: "Outros", label: "Asana", val: (d) => (d.asana?.taskId || d.asanaTaskId ? "Sim" : "") },
+  { key: "resumo", grupo: "Outros", label: "Resumo", val: relResumoDescricao },
+  { key: "ultimoComentario", grupo: "Outros", label: "Último comentário", val: relUltimoComentario },
+  { key: "arquivado", grupo: "Outros", label: "Arquivado", val: (d) => (d.arquivadoEm ? relDataBr(d.arquivadoEm) : "") },
+  { key: "criadoEm", grupo: "Outros", label: "Cadastrado em", val: (d) => relDataHoraBr(d.createdAt) },
+  { key: "atualizadoEm", grupo: "Outros", label: "Alterado em", val: (d) => relDataHoraBr(d.updatedAt) },
+  { key: "id", grupo: "Outros", label: "ID", val: (d) => d.id || "" },
 ];
 
 const REL_COLUNAS_PADRAO = REL_COLUNAS.filter((c) => c.padrao).map((c) => c.key);
+
+/** Atalhos do seletor de colunas. */
+const REL_COLUNAS_ATALHOS = {
+  padrao: REL_COLUNAS_PADRAO,
+  custo: [
+    "titulo", "etapa", "situacao", "regional", "cidades", "projetistas",
+    "valorProjeto", "valor5", "valorFinal", "valorRealizado", "execucao", "custoRegional", "custoTerceirizada",
+    "casas", "portasAtual", "portas", "penetracaoAtual", "novaPenetracao", "valorPorPorta", "metragem", "cabos",
+  ],
+  todas: REL_COLUNAS.map((c) => c.key),
+};
 
 function relFiltrosPadrao() {
   return {
@@ -190,6 +257,7 @@ function relFiltrosPadrao() {
     etapas: [],
     situacoes: [],
     solicitantes: [],
+    dados: [],
     prazo: "",
     campoData: "chegada",
     de: "",
@@ -198,6 +266,7 @@ function relFiltrosPadrao() {
     arquivados: false,
     agrupar: "regional",
     colunas: [...REL_COLUNAS_PADRAO],
+    vista: "tabela",
   };
 }
 
@@ -222,6 +291,7 @@ function relCarregarFiltros() {
       const validas = new Set(REL_COLUNAS.map((c) => c.key));
       base.colunas = base.colunas.filter((k) => validas.has(k));
       if (!base.colunas.length) base.colunas = [...REL_COLUNAS_PADRAO];
+      if (!["tabela", "fichas"].includes(base.vista)) base.vista = "tabela";
     }
   } catch {
     /* sem armazenamento: começa do padrão */
@@ -293,6 +363,7 @@ function relFiltrarDemandas(lista, f) {
     if (has(f.etapas) && !f.etapas.includes(relEtapaChave(d))) return false;
     if (has(f.situacoes) && !f.situacoes.includes(relSituacao(d))) return false;
     if (has(f.solicitantes) && !f.solicitantes.includes(String(d.solicitante || "").trim() || "__none__")) return false;
+    if (has(f.dados) && !relDadosDoProjeto(d).some((x) => f.dados.includes(x))) return false;
     if (!relPassaPrazo(d, f.prazo)) return false;
     if (de || ate) {
       const data = relDataDoCampo(d, f.campoData);
@@ -371,7 +442,7 @@ function relRotuloGrupo(chave, agrupar) {
 }
 
 function relMetricasVazias() {
-  return { total: 0, andamento: 0, concluido: 0, pausado: 0, reprovado: 0, atrasado: 0, valor: 0, somaDias: 0 };
+  return { total: 0, andamento: 0, concluido: 0, pausado: 0, reprovado: 0, atrasado: 0, valor: 0, somaDias: 0, portas: 0, metragem: 0, realizado: 0 };
 }
 
 function relSomar(m, d) {
@@ -380,6 +451,9 @@ function relSomar(m, d) {
   if (isAtrasoAtivo(d)) m.atrasado++;
   m.valor += relValorFinal(d);
   m.somaDias += demandaDiasAberto(d);
+  m.portas += demandaPortasNovas(d);
+  m.metragem += demandaMetragemLancamento(d);
+  m.realizado += relValorRealizado(d);
 }
 
 /** Resumo agrupado: [{ chave, rotulo, ...métricas }] ordenado por quantidade. */
@@ -412,6 +486,7 @@ function relValorCelula(col, d) {
   if (col.num) {
     const n = Number(col.num(d)) || 0;
     if (col.moeda) return n ? relMoeda(n) : "";
+    if (col.pct) return n ? `${relNumero(n, 2)}%` : "";
     return n ? relNumero(n, col.casas || 0) : "";
   }
   return String(col.val(d) ?? "");
@@ -449,6 +524,7 @@ function relDescricaoFiltros(f = relFiltros) {
   });
   lista("Situação", f.situacoes, (s) => REL_SITUACOES.find(([k]) => k === s)?.[1] || s);
   lista("Solicitante", f.solicitantes, (s) => (s === "__none__" ? "Sem solicitante" : s));
+  lista("Dados", f.dados, (k) => REL_DADOS.find(([v]) => v === k)?.[1] || k);
   if (f.prazo) partes.push(`Prazo: ${REL_PRAZOS.find(([k]) => k === f.prazo)?.[1] || f.prazo}`);
   if (f.de || f.ate) {
     const campo = REL_CAMPOS_DATA.find(([k]) => k === f.campoData)?.[1] || "Data";
@@ -504,6 +580,8 @@ function relOpcoesFiltro(nome, f = relFiltros) {
     }
     case "situacoes":
       return REL_SITUACOES;
+    case "dados":
+      return REL_DADOS;
     case "solicitantes": {
       const nomes = new Set();
       for (const d of base) {
@@ -527,6 +605,7 @@ const REL_MULTI = [
   ["etapas", "Etapa", "Todas"],
   ["situacoes", "Situação", "Todas"],
   ["solicitantes", "Solicitante", "Todos"],
+  ["dados", "Dados do projeto", "Todos"],
 ];
 
 /** Remove das seleções o que não existe mais nas opções (ex.: cidade de outra regional). */
@@ -588,10 +667,20 @@ function relRenderColunas() {
   const box = document.getElementById("relColunasLista");
   if (!box) return;
   const sel = new Set(relFiltros.colunas);
-  box.innerHTML = REL_COLUNAS.map(
-    (c) =>
-      `<label class="rel-multi__op"><input type="checkbox" data-rel-col value="${escapeHtml(c.key)}"${sel.has(c.key) ? " checked" : ""} /> <span>${escapeHtml(c.label)}</span></label>`,
-  ).join("");
+  const grupos = [...new Set(REL_COLUNAS.map((c) => c.grupo))];
+  box.innerHTML = grupos
+    .map(
+      (g) =>
+        `<div class="rel-colgrupo"><p class="rel-colgrupo__titulo">${escapeHtml(g)}</p>` +
+        REL_COLUNAS.filter((c) => c.grupo === g)
+          .map(
+            (c) =>
+              `<label class="rel-multi__op"><input type="checkbox" data-rel-col value="${escapeHtml(c.key)}"${sel.has(c.key) ? " checked" : ""} /> <span>${escapeHtml(c.label)}</span></label>`,
+          )
+          .join("") +
+        `</div>`,
+    )
+    .join("");
   const resumo = document.getElementById("relColunasResumo");
   if (resumo) resumo.textContent = `${sel.size} de ${REL_COLUNAS.length}`;
 }
@@ -606,6 +695,11 @@ function relPreencherSelect(id, opcoes, valor) {
 function relSincronizarControles() {
   document.querySelectorAll("#relEsteiraSeg [data-esteira]").forEach((b) => {
     const on = b.dataset.esteira === relFiltros.esteira;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-checked", on ? "true" : "false");
+  });
+  document.querySelectorAll("#relVistaSeg [data-vista]").forEach((b) => {
+    const on = b.dataset.vista === relFiltros.vista;
     b.classList.toggle("is-active", on);
     b.setAttribute("aria-checked", on ? "true" : "false");
   });
@@ -640,6 +734,9 @@ function relKpisHtml(t) {
     kpi("Em atraso", relNumero(t.atrasado), t.atrasado ? "bad" : ""),
     kpi("Pausados / reprovados", relNumero(t.pausado + t.reprovado)),
     kpi("Valor final", relMoeda(t.valor)),
+    kpi("Valor realizado", relMoeda(t.realizado)),
+    kpi("Portas novas", relNumero(t.portas)),
+    kpi("Metragem de cabo", `${relNumero(t.metragem, 2)} m`),
     kpi("Média de dias em aberto", relNumero(media)),
   ].join("");
 }
@@ -657,7 +754,8 @@ function relResumoTabelaHtml(linhas, agrupar, total) {
         `<td class="num">${relNumero(l.andamento)}</td><td class="num">${relNumero(l.concluido)}</td>` +
         `<td class="num${l.atrasado ? " rel-bad" : ""}">${relNumero(l.atrasado)}</td>` +
         `<td class="num">${relNumero(l.pausado + l.reprovado)}</td>` +
-        `<td class="num">${relMoeda(l.valor)}</td><td class="num">${relNumero(l.total ? l.somaDias / l.total : 0)}</td></tr>`
+        `<td class="num">${relMoeda(l.valor)}</td><td class="num">${relNumero(l.portas)}</td><td class="num">${relNumero(l.metragem, 2)}</td>` +
+        `<td class="num">${relNumero(l.total ? l.somaDias / l.total : 0)}</td></tr>`
       );
     })
     .join("");
@@ -667,7 +765,8 @@ function relResumoTabelaHtml(linhas, agrupar, total) {
     `<div class="rel-tabela-wrap" tabindex="0" role="region" aria-label="Resumo por ${escapeHtml(nome.toLowerCase())}"><table class="rel-tabela rel-tabela--resumo"><thead><tr><th scope="col">${escapeHtml(nome)}</th>` +
     `<th scope="col" class="num">Projetos</th><th scope="col" class="num">%</th><th scope="col" class="num">Em andamento</th>` +
     `<th scope="col" class="num">Concluídos</th><th scope="col" class="num">Em atraso</th><th scope="col" class="num">Pausados / reprov.</th>` +
-    `<th scope="col" class="num">Valor final</th><th scope="col" class="num">Média dias</th></tr></thead><tbody>${corpo}</tbody></table></div>`
+    `<th scope="col" class="num">Valor final</th><th scope="col" class="num">Portas novas</th><th scope="col" class="num">Metragem (m)</th>` +
+    `<th scope="col" class="num">Média dias</th></tr></thead><tbody>${corpo}</tbody></table></div>`
   );
 }
 
@@ -683,17 +782,104 @@ function relDetalheTabelaHtml(lista, colunas, limite = Infinity) {
     )
     .join("");
   const somas = colunas.map((c) => {
-    if (!c.num || ["diasAberto", "diasAtraso"].includes(c.key)) return "<td></td>";
+    if (!c.num || c.semSoma) return "<td></td>";
     const soma = lista.reduce((s, d) => s + (Number(c.num(d)) || 0), 0);
     return `<td class="num">${c.moeda ? relMoeda(soma) : relNumero(soma, c.casas || 0)}</td>`;
   });
-  const temSoma = colunas.some((c) => c.num && !["diasAberto", "diasAtraso"].includes(c.key));
+  const temSoma = colunas.some((c) => c.num && !c.semSoma);
   if (temSoma) somas[0] = `<td><strong>Total</strong></td>`;
   return (
     `<div class="rel-tabela-wrap" tabindex="0" role="region" aria-label="Lista de projetos"><table class="rel-tabela rel-tabela--detalhe"><thead><tr>${cab}</tr></thead><tbody>${corpo}</tbody>` +
     (temSoma ? `<tfoot><tr>${somas.join("")}</tr></tfoot>` : "") +
     `</table></div>`
   );
+}
+
+/* ---------- Ficha completa de cada projeto ---------- */
+
+function relFichaHtml(d) {
+  const c = relCusto(d);
+  const item = (rotulo, valor) =>
+    valor === "" || valor == null ? "" : `<div class="rel-ficha__item"><dt>${escapeHtml(rotulo)}</dt><dd>${escapeHtml(String(valor))}</dd></div>`;
+  const moeda = (v) => (v === "" || v == null ? "" : relMoeda(v));
+  const qtd = (v, casas = 0) => (v === "" || v == null ? "" : relNumero(v, casas));
+  const pct = (v) => (v === "" || v == null ? "" : `${relNumero(v, 2)}%`);
+  const secao = (titulo, itens, vazio = "") => {
+    const corpo = itens.join("");
+    if (!corpo && !vazio) return "";
+    return `<section class="rel-ficha__secao"><h4>${escapeHtml(titulo)}</h4>${corpo ? `<dl>${corpo}</dl>` : `<p class="muted small">${escapeHtml(vazio)}</p>`}</section>`;
+  };
+  const geral = secao("Projeto", [
+    item("Esteira", relEsteiraLabel(inferLinhaEsteira(d))),
+    item("Tipo", [normalizeTipo(d.tipo), d.produtoB2b, d.segmentoB2c].filter(Boolean).join(" · ")),
+    item("Etapa", relEtapaLabel(d)),
+    item("Situação", relSituacaoLabel(d)),
+    item("Regional", demandaRegionaisLabels(d).map(regionalSelectLabel).join(" · ")),
+    item("Cidade(s)", demandaCidadesLabels(d).join(" · ")),
+    item("Projetista(s)", formatProjetistasDemanda(d) || "Não atribuído"),
+    item("Solicitante", d.solicitante),
+    item("Chamado Ocomon", d.chamadoOcomon),
+    item("OS Aniel", d.osAniel),
+  ]);
+  const datas = secao("Datas e prazos", [
+    item("Chegada", relDataBr(demandaDataChegadaDash(d))),
+    item("Prazo previsto", relDataBr(d.dataFimPrevista)),
+    item("Prazo atualizado", relDataBr(d.dataFimAtualizada)),
+    item("Término", relDataBr(demandaDataTermino(d))),
+    item("Dias em aberto", qtd(demandaDiasAberto(d))),
+    item("Dias de atraso", demandaDiasAtraso(d) ? qtd(demandaDiasAtraso(d)) : ""),
+    item("Motivo do atraso", d.motivosAtraso),
+  ]);
+  const execucao = relExecucao(d);
+  const custo = secao(
+    "Custo",
+    c.temLevantamento
+      ? [
+          item("Valor do projeto", moeda(c.valorProjeto)),
+          item("Acréscimo 5%", moeda(c.valor5)),
+          item("Valor final", moeda(c.valorFinal)),
+          item("Valor realizado", relValorRealizado(d) ? relMoeda(relValorRealizado(d)) : ""),
+          item("Execução", execucao),
+          item("Custo execução regional", moeda(c.custoRegional)),
+          item("Custo execução terceirizada", moeda(c.custoTerceirizada)),
+        ]
+      : [item("Valor realizado", relValorRealizado(d) ? relMoeda(relValorRealizado(d)) : ""), item("Execução", execucao)],
+    "Sem levantamento de custo.",
+  );
+  const portas = c.temPortas
+    ? secao("Portas", [
+        item("Casas (HPs)", qtd(c.qtdCasas)),
+        item("Portas existentes", qtd(c.qtdPortasAtual)),
+        item("Portas novas", qtd(c.qtdNovasPortas)),
+        item("Penetração atual", pct(c.penetracaoAtual)),
+        item("Nova penetração", pct(c.novaPenetracao)),
+        item("Valor por porta nova", moeda(c.valorPorPortaNova)),
+      ])
+    : "";
+  const cabos = (c.lancamento?.cabos || []).filter((x) => relNumOuZero(x.metragem) > 0);
+  const lancamento =
+    c.temLancamento && cabos.length
+      ? `<section class="rel-ficha__secao"><h4>Lançamento de cabo</h4><dl>` +
+        cabos.map((x) => item(x.tipo, `${relNumero(x.metragem, 2)} m`)).join("") +
+        item("Total", `${relNumero(c.lancamento.totalMetragem || 0, 2)} m`) +
+        `</dl></section>`
+      : "";
+  const texto = [
+    d.statusAtual ? `<p><strong>Situação atual:</strong> ${escapeHtml(d.statusAtual)}</p>` : "",
+    relResumoDescricao(d) ? `<p><strong>Resumo:</strong> ${escapeHtml(relResumoDescricao(d))}</p>` : "",
+    relUltimoComentario(d) ? `<p><strong>Último comentário:</strong> ${escapeHtml(relUltimoComentario(d))}</p>` : "",
+  ].join("");
+  return (
+    `<article class="rel-ficha" data-rel-id="${escapeHtml(d.id)}" tabindex="0" aria-label="${escapeHtml(d.titulo || "Projeto")}">` +
+    `<header class="rel-ficha__cab"><h3>${escapeHtml(d.titulo || "Sem título")}</h3><span class="rel-ficha__etapa">${escapeHtml(relEtapaLabel(d))}</span></header>` +
+    `<div class="rel-ficha__grade">${geral}${datas}${custo}${portas}${lancamento}</div>` +
+    (texto ? `<div class="rel-ficha__texto">${texto}</div>` : "") +
+    `</article>`
+  );
+}
+
+function relFichasHtml(lista, limite = Infinity) {
+  return `<div class="rel-fichas">${lista.slice(0, limite).map(relFichaHtml).join("")}</div>`;
 }
 
 function relRender() {
@@ -721,12 +907,12 @@ function relRender() {
       det.innerHTML =
         `<h3 class="rel-sub">Projetos <span class="muted">(${relNumero(lista.length)})</span></h3>` +
         aviso +
-        relDetalheTabelaHtml(lista, colunas, REL_PREVIA_LIMITE);
+        (relFiltros.vista === "fichas" ? relFichasHtml(lista, REL_PREVIA_LIMITE) : relDetalheTabelaHtml(lista, colunas, REL_PREVIA_LIMITE));
     }
   }
   ["btnRelCsv", "btnRelImprimir"].forEach((id) => {
     const b = document.getElementById(id);
-    if (b) b.disabled = !lista.length || !colunas.length;
+    if (b) b.disabled = !lista.length || (!colunas.length && !(id === "btnRelImprimir" && relFiltros.vista === "fichas"));
   });
 }
 
@@ -758,7 +944,7 @@ function relGerarCsv(lista, colunas, f = relFiltros) {
         if (!c.num) return String(c.val(d) ?? "");
         const n = Number(c.num(d)) || 0;
         if (!n) return "";
-        return String(c.moeda || c.casas ? n.toFixed(2) : Math.round(n)).replace(".", ",");
+        return String(c.moeda || c.casas || c.pct ? n.toFixed(2) : Math.round(n)).replace(".", ",");
       }),
     );
   }
@@ -791,7 +977,7 @@ function relHtmlImpressao(lista, colunas) {
     `<div class="rel-kpis">${relKpisHtml(totais)}</div>` +
     relResumoTabelaHtml(relResumoAgrupado(lista, relFiltros.agrupar), relFiltros.agrupar, lista.length) +
     `<h3 class="rel-sub">Projetos (${relNumero(lista.length)})</h3>` +
-    relDetalheTabelaHtml(lista, colunas)
+    (relFiltros.vista === "fichas" ? relFichasHtml(lista) : relDetalheTabelaHtml(lista, colunas))
   );
 }
 
@@ -799,7 +985,7 @@ function relHtmlImpressao(lista, colunas) {
 function relImprimir() {
   const lista = relResultado();
   const colunas = relColunasAtivas();
-  if (!lista.length || !colunas.length) {
+  if (!lista.length || (!colunas.length && relFiltros.vista !== "fichas")) {
     toast("Nada para imprimir com esses filtros");
     return;
   }
@@ -846,8 +1032,17 @@ function initRelatorio() {
     relAtualizar();
     document.getElementById("relBusca")?.focus(); // o botão some; o foco fica na janela
   });
-  document.getElementById("btnRelColunasPadrao")?.addEventListener("click", () => {
-    relFiltros.colunas = [...REL_COLUNAS_PADRAO];
+  document.querySelectorAll("[data-rel-atalho]").forEach((b) =>
+    b.addEventListener("click", () => {
+      relFiltros.colunas = [...(REL_COLUNAS_ATALHOS[b.dataset.relAtalho] || REL_COLUNAS_PADRAO)];
+      if (relFiltros.vista !== "tabela") relFiltros.vista = "tabela";
+      relAtualizar();
+    }),
+  );
+  document.getElementById("relVistaSeg")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-vista]");
+    if (!b) return;
+    relFiltros.vista = b.dataset.vista;
     relAtualizar();
   });
 
@@ -929,6 +1124,11 @@ function initRelatorio() {
       relFiltros.colunas = REL_COLUNAS.map((c) => c.key).filter((k) => set.has(k));
       relAtualizar();
     }
+  });
+  dlg.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const ficha = e.target.closest?.(".rel-ficha[data-rel-id]");
+    if (ficha) ficha.click();
   });
   dlg.addEventListener("click", (e) => {
     const todos = e.target.closest("[data-rel-todos]");

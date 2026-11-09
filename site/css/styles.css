@@ -7268,7 +7268,7 @@ html[data-theme="light"] .usuarios-avatar--visibilidade { background: #ede9fe; c
 .rel-multi__op { display: flex; align-items: center; gap: 0.45rem; padding: 0.28rem 0.4rem; border-radius: 6px; font-size: 0.84rem; cursor: pointer; }
 .rel-multi__op:hover { background: var(--surface2); }
 
-.rel-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 0.6rem; }
+.rel-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: 0.6rem; }
 .rel-kpi { padding: 0.65rem 0.8rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); display: flex; flex-direction: column; gap: 0.2rem; }
 .rel-kpi span { font-size: 0.75rem; color: var(--muted); font-weight: 600; }
 .rel-kpi strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
@@ -7318,3 +7318,39 @@ html[data-theme="light"] .usuarios-avatar--visibilidade { background: #ede9fe; c
   @page { size: A4 landscape; margin: 10mm; }
 }
 .rel-tabela-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Relatório: colunas por grupo e fichas com os detalhes de cada projeto */
+.rel-barra-opcoes__esq { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem 1.25rem; }
+.rel-multi__lista--colunas { display: grid; grid-template-columns: repeat(2, minmax(12rem, 1fr)); gap: 0.2rem 0.6rem; max-height: 24rem; }
+.rel-multi--colunas .rel-multi__painel { max-width: min(36rem, 92vw); }
+.rel-colgrupo { display: flex; flex-direction: column; }
+.rel-colgrupo__titulo { margin: 0.35rem 0.4rem 0.1rem; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.rel-fichas { display: flex; flex-direction: column; gap: 0.75rem; }
+.rel-ficha { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 0.8rem 1rem; cursor: pointer; }
+.rel-ficha:hover { border-color: var(--accent); }
+.rel-ficha:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rel-ficha__cab { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem; }
+.rel-ficha__cab h3 { margin: 0; font-size: 1rem; }
+.rel-ficha__etapa { font-size: 0.78rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.rel-ficha__grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.6rem 1rem; }
+.rel-ficha__secao { padding: 0.55rem 0.7rem; border-radius: 10px; background: var(--surface2); min-width: 0; }
+.rel-ficha__secao h4 { margin: 0 0 0.35rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.rel-ficha__secao dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.15rem 0.6rem; font-size: 0.8rem; }
+.rel-ficha__item { display: contents; }
+.rel-ficha__item dt { color: var(--muted); }
+.rel-ficha__item dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rel-ficha__item dt { overflow-wrap: anywhere; }
+.rel-ficha__secao p { margin: 0; }
+.rel-ficha__texto { margin-top: 0.55rem; font-size: 0.8rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.rel-ficha__texto p { margin: 0; }
+@media print {
+  #relatorioImpressao .rel-fichas { gap: 0.3rem; }
+  #relatorioImpressao .rel-ficha { break-inside: avoid; border-color: #d1d5db; padding: 0.35rem 0.5rem; background: #fff; }
+  #relatorioImpressao .rel-ficha__cab h3 { font-size: 10pt; color: #000; }
+  #relatorioImpressao .rel-ficha__etapa, #relatorioImpressao .rel-ficha__secao h4, #relatorioImpressao .rel-ficha__item dt { color: #374151; }
+  #relatorioImpressao .rel-ficha__grade { grid-template-columns: repeat(5, 1fr); gap: 0.3rem; }
+  #relatorioImpressao .rel-ficha__secao { background: #f3f4f6; padding: 0.25rem 0.35rem; }
+  #relatorioImpressao .rel-ficha__secao dl, #relatorioImpressao .rel-ficha__texto { font-size: 7pt; color: #000; }
+  #relatorioImpressao .rel-ficha__secao h4 { font-size: 6.5pt; margin-bottom: 0.15rem; }
+  #relatorioImpressao .rel-kpis { grid-template-columns: repeat(5, 1fr); }
+}
