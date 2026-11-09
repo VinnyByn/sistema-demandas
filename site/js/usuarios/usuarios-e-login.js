@@ -419,7 +419,9 @@ function renderUsuariosPanel() {
         const certas = indice.certas(email).length;
         const ambiguas = indice.ambiguas(email).length;
         const demandasHtml =
-          (certas ? `<strong>${certas}</strong> demanda${certas > 1 ? "s" : ""}` : `<span class="muted">Sem demandas</span>`) +
+          (certas
+            ? `<span class="usuarios-row__qtd"><strong>${certas}</strong> demanda${certas > 1 ? "s" : ""}</span>`
+            : `<span class="muted">Sem demandas</span>`) +
           (ambiguas ? `<span class="usuarios-row__nota" title="Demandas com um nome que também pode ser de outra conta">+${ambiguas} com nome em comum</span>` : "");
         const c = usuariosContasLogin?.[email];
         const semLogin = c && !c.existe;
