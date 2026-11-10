@@ -136,8 +136,9 @@ function renderDashSolicitanteB2bCharts(list = demandasB2bDashboardList()) {
   if (!list.length) return;
 
   const mode = getDashValorModo();
-  const rows = statsSolicitanteB2bComercial(list, mode);
-  const labels = SOLICITANTES_B2B_COMERCIAL;
+  // Só quem tem projeto ou valor no filtro: solicitante zerado só esticava o gráfico.
+  const rows = statsSolicitanteB2bComercial(list, mode).filter((r) => r.n > 0 || r.valor > 0);
+  const labels = rows.map((r) => r.label);
   // Série única por gráfico: uma cor só (o nome do solicitante já está no eixo).
   const colors = labels.map(() => dashSerieCor());
   const temProjetos = rows.some((r) => r.n > 0);
@@ -291,7 +292,7 @@ function renderDashB2bProdutoEFunil(list, listModo) {
       funil.map((r) => r.n),
       {
         horizontal: true,
-        colors: funil.map((r) => (r.k === "pausado" ? "#94a3b8" : dashSerieCor())),
+        colors: funil.map((r) => (r.k === "pausado" ? situacaoCor("pausadas") : dashSerieCor())),
         datasetLabel: "Projetos",
         showPct: true,
       },
@@ -379,6 +380,36 @@ function buildTempoSetorResumoItems(bySetor, setores = SETORES_ESTEIRA, bySetorC
   return { itemsAll, itemsChart, totalSetor };
 }
 
+/** Tempo acumulado legível: «5.938 dias» (ou «5h 20m» abaixo de um dia). */
+function formatDurDias(ms) {
+  if (!ms) return "—";
+  const dias = ms / 86400000;
+  if (dias < 1) return formatDur(ms);
+  const n = Math.round(dias);
+  return `${n.toLocaleString("pt-BR")} ${n === 1 ? "dia" : "dias"}`;
+}
+
+/** Média em dias: «95,8 dias», «1 dia». */
+function formatMediaDias(dias) {
+  const n = Math.round(Number(dias || 0) * 10) / 10;
+  return `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ${n === 1 ? "dia" : "dias"}`;
+}
+
+/** Percentual com barrinha proporcional (tabelas do tempo na esteira). */
+function tempoPctBarraHtml(pct, cor) {
+  const p = Math.max(0, Math.min(100, Number(pct) || 0));
+  return (
+    `<span class="dash-tempo-pct"><span class="dash-tempo-pct__trilho"><span class="dash-tempo-pct__barra" style="width:${p}%;${cor ? `background:${cor}` : ""}"></span></span>` +
+    `<span>${formatPct(p)}</span></span>`
+  );
+}
+
+/** Rodapé das tabelas: etapas/setores sem tempo ficam fora da lista, citados numa linha. */
+function tempoSemRegistroHtml(nomes, colspan, tipo) {
+  if (!nomes.length) return "";
+  return `<tr class="dash-tempo-vazias"><td colspan="${colspan}" class="muted small">Sem tempo registrado ${tipo}: ${escapeHtml(nomes.join(", "))}.</td></tr>`;
+}
+
 /** Resumo por etapa (coluna da esteira): tempo acumulado, % do total e média de dias. */
 function buildTempoFaseResumoItems(agg, cfg = DASH_TEMPO_CFG_OP) {
   const fases = cfg.fasesOrder || [];
@@ -413,20 +444,21 @@ function renderDashTempoSetorMap(rows = [], cfg = DASH_TEMPO_CFG_OP) {
   const agg = aggregateTempoEsteira(rows, cfg);
   const items = buildTempoFaseResumoItems(agg, cfg);
   let html = "";
-  for (const it of items) {
+  for (const it of items.filter((x) => x.ms > 0)) {
     html +=
       "<tr><td><strong>" +
       escapeHtml(it.label) +
       "</strong></td><td>" +
       (it.setor ? setorBadgeHtml(it.setor) : '<span class="dash-setor dash-setor--outros">—</span>') +
       "</td><td class=\"dash-pj-matrix__num\">" +
-      (it.ms ? formatDur(it.ms) : "—") +
+      formatDurDias(it.ms) +
       "</td><td class=\"dash-pj-matrix__num\">" +
-      (it.ms ? it.pct + "%" : "—") +
+      tempoPctBarraHtml(it.pct, it.setor ? setorColorFor(it.setor, cfg) : "") +
       "</td><td class=\"dash-pj-matrix__num\">" +
-      (it.avgCount ? it.avgDays + " d" : "—") +
+      (it.avgCount ? formatMediaDias(it.avgDays) : "—") +
       "</td></tr>";
   }
+  html += tempoSemRegistroHtml(items.filter((x) => !x.ms).map((x) => x.label), 5, "nas etapas");
   tbody.innerHTML = html;
 }
 
@@ -464,9 +496,9 @@ function makeDashChartTempoSetorResumo(items, cfg = DASH_TEMPO_CFG_OP) {
             label: (ctx) => {
               const it = items[ctx.dataIndex];
               return [
-                `Média: ${it.avgDays} dia(s)`,
+                `Média: ${formatMediaDias(it.avgDays)}`,
                 `${it.avgCount} projeto(s)`,
-                `Total: ${formatDur(it.ms)}`,
+                `Total: ${formatDurDias(it.ms)}`,
               ];
             },
           },
@@ -514,18 +546,19 @@ function renderDashTempoSetorResumo(rows, cfg = DASH_TEMPO_CFG_OP) {
   }
 
   let body = "";
-  for (const it of itemsAll) {
+  for (const it of itemsAll.filter((x) => x.ms > 0)) {
     body +=
       "<tr><td>" +
       setorBadgeHtml(it.setor) +
       "</td><td><strong>" +
-      (it.ms ? formatDur(it.ms) : "—") +
+      formatDurDias(it.ms) +
       "</strong></td><td>" +
-      (it.ms ? it.pct + "%" : "—") +
+      tempoPctBarraHtml(it.pct, setorColorFor(it.setor, cfg)) +
       "</td><td>" +
-      (it.avgCount ? it.avgDays + " d" : "—") +
+      (it.avgCount ? formatMediaDias(it.avgDays) : "—") +
       "</td></tr>";
   }
+  body += tempoSemRegistroHtml(itemsAll.filter((x) => !x.ms).map((x) => x.setor), 4, "nos setores");
   tableEl.innerHTML =
     '<table class="dash-table dash-table--setor-resumo"><thead><tr><th>Setor</th><th>Tempo acumulado</th><th>% do total</th><th>Média de dias</th></tr></thead><tbody>' +
     body +
@@ -539,7 +572,7 @@ function chartTooltipDur(ctx, msArr) {
   const i = ctx.dataIndex;
   const ms = msArr?.[i];
   if (ms == null) return `${ctx.dataset.label || ""}: ${ctx.formattedValue} dia(s)`;
-  return `${ctx.label}: ${formatDur(ms)} (${msToChartDays(ms)} d)`;
+  return `${ctx.label}: ${formatDurDias(ms)}`;
 }
 
 function makeDashChartTempoFase(canvasId, faseKeys, msPerFase, cfg = DASH_TEMPO_CFG_OP) {
@@ -651,7 +684,7 @@ function makeDashChartTempoSetorStack(canvasId, projectLabels, setorSeries, msMa
             label: (ctx) => {
               const ms = ctx.dataset._msRow?.[ctx.dataIndex] || 0;
               if (!ms) return null;
-              return `${ctx.dataset.label}: ${formatDur(ms)}`;
+              return `${ctx.dataset.label}: ${formatDurDias(ms)}`;
             },
           },
         },
@@ -844,9 +877,9 @@ function renderDashTempoAnalytics(rows, cfg = DASH_TEMPO_CFG_OP) {
   if (kpiEl) {
     kpiEl.innerHTML =
       kpiCard("Projetos no filtro", agg.n, "ok") +
-      kpiCard("Tempo médio total", formatDur(mediaTotal), "ok") +
+      kpiCard("Tempo médio total", formatDurDias(mediaTotal), "ok") +
       kpiCard("Setor com mais tempo", agg.bySetor[setorLider] ? setorLider : "—", "warn") +
-      kpiCard("Tempo no setor líder", formatDur(agg.bySetor[setorLider] || 0), "ok");
+      kpiCard("Tempo no setor líder", formatDurDias(agg.bySetor[setorLider] || 0), "ok");
   }
 }
 
@@ -910,6 +943,7 @@ function renderDashboard() {
       .catch((e) => DemandasLog.aviso("Gráficos indisponíveis", e));
   }
   initDashBlocks();
+  syncDashPeriodosUi();
   destroyDashboardCharts();
   const todas = demandasDashOperacionalList();
   const g = countDemandas(todas);
@@ -918,10 +952,17 @@ function renderDashboard() {
 
   renderKpiGeralBaseConclusao(todas);
 
-  document.getElementById("kpiGeral").innerHTML =
-    kpiCard("Não atribuídas", semDirEsteira, semDirEsteira ? "warn" : "ok", "Na esteira sem projetista") +
-    kpiCard("Pausados", g.pausadas, g.pausadas ? "warn" : "ok") +
-    kpiCard("Reprovados", g.reprovadas, g.reprovadas ? "warn" : "ok");
+  // «Pede atenção» mostra só o que tem algo; tudo zerado vira uma linha de «tudo em dia».
+  const atencao = [
+    ["Não atribuídas", semDirEsteira, "Na esteira sem projetista", "sem_projetista"],
+    ["Pausados", g.pausadas, "Parados aguardando retomada", "pausado"],
+    ["Reprovados", g.reprovadas, "Não seguiram adiante", "reprovado"],
+  ].filter(([, n]) => n > 0);
+  const kpiGeralEl = document.getElementById("kpiGeral");
+  kpiGeralEl.innerHTML = atencao.length
+    ? atencao.map(([rot, n, sub, alvo]) => kpiCard(rot, n, "warn", sub, { relatorio: alvo })).join("")
+    : `<p class="dash-tudo-certo">✓ Nada pedindo atenção: todos os projetos da esteira têm projetista e nenhum está pausado ou reprovado.</p>`;
+  kpiGeralEl.classList.toggle("is-vazio", !atencao.length);
 
   renderDashValoresFinanceirosKpis(todas);
   renderKpiGeralPorTipo(todas);
@@ -1197,6 +1238,17 @@ function renderDashIndicadoresB2b() {
   const kpiEl = document.getElementById("kpiB2b");
   if (kpiEl) {
     const emExecucao = b.execucaoRegional + b.execucaoTerceirizada;
+    // Os três primeiros sempre aparecem; os de situação só quando têm algum projeto.
+    const situacao = [
+      ["Aguardando BP", b.aguardandoBp, "warn", "Parados na aprovação", "b2b:aprovacao_bp"],
+      ["Aprovados", b.aprovados, "ok", "Projeto final e estoque", ""],
+      ["Em execução", emExecucao, "ok", `${b.execucaoRegional} regional · ${b.execucaoTerceirizada} terceirizada`, ""],
+      ["Concluídos", b.concluido, "ok", "", "concluido"],
+      ["Em atraso", b.atraso, "bad", "Prazo previsto vencido", "atrasado_ativo"],
+      ["Pausados", b.pausados, "warn", "", "pausado"],
+    ];
+    const comDados = situacao.filter(([, n]) => n > 0);
+    const zerados = situacao.filter(([, n]) => !n).map(([rot]) => rot);
     kpiEl.innerHTML =
       kpiCard("Total de projetos", b.total, "ok", `${rowsRegional.length} regional(is) · ${rowsCidade.length} cidade(s)`) +
       kpiCard(labelValorDashModo(), formatBRL(b.valorTotal), b.valorTotal ? "ok" : "warn") +
@@ -1206,17 +1258,18 @@ function renderDashIndicadoresB2b() {
         b.ticketMedio != null ? "ok" : "warn",
         "Valor ÷ projetos com valor",
       ) +
-      kpiCard("Aguardando BP", b.aguardandoBp, b.aguardandoBp ? "warn" : "ok", "Parados na aprovação") +
-      kpiCard("Aprovados", b.aprovados, b.aprovados ? "ok" : "warn", "Projeto final e estoque") +
-      kpiCard(
-        "Em execução",
-        emExecucao,
-        emExecucao ? "ok" : "warn",
-        `${b.execucaoRegional} regional · ${b.execucaoTerceirizada} terceirizada`,
-      ) +
-      kpiCard("Concluídos", b.concluido, b.concluido ? "ok" : "warn") +
-      kpiCard("Em atraso", b.atraso, b.atraso ? "bad" : "ok") +
-      kpiCard("Pausados", b.pausados, b.pausados ? "warn" : "ok");
+      comDados
+        .map(([rot, n, tom, sub, alvo]) => kpiCard(rot, n, tom, sub, alvo ? { relatorio: alvo, esteira: "b2b" } : undefined))
+        .join("");
+    let nota = kpiEl.nextElementSibling?.classList.contains("dash-kpi-zerados") ? kpiEl.nextElementSibling : null;
+    if (zerados.length) {
+      if (!nota) {
+        nota = document.createElement("p");
+        nota.className = "muted small dash-kpi-zerados";
+        kpiEl.after(nota);
+      }
+      nota.textContent = `Sem projetos agora: ${zerados.join(", ")}.`;
+    } else nota?.remove();
   }
 
   const countEl = document.getElementById("dashB2bCount");

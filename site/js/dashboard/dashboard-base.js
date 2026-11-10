@@ -88,9 +88,163 @@ function initDashSubBlocks(state) {
   });
 }
 
+/* ---------- Período: atalhos e comparação com o período anterior ---------- */
+
+function isoDeData(dt) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+}
+
+/** Datas de início e fim de cada atalho («mes», «90», «ano»), sempre até hoje. */
+function periodoDoAtalho(atalho, hoje = new Date()) {
+  const fim = isoDeData(hoje);
+  if (atalho === "mes") return { inicio: isoDeData(new Date(hoje.getFullYear(), hoje.getMonth(), 1)), fim };
+  if (atalho === "90") return { inicio: isoDeData(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 89)), fim };
+  if (atalho === "ano") return { inicio: isoDeData(new Date(hoje.getFullYear(), 0, 1)), fim };
+  return { inicio: "", fim: "" };
+}
+
+function syncDashPeriodosUi() {
+  const { inicio, fim } = getDashPeriodoFiltro();
+  document.querySelectorAll("[data-dash-periodo]").forEach((b) => {
+    const p = periodoDoAtalho(b.dataset.dashPeriodo);
+    const on = p.inicio === inicio && p.fim === fim;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+function initDashPeriodos() {
+  document.querySelectorAll("[data-dash-periodo]").forEach((b) => {
+    if (b.id === "btnDashPeriodoLimpar") return; // já limpa e redesenha em app.js
+    b.addEventListener("click", () => {
+      const { inicio, fim } = periodoDoAtalho(b.dataset.dashPeriodo);
+      const ini = document.getElementById("filterDashDataInicio");
+      const f = document.getElementById("filterDashDataFim");
+      if (ini) ini.value = inicio;
+      if (f) f.value = fim;
+      renderDashboard();
+    });
+  });
+}
+
+/** Mesmo número de dias logo antes do período escolhido (só com início e fim definidos). */
+function periodoAnteriorDash(periodo = getDashPeriodoFiltro()) {
+  const { inicio, fim } = periodo;
+  if (!inicio || !fim) return null;
+  const a = new Date(`${inicio}T12:00:00`);
+  const b = new Date(`${fim}T12:00:00`);
+  const dias = Math.round((b - a) / 86400000) + 1;
+  const fimAnt = new Date(a);
+  fimAnt.setDate(fimAnt.getDate() - 1);
+  const iniAnt = new Date(fimAnt);
+  iniAnt.setDate(iniAnt.getDate() - (dias - 1));
+  return { inicio: isoDeData(iniAnt), fim: isoDeData(fimAnt), dias };
+}
+
+/** «▲ 4 vs. período anterior»: verde quando melhora, vermelho quando piora (`maiorEhPior` para atraso). */
+function deltaPeriodoHtml(atual, anterior, { maiorEhPior = false, moeda = false } = {}) {
+  if (anterior == null) return "";
+  const diff = atual - anterior;
+  const fmt = (v) => (moeda ? formatBRLCompact(Math.abs(v)) : formatQtd(Math.abs(v)));
+  if (!diff) return `<span class="kpi__delta kpi__delta--igual" title="Igual ao período anterior">= período anterior</span>`;
+  const sobe = diff > 0;
+  const bom = maiorEhPior ? !sobe : sobe;
+  return (
+    `<span class="kpi__delta kpi__delta--${bom ? "bom" : "ruim"}" title="Período anterior: ${escapeHtml(moeda ? formatBRL(anterior) : formatQtd(anterior))}">` +
+    `${sobe ? "▲" : "▼"} ${fmt(diff)} vs. período anterior</span>`
+  );
+}
+
+/** Nome curto de cada bloco na barra de navegação do topo. */
+const DASH_NAV_ROTULOS = {
+  "kpi-geral": "Geral",
+  tempo: "Tempo",
+  projetistas: "Projetistas",
+  cidades: "Regionais",
+  "indicadores-b2c": "B2C",
+  "indicadores-b2b": "B2B",
+};
+
+/** Barra fixa com um atalho por bloco: abre o bloco (se recolhido) e rola até ele. */
+function initDashNav(state) {
+  const nav = document.getElementById("dashNav");
+  if (!nav) return;
+  const blocos = [...document.querySelectorAll(".dash-block[data-dash-block]")];
+  nav.innerHTML = blocos
+    .map((b) => {
+      const id = b.dataset.dashBlock;
+      const titulo = b.querySelector(".dash-block__toggle > span")?.textContent.trim() || id;
+      return `<button type="button" class="dash-nav__item" data-dash-ir="${escapeHtml(id)}" title="${escapeHtml(titulo)}">${escapeHtml(DASH_NAV_ROTULOS[id] || titulo)}</button>`;
+    })
+    .join("");
+  const topbar = document.querySelector(".topbar");
+  const ajustarTopo = () => document.documentElement.style.setProperty("--dash-nav-top", `${topbar?.offsetHeight || 0}px`);
+  ajustarTopo();
+  window.addEventListener("resize", ajustarTopo);
+  nav.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-dash-ir]");
+    if (!btn) return;
+    const id = btn.dataset.dashIr;
+    const bloco = document.querySelector(`.dash-block[data-dash-block="${id}"]`);
+    if (!bloco) return;
+    if (bloco.classList.contains("is-collapsed")) bloco.querySelector(".dash-block__toggle")?.click();
+    bloco.scrollIntoView({ behavior: "smooth", block: "start" });
+    bloco.querySelector(".dash-block__toggle")?.focus({ preventScroll: true });
+  });
+  // Marca o bloco que está na tela.
+  if (typeof IntersectionObserver === "function") {
+    const visiveis = new Map();
+    const marcar = () => {
+      let atual = "";
+      let menorTopo = Infinity;
+      for (const [id, topo] of visiveis) if (topo < menorTopo) [atual, menorTopo] = [id, topo];
+      nav.querySelectorAll("[data-dash-ir]").forEach((b) => {
+        const on = b.dataset.dashIr === atual;
+        b.classList.toggle("is-active", on);
+        if (on) b.setAttribute("aria-current", "true");
+        else b.removeAttribute("aria-current");
+      });
+    };
+    const obs = new IntersectionObserver(
+      (entradas) => {
+        for (const en of entradas) {
+          const id = en.target.dataset.dashBlock;
+          if (en.isIntersecting) visiveis.set(id, Math.abs(en.boundingClientRect.top));
+          else visiveis.delete(id);
+        }
+        marcar();
+      },
+      { rootMargin: "-120px 0px -55% 0px" },
+    );
+    blocos.forEach((b) => obs.observe(b));
+  }
+  void state;
+}
+
+/** Os textos longos de explicação dos blocos viram um «ⓘ Como ler este bloco» que abre ao clicar. */
+function recolherDicasDosBlocos() {
+  document.querySelectorAll("#panelDashboard p.dash-block__hint:not([id])").forEach((p) => {
+    if (p.closest(".dash-info")) return;
+    const det = document.createElement("details");
+    det.className = "dash-info";
+    det.innerHTML = '<summary><span class="dash-info__ico" aria-hidden="true">i</span>Como ler este bloco</summary>';
+    p.replaceWith(det);
+    p.classList.remove("dash-block__hint");
+    det.appendChild(p);
+  });
+}
+
 function initDashBlocks() {
   if (dashBlocksInited) return;
   dashBlocksInited = true;
+  observarKpiGrids();
+  recolherDicasDosBlocos();
+  initDashPeriodos();
+  document.getElementById("panelDashboard")?.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-dash-relatorio]");
+    if (card) abrirRelatorioDoDashboard(card.dataset.dashRelatorio, card.dataset.dashEsteira);
+  });
   const state = loadDashBlocksState();
   document.querySelectorAll(".dash-block[data-dash-block]").forEach((block) => {
     const id = block.dataset.dashBlock;
@@ -115,6 +269,7 @@ function initDashBlocks() {
   });
   initDashSubBlocks(state);
   initDashChartTables(state);
+  initDashNav(state);
   saveDashBlocksState(state);
   const todos = (visivel) => {
     document.querySelectorAll(".dash-block[data-dash-block]").forEach((block) => {
@@ -314,14 +469,59 @@ function kpiValorHtml(value) {
   return `${principal}<span class="kpi__value-extra">${resto.join(" · ")}</span>`;
 }
 
-function kpiCard(label, value, tone, sub) {
+/**
+ * Cartão de indicador. Com `opts.relatorio` (e `opts.esteira`), vira botão que abre o Relatório
+ * já filtrado com aqueles projetos (ver `abrirRelatorioDoDashboard`).
+ */
+function kpiCard(label, value, tone, sub, opts) {
   const subHtml = sub ? `<div class="kpi__sub">${sub}</div>` : "";
   // "ok" = valor normal (cor do texto); "warn" num valor zerado = vazio; "bad" = problema real.
   const tom = tone === "warn" && kpiValorVazio(value) ? "vazio" : tone;
-  return (
-    `<div class="kpi kpi--${tom}"><div class="kpi__label">${label}</div>` +
-    `<div class="kpi__value" title="${escapeHtml(String(value ?? ""))}">${kpiValorHtml(value)}</div>${subHtml}</div>`
-  );
+  const corpo =
+    `<div class="kpi__label">${label}</div>` +
+    `<div class="kpi__value" title="${escapeHtml(String(value ?? ""))}">${kpiValorHtml(value)}</div>${subHtml}`;
+  if (opts?.relatorio && !kpiValorVazio(value) && typeof abrirRelatorioDoDashboard === "function") {
+    const rotulo = String(label).replace(/<[^>]+>/g, "");
+    return (
+      `<button type="button" class="kpi kpi--${tom} kpi--link" data-dash-relatorio="${escapeHtml(opts.relatorio)}" ` +
+      `data-dash-esteira="${escapeHtml(opts.esteira || "operacional")}" title="Ver a lista: ${escapeHtml(rotulo)}">` +
+      `${corpo}<span class="kpi__ver" aria-hidden="true">Ver lista ›</span></button>`
+    );
+  }
+  return `<div class="kpi kpi--${tom}">${corpo}</div>`;
+}
+
+/**
+ * Grade de cartões sem «buraco»: calcula quantas colunas cabem, divide os cartões em linhas
+ * equilibradas (6 → 6, 9 → 5 + 4, 7 → 4 + 3) e a última linha estica para fechar a largura.
+ */
+const KPI_LARGURA_MIN = 168;
+function equilibrarKpiGrids(root = document.getElementById("panelDashboard")) {
+  root?.querySelectorAll(".kpi-grid").forEach((grid) => {
+    const n = grid.children.length;
+    const largura = grid.clientWidth;
+    if (!n || !largura) return;
+    const cabem = Math.max(1, Math.floor((largura + 12) / (KPI_LARGURA_MIN + 12)));
+    const linhas = Math.ceil(n / cabem);
+    const cols = Math.ceil(n / linhas);
+    if (grid.style.getPropertyValue("--kpi-cols") !== String(cols)) grid.style.setProperty("--kpi-cols", String(cols));
+    grid.classList.add("is-equilibrado");
+  });
+}
+
+let dashKpiObservador = null;
+function observarKpiGrids() {
+  const painel = document.getElementById("panelDashboard");
+  if (!painel || dashKpiObservador) return;
+  let agendado = 0;
+  const agendar = () => {
+    cancelAnimationFrame(agendado);
+    agendado = requestAnimationFrame(() => equilibrarKpiGrids(painel));
+  };
+  dashKpiObservador = new MutationObserver(agendar);
+  dashKpiObservador.observe(painel, { childList: true, subtree: true });
+  if (typeof ResizeObserver === "function") new ResizeObserver(agendar).observe(painel);
+  agendar();
 }
 
 function renderDashValoresFinanceirosKpis(list = demandasDashOperacionalList()) {
@@ -379,16 +579,51 @@ function renderKpiGeralBaseConclusao(list = demandasDashOperacionalList()) {
   const naEsteira = demandasAteDocumentacao(list).length;
   const modoTopo = getDashValorModo();
   const r = calcResumoIndicadoresDashboard(list)[modoTopo] || { valor: 0, n: 0 };
+  // Com um período escolhido, compara com o mesmo número de dias logo antes.
+  const ant = periodoAnteriorDash();
+  let antDados = null;
+  if (ant) {
+    const listAnt = filterDemandasPeriodoDash(
+      state.demandas.map(migrateDemanda).filter((d) => !isDemandaB2b(d)),
+      ant,
+    );
+    antDados = {
+      total: listAnt.length,
+      concluidos: calcMediasIndicadoresGeral(listAnt, mode).n,
+      atraso: countDemandas(listAnt).atraso,
+      valor: (calcResumoIndicadoresDashboard(listAnt)[modoTopo] || { valor: 0 }).valor,
+    };
+  }
+  const comDelta = (sub, atual, chave, opcoes) =>
+    antDados ? `${sub}<br>${deltaPeriodoHtml(atual, antDados[chave], opcoes)}` : sub;
   el.innerHTML =
-    kpiCard("Total de projetos", m.totalCadastro, m.totalCadastro ? "ok" : "warn", `${naEsteira} na esteira`) +
+    kpiCard(
+      "Total de projetos",
+      m.totalCadastro,
+      m.totalCadastro ? "ok" : "warn",
+      comDelta(`${naEsteira} na esteira`, m.totalCadastro, "total"),
+      { relatorio: "todos" },
+    ) +
     kpiCard(
       "Concluídos",
       m.n,
       m.n ? "ok" : "warn",
-      `${formatPct(m.pctConclusao)} do total · ${formatBRL(valor)}`,
+      comDelta(`${formatPct(m.pctConclusao)} do total · ${formatBRL(valor)}`, m.n, "concluidos"),
+      { relatorio: "concluido" },
     ) +
-    kpiCard("Em atraso", g.atraso, g.atraso ? "bad" : "ok", "Prazo previsto vencido") +
-    kpiCard(labelValorDashModo(modoTopo), formatBRL(r.valor), r.valor ? "ok" : "warn", `${r.n} projeto(s)`) +
+    kpiCard(
+      "Em atraso",
+      g.atraso,
+      g.atraso ? "bad" : "ok",
+      comDelta("Prazo previsto vencido", g.atraso, "atraso", { maiorEhPior: true }),
+      { relatorio: "atrasado" },
+    ) +
+    kpiCard(
+      labelValorDashModo(modoTopo),
+      formatBRL(r.valor),
+      r.valor ? "ok" : "warn",
+      comDelta(`${r.n} projeto(s)`, r.valor, "valor", { moeda: true }),
+    ) +
     kpiCard(
       "Portas novas",
       formatQtd(portas),
@@ -419,8 +654,13 @@ function regionalFromCidadeLabel(cidadeLabel) {
   return findRegionalForCidade(cidadeLabel) || "Não informada";
 }
 
+/** «Regional Sul de Minas» → «Sul de Minas»: nos gráficos o prefixo só ocupa espaço e corta o nome. */
+function semPrefixoRegional(text) {
+  return typeof text === "string" ? text.replace(/^Regional\s+(?=\S)/, "") : text;
+}
+
 function truncateChartLabel(text, max = 20) {
-  const s = String(text || "");
+  const s = semPrefixoRegional(String(text || ""));
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
@@ -446,6 +686,15 @@ function destroyDashRegionalCharts() {
 }
 
 /* ---------- Dashboard: padrão visual dos gráficos (aplicado a todos) ---------- */
+/**
+ * Cores da situação — fixas em todo o dashboard: ativas no azul de série, concluídas em verde,
+ * pausadas em âmbar e reprovadas em vermelho. Tipos, segmentos e produtos nunca usam verde, vermelho ou âmbar.
+ */
+const SITUACAO_CORES = { concluidas: "#22c55e", pausadas: "#f59e0b", reprovadas: "#ef4444" };
+function situacaoCor(chave) {
+  return chave === "ativas" ? dashSerieCor() : SITUACAO_CORES[chave] || "#94a3b8";
+}
+
 /** Cor única de série (magnitude), conforme o tema. */
 function dashSerieCor() {
   return document.documentElement.getAttribute("data-theme") === "light" ? "#2a78d6" : "#3987e5";
@@ -474,6 +723,7 @@ function dashChartTooltipTema() {
  */
 function ajustarDashChartConfig(cfg) {
   const opts = (cfg.options = cfg.options || {});
+  if (Array.isArray(cfg.data?.labels)) cfg.data.labels = cfg.data.labels.map(semPrefixoRegional);
   // Barras verticais com nomes longos (cidades, regionais, pessoas) viram horizontais:
   // o nome fica legível sem inclinar e a lista cresce para baixo.
   if (cfg.type === "bar" && opts.indexAxis !== "y") {
@@ -1163,11 +1413,14 @@ function renderKpiGeralPorTipo(list = demandasDashOperacionalList()) {
     })
     .sort((a, b) => b.n - a.n || a.tipo.localeCompare(b.tipo, "pt-BR"));
   if (dashTipoSelecionado && !tipos.includes(dashTipoSelecionado)) dashTipoSelecionado = "";
+  // Tipos sem nenhum projeto saem da lista e da tabela (citados numa linha abaixo).
+  const tiposVazios = rows.filter((r) => !r.n && r.tipo !== dashTipoSelecionado).map((r) => r.tipo);
+  const rowsComDados = rows.filter((r) => r.n || r.tipo === dashTipoSelecionado);
 
   const nav =
     `<div class="dash-tipos-nav" role="tablist" aria-label="Escolher tipo">` +
     `<button type="button" role="tab" class="dash-tipos-nav__btn${dashTipoSelecionado ? "" : " is-active"}" data-dash-tipo="" aria-selected="${!dashTipoSelecionado}">Visão geral</button>` +
-    rows
+    rowsComDados
       .map(
         ({ tipo, n }) =>
           `<button type="button" role="tab" class="dash-tipos-nav__btn${dashTipoSelecionado === tipo ? " is-active" : ""}${n ? "" : " is-vazio"}" data-dash-tipo="${escapeHtml(tipo)}" aria-selected="${dashTipoSelecionado === tipo}">` +
@@ -1188,10 +1441,11 @@ function renderKpiGeralPorTipo(list = demandasDashOperacionalList()) {
       `<th scope="col" class="num">Em execução</th><th scope="col" class="num">Em aprovação</th>` +
       `<th scope="col" class="num">Média / projeto</th><th scope="col" class="num">Portas novas</th>` +
       `<th scope="col" class="num">Metragem</th></tr></thead><tbody>` +
-      rows
+      rowsComDados
         .map(({ tipo, doTipo }) => linha(tipo, dashTipoCor(tipo), doTipo, { showPortas: !TIPOS_SEM_PORTAS.includes(tipo) }))
         .join("") +
       `</tbody><tfoot>${linha("Total", "", list, { total: true })}</tfoot></table></div>` +
+      (tiposVazios.length ? `<p class="muted small dash-tipos__nota">Sem projetos: ${escapeHtml(tiposVazios.join(", "))}.</p>` : "") +
       `<p class="muted small dash-tipos__nota">Clique no nome de um tipo para ver os indicadores só dele. Valores, portas, metragem e média consideram a coluna <strong>Conclusão</strong>; em execução e em aprovação mostram quantidade e valor final.</p>`;
   }
   el.innerHTML = nav + corpo;

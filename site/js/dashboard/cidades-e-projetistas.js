@@ -462,10 +462,10 @@ function renderDashGeoRankCharts(prefix, rows, onPick, activeNome) {
     sitId,
     ordered.map((r) => truncateChartLabel(r.nome, 18)),
     [
-      { label: "Ativas", data: ordered.map((r) => r.ativas), backgroundColor: "#6366f1", borderWidth: 0 },
-      { label: "Concluídas", data: ordered.map((r) => r.concluidas), backgroundColor: "#22c55e", borderWidth: 0 },
-      { label: "Pausadas", data: ordered.map((r) => r.pausadas), backgroundColor: "#f59e0b", borderWidth: 0 },
-      { label: "Reprovadas", data: ordered.map((r) => r.reprovadas), backgroundColor: "#ef4444", borderWidth: 0 },
+      { label: "Ativas", data: ordered.map((r) => r.ativas), backgroundColor: situacaoCor("ativas"), borderWidth: 0 },
+      { label: "Concluídas", data: ordered.map((r) => r.concluidas), backgroundColor: situacaoCor("concluidas"), borderWidth: 0 },
+      { label: "Pausadas", data: ordered.map((r) => r.pausadas), backgroundColor: situacaoCor("pausadas"), borderWidth: 0 },
+      { label: "Reprovadas", data: ordered.map((r) => r.reprovadas), backgroundColor: situacaoCor("reprovadas"), borderWidth: 0 },
     ].filter((ds) => ds.data.some((n) => n > 0)),
     { horizontal: true, showPct: true, onBarClick: (_l, i) => onPick(ordered[i]?.nome) },
   );
@@ -503,10 +503,10 @@ function renderDashGeoRankCharts(prefix, rows, onPick, activeNome) {
 function renderDashGeoDetailCharts(list, kind, key) {
   const s = statsGeoGrupo(list);
   const sitItems = [
-    { label: "Ativas", n: s.ativas, color: "#6366f1" },
-    { label: "Pausadas", n: s.pausadas, color: "#f59e0b" },
-    { label: "Concluídas", n: s.concluidas, color: "#22c55e" },
-    { label: "Reprovadas", n: s.reprovadas, color: "#ef4444" },
+    { label: "Ativas", n: s.ativas, color: situacaoCor("ativas") },
+    { label: "Pausadas", n: s.pausadas, color: situacaoCor("pausadas") },
+    { label: "Concluídas", n: s.concluidas, color: situacaoCor("concluidas") },
+    { label: "Reprovadas", n: s.reprovadas, color: situacaoCor("reprovadas") },
   ].filter((it) => it.n > 0);
   makeDashChart(
     "chartCidSit",
@@ -807,10 +807,10 @@ function renderDashPjRankCharts(rows) {
     "chartPjRankSituacao",
     labels,
     [
-      { label: "Ativas", data: ordered.map((r) => r.ativas), backgroundColor: "#6366f1", borderWidth: 0 },
-      { label: "Concluídas", data: ordered.map((r) => r.concluidas), backgroundColor: "#22c55e", borderWidth: 0 },
-      { label: "Pausadas", data: ordered.map((r) => r.pausadas), backgroundColor: "#f59e0b", borderWidth: 0 },
-      { label: "Reprovadas", data: ordered.map((r) => r.reprovadas), backgroundColor: "#ef4444", borderWidth: 0 },
+      { label: "Ativas", data: ordered.map((r) => r.ativas), backgroundColor: situacaoCor("ativas"), borderWidth: 0 },
+      { label: "Concluídas", data: ordered.map((r) => r.concluidas), backgroundColor: situacaoCor("concluidas"), borderWidth: 0 },
+      { label: "Pausadas", data: ordered.map((r) => r.pausadas), backgroundColor: situacaoCor("pausadas"), borderWidth: 0 },
+      { label: "Reprovadas", data: ordered.map((r) => r.reprovadas), backgroundColor: situacaoCor("reprovadas"), borderWidth: 0 },
     ].filter((ds) => ds.data.some((n) => n > 0)),
     { horizontal: true, showPct: true, onBarClick: openDrill },
   );
@@ -878,10 +878,10 @@ function renderDashPjDrill(nome, baseList) {
   }
 
   const sitItems = [
-    { label: "Ativas", n: s.ativas, color: "#6366f1" },
-    { label: "Pausadas", n: s.pausadas, color: "#f59e0b" },
-    { label: "Concluídas", n: s.concluidas, color: "#22c55e" },
-    { label: "Reprovadas", n: s.reprovadas, color: "#ef4444" },
+    { label: "Ativas", n: s.ativas, color: situacaoCor("ativas") },
+    { label: "Pausadas", n: s.pausadas, color: situacaoCor("pausadas") },
+    { label: "Concluídas", n: s.concluidas, color: situacaoCor("concluidas") },
+    { label: "Reprovadas", n: s.reprovadas, color: situacaoCor("reprovadas") },
   ].filter((it) => it.n > 0);
   makeDashChart(
     "chartPjSituacao",
@@ -1002,12 +1002,27 @@ function renderKpiProjetistas(baseList = demandasDashOperacionalList()) {
   }
 
   if (hint) hint.hidden = true;
+  // Mesmos números do topo, mas só dos projetos com projetista: diz «de quanto» para não parecer divergência.
+  const geral = countDemandas(baseList);
+  let valorGeral = 0;
+  let portasGeral = 0;
+  for (const d of baseList) {
+    valorGeral += demandaValorDashPorModo(d, modePj);
+    portasGeral += demandaPortasDashPorModo(d, modePj);
+  }
+  const semPj = geral.total - tot.projetos;
+  const deTotal = (parte, todo, fmt = (x) => x) => (parte !== todo ? `de ${fmt(todo)} no total` : "todos os projetos");
   wrap.innerHTML =
-    kpiCard("Projetistas", rows.length, "ok") +
-    kpiCard("Projetos", tot.projetos, tot.projetos ? "ok" : "warn") +
-    kpiCard("Em atraso", tot.atraso, tot.atraso ? "bad" : "ok") +
-    kpiCard(valorModoLabel, formatBRL(tot.valor), tot.valor ? "ok" : "warn") +
-    kpiCard("Portas novas", formatQtd(tot.portas), tot.portas ? "ok" : "warn");
+    kpiCard("Projetistas", rows.length, "ok", "com projeto na esteira") +
+    kpiCard(
+      "Projetos",
+      tot.projetos,
+      tot.projetos ? "ok" : "warn",
+      semPj > 0 ? `de ${geral.total} · ${semPj} sem projetista` : "todos atribuídos",
+    ) +
+    kpiCard("Em atraso", tot.atraso, tot.atraso ? "bad" : "ok", deTotal(tot.atraso, geral.atraso)) +
+    kpiCard(valorModoLabel, formatBRL(tot.valor), tot.valor ? "ok" : "warn", deTotal(tot.valor, valorGeral, formatBRLCompact)) +
+    kpiCard("Portas novas", formatQtd(tot.portas), tot.portas ? "ok" : "warn", deTotal(tot.portas, portasGeral, formatQtd));
 
   renderDashPjRankCharts(rows);
 
@@ -1109,18 +1124,18 @@ function countDemandas(list, linha) {
 }
 
 /**
- * Cores dos tipos de projeto — paleta categórica validada (daltonismo e tema claro/escuro), em ordem fixa:
- * [claro, escuro]. Antes Migração e Licenciamento tinham verdes quase idênticos.
+ * Cores dos tipos de projeto — [claro, escuro], em ordem fixa. Nenhum tipo usa verde, vermelho ou âmbar:
+ * essas cores ficam reservadas à situação (concluído, atraso/reprovado, pausado) em todo o dashboard.
  */
 const TIPO_CHART_CORES = {
   B2C: ["#2a78d6", "#3987e5"],
   Backbone: ["#eb6834", "#d95926"],
-  Licenciamento: ["#1baf7a", "#199e70"],
-  SWAP: ["#eda100", "#c98500"],
+  Licenciamento: ["#0f8f8a", "#14b8a6"],
+  SWAP: ["#8b5a2b", "#b07d4f"],
   Mapeamento: ["#e87ba4", "#d55181"],
-  "Migração": ["#008300", "#008300"],
+  "Migração": ["#0284c7", "#38bdf8"],
   B2B: ["#4a3aa7", "#9085e9"],
-  "Diária": ["#e34948", "#e66767"],
+  "Diária": ["#64748b", "#94a3b8"],
 };
 
 function tipoChartCor(tipo) {
@@ -1258,11 +1273,11 @@ function makeDashChartProjetistaStacked(canvasId, labels, datasets, chartOpts = 
 /** Tipos exibidos nos gráficos de quantidade e valor (Esteira Projetos, sem B2B). */
 const TIPOS_GRAFICO_ESTEIRA = ["B2C", "Backbone", "SWAP", "Licenciamento", "Mapeamento", "Migração"];
 
-/** Cores dos segmentos B2C — 3 primeiros slots da paleta categórica validada ([claro, escuro]). */
+/** Cores dos segmentos B2C ([claro, escuro]) — sem as cores reservadas à situação. */
 const SEGMENTO_B2C_CORES = {
   MDU: ["#2a78d6", "#3987e5"],
-  TCR: ["#eb6834", "#d95926"],
-  TCT: ["#1baf7a", "#199e70"],
+  TCR: ["#e87ba4", "#d55181"],
+  TCT: ["#0f8f8a", "#14b8a6"],
 };
 
 function dashSuperficieCor() {
@@ -1277,14 +1292,14 @@ function segmentoB2cCor(seg) {
 
 const B2B_PRODUTO_SEM = "Sem produto";
 
-/** Paleta categórica validada (daltonismo, claro/escuro): 8 slots em ordem fixa — [claro, escuro]. */
+/** Paleta de categorias (produtos etc.): 8 slots em ordem fixa — [claro, escuro]; sem verde, vermelho e âmbar, que são da situação. */
 const PALETA_CATEGORICA = [
   ["#2a78d6", "#3987e5"],
   ["#eb6834", "#d95926"],
-  ["#1baf7a", "#199e70"],
-  ["#eda100", "#c98500"],
+  ["#0f8f8a", "#14b8a6"],
   ["#e87ba4", "#d55181"],
-  ["#008300", "#008300"],
   ["#4a3aa7", "#9085e9"],
-  ["#e34948", "#e66767"],
+  ["#0284c7", "#38bdf8"],
+  ["#8b5a2b", "#b07d4f"],
+  ["#64748b", "#94a3b8"],
 ];
