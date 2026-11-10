@@ -7417,3 +7417,14 @@ button.kpi.kpi--link:hover .kpi__ver, button.kpi.kpi--link:focus-visible .kpi__v
 .kpi__delta--bom { color: var(--accent2); }
 .kpi__delta--ruim { color: var(--danger); }
 .kpi__delta--igual { color: var(--muted); font-weight: 600; }
+
+/* ===== Dashboard B2C: números clicáveis abrem os projetos ===== */
+.dash-b2c-abrir, .dash-matrix-link {
+  appearance: none; border: 0; background: none; padding: 0; margin: 0; width: 100%;
+  font: inherit; color: inherit; text-align: inherit; cursor: pointer; border-radius: 6px;
+}
+.dash-b2c-abrir { display: block; }
+.dash-b2c-abrir:hover .dash-b2c-cel__valor, .dash-b2c-abrir:hover, .dash-matrix-link:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.dash-b2c-abrir:focus-visible, .dash-matrix-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dash-b2c-seg tbody td:not(.is-vazio), .dash-b2c-seg tfoot td, .dash-b2c-seg tfoot th { cursor: pointer; }
+#modalDashGeoProjetosTable .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

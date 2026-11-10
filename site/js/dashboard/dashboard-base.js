@@ -840,7 +840,7 @@ function dashChartBarInteractOptions(options = {}) {
     onClick: (_evt, els, chart) => {
       if (!els.length) return;
       const i = els[0].index;
-      options.onBarClick(chart.data.labels[i], i);
+      options.onBarClick(chart.data.labels[i], i, els[0].datasetIndex, chart);
     },
     onHover: (evt, els) => {
       const canvas = evt.chart?.canvas;
@@ -998,6 +998,20 @@ function activeSegmentoB2cValueCols(matrix, rowKeys) {
   return cols.filter((seg) => rowKeys.some((k) => (matrix[k]?.[seg] || 0) > 0));
 }
 
+/**
+ * Clique em «Onde está o B2C»: cada célula da tabela (e cada barra do gráfico) abre os projetos daquele
+ * segmento naquela regional/cidade. `slice` diz a métrica (valor, portas) para filtrar a lista.
+ */
+function b2cGeoCliqueOpts(tableRowHeader, slice) {
+  const nivel = tableRowHeader === "Cidade" ? "cidade" : "regional";
+  const attrs = (rowKey, seg) =>
+    `data-dash-geo-list data-dash-geo-kind="segmento" data-dash-geo-key="${escapeHtml(seg || "")}" ` +
+    `data-dash-geo-slice="${escapeHtml(slice || "")}" data-dash-geo-nivel="${nivel}" data-dash-geo-nome="${escapeHtml(rowKey || "")}"`;
+  const abrir = (rowKey, seg) =>
+    openDashGeoProjetosLista("segmento", seg || "", slice || "", undefined, { geoNivel: nivel, geoNome: rowKey || "" });
+  return { attrs, abrir };
+}
+
 function renderDashSegmentoB2cValorPorGrupo(
   canvasId,
   tableId,
@@ -1029,11 +1043,12 @@ function renderDashSegmentoB2cValorPorGrupo(
       borderSkipped: false,
     }))
     .filter((ds) => ds.data.some((n) => n > 0));
+  const clique = b2cGeoCliqueOpts(tableRowHeader, tableOpts?.slice);
   makeDashChartProjetistaStacked(
     canvasId,
     rowKeys.map((k) => truncateChartLabel(k, 22)),
     datasets,
-    chartOpts,
+    { ...chartOpts, onBarClick: (_l, i, ds) => clique.abrir(rowKeys[i], datasets[ds]?.label) },
   );
   renderDashGrupoMatrixTable(
     tableId,
@@ -1043,7 +1058,7 @@ function renderDashSegmentoB2cValorPorGrupo(
     (k) => k,
     matrix,
     "Nenhum dado B2C neste agrupamento.",
-    tableOpts,
+    { ...tableOpts, celulaAttrs: clique.attrs },
   );
 }
 
@@ -1067,6 +1082,7 @@ function renderDashSegmentoB2cInvestPorGrupo(
     {
       formatCell: (n) => (n > 0 ? formatBRL(n) : "—"),
       formatTotal: (n) => (n > 0 ? formatBRL(n) : "—"),
+      slice: "valor",
     },
     {
       formatValue: (n) => formatBRL(n),
@@ -1096,6 +1112,7 @@ function renderDashSegmentoB2cPortasPorGrupo(
     {
       formatCell: (n) => (n > 0 ? formatQtd(n) : "—"),
       formatTotal: (n) => (n > 0 ? formatQtd(n) : "—"),
+      slice: "portas",
     },
     {
       formatValue: (n) => formatQtd(n),
@@ -1122,11 +1139,12 @@ function renderDashSegmentoB2cPorGrupo(canvasId, tableId, tableRowHeader, demand
       borderSkipped: false,
     }))
     .filter((ds) => ds.data.some((n) => n > 0));
+  const clique = b2cGeoCliqueOpts(tableRowHeader, "");
   makeDashChartProjetistaStacked(
     canvasId,
     rowKeys.map((k) => truncateChartLabel(k, 22)),
     datasets,
-    { stepSize: 1 },
+    { stepSize: 1, onBarClick: (_l, i, ds) => clique.abrir(rowKeys[i], datasets[ds]?.label) },
   );
   renderDashGrupoMatrixTable(
     tableId,
@@ -1136,6 +1154,7 @@ function renderDashSegmentoB2cPorGrupo(canvasId, tableId, tableRowHeader, demand
     (k) => k,
     matrix,
     "Nenhum projeto B2C neste agrupamento.",
+    { celulaAttrs: clique.attrs },
   );
 }
 

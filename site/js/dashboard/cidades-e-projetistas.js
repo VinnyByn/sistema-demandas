@@ -150,10 +150,19 @@ function labelDashGeoSlice(slice) {
   return "";
 }
 
-function listDemandasDashGeo(kind, key, slice) {
+function listDemandasDashGeo(kind, key, slice, extra = {}) {
   const alvo = String(key || "");
   if (kind === "segmento") {
-    return filterDemandasModoDash(demandasB2cDashboardList()).filter((d) => segmentoB2cBucket(d) === alvo);
+    // B2C: segmento vazio = todos; `extra.geoNivel/geoNome` restringe a uma regional ou cidade.
+    let list = filterDemandasModoDash(demandasB2cDashboardList());
+    if (alvo) list = list.filter((d) => segmentoB2cBucket(d) === alvo);
+    if (extra.geoNome) {
+      list =
+        extra.geoNivel === "cidade"
+          ? list.filter((d) => demandaTemCidade(d, extra.geoNome))
+          : list.filter((d) => demandaTemRegional(d, extra.geoNome));
+    }
+    return list;
   }
   if (kind === "projetista") {
     return filterDemandasPjSlice(demandasDoProjetista(alvo, demandasDashOperacionalList()), slice);
@@ -252,10 +261,16 @@ function renderDashGeoProjetosTable() {
   const kindLabel =
     kind === "regional" ? "Regional" : kind === "segmento" ? "Segmento" : kind === "projetista" ? "Projetista" : "Cidade";
   const filtroLabels = labelDashGeoFiltrosAtivos(filtros);
+  const b2c = kind === "segmento";
+  const alvoTitulo = b2c
+    ? [ctx.key ? `Segmento: ${ctx.key}` : "B2C: todos os segmentos", ctx.extra?.geoNome ? semPrefixoRegional(ctx.extra.geoNome) : ""]
+        .filter(Boolean)
+        .join(" · ")
+    : `${kindLabel}: ${ctx.key}`;
   if (titleEl) {
     titleEl.textContent = filtroLabels.length
-      ? `Projetos — ${kindLabel}: ${ctx.key} · ${filtroLabels.join(" · ")}`
-      : `Projetos — ${kindLabel}: ${ctx.key}`;
+      ? `Projetos — ${alvoTitulo} · ${filtroLabels.join(" · ")}`
+      : `Projetos — ${alvoTitulo}`;
   }
   if (subEl) {
     const periodo = labelDashPeriodoFiltro();
@@ -269,25 +284,49 @@ function renderDashGeoProjetosTable() {
     return;
   }
 
+  // B2C: troca «Tipo» por «Segmento» e mostra os números que a tabela do dashboard soma.
+  const modo = getDashValorModo();
+  const num = (v, fmt) => (v > 0 ? fmt(v) : "—");
   let body = "";
+  const tot = { valor: 0, portas: 0, metragem: 0 };
   for (const d of list) {
     const dm = migrateDemanda(d);
+    const extras = b2c
+      ? (() => {
+          const v = demandaValorDashPorModo(dm, modo);
+          const p = demandaPortasDashPorModo(dm, modo);
+          const m = demandaMetragemDashPorModo(dm, modo);
+          tot.valor += v;
+          tot.portas += p;
+          tot.metragem += m;
+          return (
+            `<td class="num">${num(v, formatBRL)}</td><td class="num">${num(p, formatQtd)}</td>` +
+            `<td class="num">${num(m, formatMetros)}</td>`
+          );
+        })()
+      : "";
     body +=
       "<tr>" +
       `<td><button type="button" class="dash-geo-link" data-dash-geo-open-demanda="${escapeHtml(dm.id)}">${escapeHtml(dm.titulo || "(Sem título)")}</button></td>` +
-      `<td>${escapeHtml(normalizeTipo(dm.tipo) || "—")}</td>` +
+      `<td>${escapeHtml(b2c ? segmentoB2cBucket(dm) : normalizeTipo(dm.tipo) || "—")}</td>` +
       `<td>${escapeHtml(labelStatus(dm.status, dm.linhaEsteira) || dm.status || "—")}</td>` +
       `<td>${escapeHtml(formatProjetistasDemanda(dm) || labelProjetista(dm.responsavel))}</td>` +
       `<td>${escapeHtml(formatCidadesDemanda(dm))}</td>` +
       `<td>${escapeHtml(formatDataISO(demandaDataChegadaDash(dm)) || "—")}</td>` +
+      extras +
       "</tr>";
   }
+  const cabExtras = b2c ? '<th class="num">Gastos</th><th class="num">Portas novas</th><th class="num">Metragem</th>' : "";
+  const rodape = b2c
+    ? `<tfoot><tr><td colspan="6"><strong>Total</strong></td><td class="num"><strong>${num(tot.valor, formatBRL)}</strong></td>` +
+      `<td class="num"><strong>${num(tot.portas, formatQtd)}</strong></td><td class="num"><strong>${num(tot.metragem, formatMetros)}</strong></td></tr></tfoot>`
+    : "";
   tableEl.innerHTML =
     '<table class="dash-table"><thead><tr>' +
-    "<th>Projeto</th><th>Tipo</th><th>Status</th><th>Projetista</th><th>Cidade</th><th>Chegada</th>" +
+    `<th>Projeto</th><th>${b2c ? "Segmento" : "Tipo"}</th><th>Status</th><th>Projetista</th><th>Cidade</th><th>Chegada</th>${cabExtras}` +
     "</tr></thead><tbody>" +
     body +
-    "</tbody></table>";
+    `</tbody>${rodape}</table>`;
 }
 
 function restoreDashGeoListaIfNeeded() {
@@ -296,17 +335,17 @@ function restoreDashGeoListaIfNeeded() {
   dashGeoListaReturnOnClose = false;
   const snap = snapshotPageScroll();
   requestAnimationFrame(() => {
-    openDashGeoProjetosLista(ctx.kind, ctx.key, ctx.slice, ctx.filtros);
+    openDashGeoProjetosLista(ctx.kind, ctx.key, ctx.slice, ctx.filtros, ctx.extra);
     restorePageScroll(snap);
   });
 }
 
-function openDashGeoProjetosLista(kind, key, slice, filtrosPreset) {
+function openDashGeoProjetosLista(kind, key, slice, filtrosPreset, extra = {}) {
   const dlg = document.getElementById("modalDashGeoProjetos");
   const tableEl = document.getElementById("modalDashGeoProjetosTable");
   if (!dlg || !tableEl) return;
 
-  const full = listDemandasDashGeo(kind, key, "").sort((a, b) =>
+  const full = listDemandasDashGeo(kind, key, "", extra).sort((a, b) =>
     String(a.titulo || "").localeCompare(String(b.titulo || ""), "pt-BR"),
   );
   const filtros = filtrosPreset && typeof filtrosPreset === "object" ? { ...filtrosPreset } : sliceToDashGeoFiltros(slice);
@@ -316,6 +355,7 @@ function openDashGeoProjetosLista(kind, key, slice, filtrosPreset) {
     slice: String(slice || ""),
     list: full,
     filtros,
+    extra: { ...extra },
   };
   dashGeoListaReturnOnClose = false;
   fillDashGeoFiltrosOptions(full);
@@ -361,6 +401,8 @@ function initDashGeoProjetosLista() {
       btn.getAttribute("data-dash-geo-kind"),
       btn.getAttribute("data-dash-geo-key"),
       btn.getAttribute("data-dash-geo-slice"),
+      undefined,
+      { geoNivel: btn.getAttribute("data-dash-geo-nivel") || "", geoNome: btn.getAttribute("data-dash-geo-nome") || "" },
     );
   });
 }
@@ -1174,6 +1216,11 @@ function renderDashGrupoMatrixTable(containerId, rowHeader, rowKeys, colKeys, co
   }
   const fmtCell = opts.formatCell || ((n) => (n ? String(n) : "—"));
   const fmtTotal = opts.formatTotal || fmtCell;
+  // Com `opts.celulaAttrs`, cada número vira botão (atributos data-* que abrem a lista de projetos).
+  const clicavel = (txt, n, rk, ck) =>
+    opts.celulaAttrs && n > 0
+      ? `<button type="button" class="dash-geo-link dash-matrix-link" ${opts.celulaAttrs(rk, ck)} title="Ver projetos">${txt}</button>`
+      : txt;
   // Intensidade do fundo proporcional ao valor (lê-se a tabela como um mapa de calor).
   let maxCell = 0;
   for (const rk of rowKeys) for (const ck of colKeys) maxCell = Math.max(maxCell, numDash(matrix[rk]?.[ck]));
@@ -1187,25 +1234,27 @@ function renderDashGrupoMatrixTable(containerId, rowHeader, rowKeys, colKeys, co
     let rowTotal = 0;
     const nameCell = opts.geoListKind
       ? `<td><button type="button" class="dash-geo-link" data-dash-geo-list data-dash-geo-kind="${escapeHtml(opts.geoListKind)}" data-dash-geo-key="${escapeHtml(rowKey)}" title="Ver projetos">${escapeHtml(rowKey)}</button></td>`
-      : `<td>${escapeHtml(rowKey)}</td>`;
+      : opts.celulaAttrs
+        ? `<td><button type="button" class="dash-geo-link" ${opts.celulaAttrs(rowKey, "")} title="Ver projetos">${escapeHtml(rowKey)}</button></td>`
+        : `<td>${escapeHtml(rowKey)}</td>`;
     body += `<tr>${nameCell}`;
     colKeys.forEach((k) => {
       const n = row[k] || 0;
       rowTotal += n;
       colTotals[k] += n;
-      body += `<td class="dash-pj-matrix__num${n > 0 ? " is-heat" : ""}"${heat(n)}>${fmtCell(n)}</td>`;
+      body += `<td class="dash-pj-matrix__num${n > 0 ? " is-heat" : ""}"${heat(n)}>${clicavel(fmtCell(n), n, rowKey, k)}</td>`;
     });
     grandTotal += rowTotal;
-    body += `<td class="dash-pj-matrix__num dash-pj-matrix__total"><strong>${fmtTotal(rowTotal)}</strong></td></tr>`;
+    body += `<td class="dash-pj-matrix__num dash-pj-matrix__total"><strong>${clicavel(fmtTotal(rowTotal), rowTotal, rowKey, "")}</strong></td></tr>`;
   }
   let foot = "";
   colKeys.forEach((k) => {
-    foot += `<td class="dash-pj-matrix__num"><strong>${fmtTotal(colTotals[k])}</strong></td>`;
+    foot += `<td class="dash-pj-matrix__num"><strong>${clicavel(fmtTotal(colTotals[k]), colTotals[k], "", k)}</strong></td>`;
   });
   el.innerHTML =
     `<table class="dash-table dash-table--pj-matrix"><thead><tr><th>${escapeHtml(rowHeader)}</th>${colKeys
       .map((k) => `<th>${escapeHtml(colLabel(k))}</th>`)
-      .join("")}<th>Total</th></tr></thead><tbody>${body}</tbody><tfoot><tr><td><strong>Total</strong></td>${foot}<td class="dash-pj-matrix__num"><strong>${fmtTotal(grandTotal)}</strong></td></tr></tfoot></table>`;
+      .join("")}<th>Total</th></tr></thead><tbody>${body}</tbody><tfoot><tr><td><strong>Total</strong></td>${foot}<td class="dash-pj-matrix__num"><strong>${clicavel(fmtTotal(grandTotal), grandTotal, "", "")}</strong></td></tr></tfoot></table>`;
 }
 
 function makeDashChartProjetistaStacked(canvasId, labels, datasets, chartOpts = {}) {
