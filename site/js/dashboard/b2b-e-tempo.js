@@ -973,6 +973,7 @@ function renderDashboard() {
   if (isDashBlockVisible("indicadores-b2c")) renderDashIndicadoresB2c();
   if (isDashBlockVisible("indicadores-b2b")) renderDashIndicadoresB2b();
   renderDashBlocosResumo(todas, g);
+  syncDashNavContagens();
 }
 
 /** Resumo curto no título de cada bloco — continua visível com o bloco recolhido. */
