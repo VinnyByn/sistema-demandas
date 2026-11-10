@@ -180,17 +180,25 @@ async function percorrerTelas(page) {
       setDashPjDrill("Vinicius");
       openDashPjTipos("Vinicius");
       setDashCidadesDrillRegional(nomeDaCidade);
+      // Cada lista aberta substitui a anterior na mesma janela: anota o que aparece depois de cada clique.
+      const coletar = () => {
+        for (const area of [painel, ...document.querySelectorAll("dialog[open]")]) {
+          for (const m of area.textContent.matchAll(/data-xss="([^"]+)"/g)) noDashboard.add(m[1]);
+          for (const el of area.querySelectorAll("*")) for (const a of el.attributes) for (const m of a.value.matchAll(/data-xss="([^"]+)"/g)) noDashboard.add(m[1]);
+        }
+      };
       openDashGeoProjetosLista("cidade", nomeDaCidade, "todos");
+      coletar();
       for (const seletor of ["[data-dash-geo-list]", "[data-dash-tipo]", "[data-dash-pj]", "[data-dash-geo-key]"]) {
         document.querySelectorAll(seletor).forEach((el, i) => {
-          if (i < 3) el.click();
+          if (i < 3) {
+            el.click();
+            coletar();
+          }
         });
       }
       await dormir(150);
-      for (const area of [painel, ...document.querySelectorAll("dialog[open]")]) {
-        for (const m of area.textContent.matchAll(/data-xss="([^"]+)"/g)) noDashboard.add(m[1]);
-        for (const el of area.querySelectorAll("*")) for (const a of el.attributes) for (const m of a.value.matchAll(/data-xss="([^"]+)"/g)) noDashboard.add(m[1]);
-      }
+      coletar();
     });
     await passo("fechar", () => document.querySelectorAll("dialog[open]").forEach((d) => d.close()));
     document.querySelector('[data-tab="esteira"]')?.click();

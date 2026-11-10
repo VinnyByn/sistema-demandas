@@ -1060,9 +1060,22 @@ function renderDashB2cSegmentos(listModo) {
     el.innerHTML = `<p class="muted small">Nenhum B2C na base de indicadores selecionada no topo (${escapeHtml(labelValorDashModo())}).</p>`;
     return;
   }
-  const celula = (valorTxt, pct, cor, vazio) =>
-    `<td class="num${vazio ? " is-vazio" : ""}"><span class="dash-b2c-cel"><span class="dash-b2c-cel__valor">${valorTxt}</span>` +
-    `<span class="dash-b2c-cel__share">${dashB2cBarraShare(pct, cor)}</span></span></td>`;
+  // Cada número abre os projetos do segmento (`seg` vazio = todos) já filtrados pela métrica da coluna.
+  const abrir = (seg, slice, rotulo, conteudo, vazio) =>
+    vazio
+      ? conteudo
+      : `<button type="button" class="dash-b2c-abrir" data-b2c-seg="${escapeHtml(seg)}" data-b2c-slice="${escapeHtml(slice)}" title="Ver projetos: ${escapeHtml(rotulo)}">${conteudo}</button>`;
+  const celula = (valorTxt, pct, cor, vazio, seg, slice, rotulo) =>
+    `<td class="num${vazio ? " is-vazio" : ""}">` +
+    abrir(
+      seg,
+      slice,
+      rotulo,
+      `<span class="dash-b2c-cel"><span class="dash-b2c-cel__valor">${valorTxt}</span>` +
+        `<span class="dash-b2c-cel__share">${dashB2cBarraShare(pct, cor)}</span></span>`,
+      vazio,
+    ) +
+    `</td>`;
   const rporta = (r) => (r.portas > 0 && r.investimento > 0 ? formatBRL(r.investimento / r.portas) : "—");
   const body = rows
     .map((r) => {
@@ -1071,11 +1084,11 @@ function renderDashB2cSegmentos(listModo) {
         `<tr>` +
         `<th scope="row"><button type="button" class="dash-tipos__nome dash-tipos__abrir" data-b2c-seg="${escapeHtml(r.segmento)}" title="Ver projetos ${escapeHtml(r.segmento)}">` +
         `<i style="background:${cor}" aria-hidden="true"></i>${escapeHtml(r.segmento)}<span class="dash-tipos__seta" aria-hidden="true">›</span></button></th>` +
-        celula(String(r.projetos), r.pctProjetos, cor, !r.projetos) +
-        celula(r.investimento > 0 ? formatBRL(r.investimento) : "—", r.pctInvestimento, cor, !r.investimento) +
-        celula(r.portas > 0 ? formatQtd(r.portas) : "—", r.pctPortas, cor, !r.portas) +
-        celula(r.metragem > 0 ? formatMetros(r.metragem) : "—", r.pctMetragem, cor, !r.metragem) +
-        `<td class="num${r.portas > 0 && r.investimento > 0 ? "" : " is-vazio"}">${rporta(r)}</td>` +
+        celula(String(r.projetos), r.pctProjetos, cor, !r.projetos, r.segmento, "", `${r.segmento}`) +
+        celula(r.investimento > 0 ? formatBRL(r.investimento) : "—", r.pctInvestimento, cor, !r.investimento, r.segmento, "valor", `${r.segmento} com gastos`) +
+        celula(r.portas > 0 ? formatQtd(r.portas) : "—", r.pctPortas, cor, !r.portas, r.segmento, "portas", `${r.segmento} com portas novas`) +
+        celula(r.metragem > 0 ? formatMetros(r.metragem) : "—", r.pctMetragem, cor, !r.metragem, r.segmento, "metragem", `${r.segmento} com metragem`) +
+        `<td class="num${r.portas > 0 && r.investimento > 0 ? "" : " is-vazio"}">${abrir(r.segmento, "portas", `${r.segmento} com portas novas`, rporta(r), !(r.portas > 0 && r.investimento > 0))}</td>` +
         `</tr>`
       );
     })
@@ -1085,15 +1098,15 @@ function renderDashB2cSegmentos(listModo) {
     `<thead><tr><th scope="col">Segmento</th><th scope="col" class="num">Projetos</th><th scope="col" class="num">Gastos</th>` +
     `<th scope="col" class="num">Portas novas</th><th scope="col" class="num">Metragem</th><th scope="col" class="num">R$ por porta</th></tr></thead>` +
     `<tbody>${body}</tbody>` +
-    `<tfoot><tr><th scope="row">Total</th><td class="num">${totais.projetos}</td>` +
-    `<td class="num">${totais.investimento > 0 ? formatBRL(totais.investimento) : "—"}</td>` +
-    `<td class="num">${totais.portas > 0 ? formatQtd(totais.portas) : "—"}</td>` +
-    `<td class="num">${totais.metragem > 0 ? formatMetros(totais.metragem) : "—"}</td>` +
+    `<tfoot><tr><th scope="row">${abrir("", "", "todos os B2C", "Total", false)}</th><td class="num">${abrir("", "", "todos os B2C", String(totais.projetos), !totais.projetos)}</td>` +
+    `<td class="num">${abrir("", "valor", "B2C com gastos", totais.investimento > 0 ? formatBRL(totais.investimento) : "—", !(totais.investimento > 0))}</td>` +
+    `<td class="num">${abrir("", "portas", "B2C com portas novas", totais.portas > 0 ? formatQtd(totais.portas) : "—", !(totais.portas > 0))}</td>` +
+    `<td class="num">${abrir("", "metragem", "B2C com metragem", totais.metragem > 0 ? formatMetros(totais.metragem) : "—", !(totais.metragem > 0))}</td>` +
     `<td class="num">${totais.portas > 0 && totais.investimento > 0 ? formatBRL(totais.investimento / totais.portas) : "—"}</td></tr></tfoot>` +
     `</table></div>` +
-    `<p class="muted small dash-tipos__nota">Base: <strong>${escapeHtml(labelValorDashModo())}</strong> (escolhida no topo). A barra mostra a participação do segmento em cada coluna. Clique no segmento para ver os projetos.</p>`;
+    `<p class="muted small dash-tipos__nota">Base: <strong>${escapeHtml(labelValorDashModo())}</strong> (escolhida no topo). A barra mostra a participação do segmento em cada coluna. Clique no segmento ou em qualquer número para ver os projetos.</p>`;
   el.querySelectorAll("[data-b2c-seg]").forEach((btn) => {
-    btn.addEventListener("click", () => openDashGeoProjetosLista("segmento", btn.dataset.b2cSeg));
+    btn.addEventListener("click", () => openDashGeoProjetosLista("segmento", btn.dataset.b2cSeg, btn.dataset.b2cSlice || ""));
   });
 }
 

@@ -74,3 +74,49 @@ test("dashboard: atalho de período compara com o anterior, e o cartão abre o R
   await expect(total).not.toContainText("período anterior");
   await expect(total.locator(".kpi__value")).toHaveText("6");
 });
+
+test("dashboard B2C: clicar nos números da tabela abre os projetos daquele segmento e região", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    const set = (id, campos) => Object.assign(state.demandas.find((d) => d.id === id), campos);
+    const custo = (valor, portas) => ({ temLevantamento: true, valorProjeto: valor, temPortas: portas > 0, qtdCasas: 100, qtdPortasAtual: 10, qtdNovasPortas: portas });
+    set("p2", { cidade: "Itajubá - IJA", status: "conclusao", custo: custo(1000, 20) });
+    set("p3", { cidade: "Taubaté - TTE", status: "conclusao", custo: custo(2000, 0) });
+    state.demandas.push(
+      { id: "c1", titulo: "Prédio Azul", tipo: "B2C", segmentoB2c: "MDU", status: "conclusao", responsavel: "Matheus", cidade: "Taubaté - TTE", descricao: "x", custo: custo(3000, 15) },
+      { id: "c2", titulo: "Prédio Verde", tipo: "B2C", segmentoB2c: "MDU", status: "conclusao", responsavel: "Matheus", cidade: "Itajubá - IJA", descricao: "x", custo: custo(500, 0) },
+    );
+    state.demandas.forEach((d) => delete d.__isMigrated);
+  });
+  await page.evaluate(() => localStorage.removeItem("demandasDashBlocks_v1"));
+  await page.click('[data-tab="dashboard"]');
+  const tabela = page.locator("#dashB2cSegmentos");
+  const modal = page.locator("#modalDashGeoProjetos");
+  const linhasModal = modal.locator("tbody tr");
+
+  // MDU · Portas novas: só os MDU com portas (Condomínio Reserva e Prédio Azul).
+  await tabela.locator('[data-b2c-seg="MDU"][data-b2c-slice="portas"]').first().click();
+  await expect(modal).toBeVisible();
+  await expect(page.locator("#modalDashGeoProjetosTitle")).toHaveText("Projetos — Segmento: MDU · Portas novas");
+  await expect(linhasModal).toHaveCount(2);
+  await expect(modal.locator("thead")).toContainText("Segmento");
+  await expect(modal.locator("tfoot")).toContainText("35");
+  await page.click("#modalDashGeoProjetosOk");
+
+  // Total de projetos: todos os B2C.
+  await tabela.locator('tfoot [data-b2c-seg=""][data-b2c-slice=""]').last().click();
+  await expect(page.locator("#modalDashGeoProjetosTitle")).toHaveText("Projetos — B2C: todos os segmentos");
+  await expect(linhasModal).toHaveCount(4);
+  await page.click("#modalDashGeoProjetosOk");
+
+  // «Onde está o B2C» (gastos por regional): célula São Paulo × MDU = só o Prédio Azul.
+  await page.locator('[data-dash-chart-table="b2c-geo"] .dash-chart-table__toggle').click();
+  await page.locator('#tableB2cGeo [data-dash-geo-key="MDU"][data-dash-geo-nome="Regional São Paulo"]').click();
+  await expect(page.locator("#modalDashGeoProjetosTitle")).toHaveText("Projetos — Segmento: MDU · São Paulo · Valor total geral");
+  await expect(linhasModal).toHaveCount(1);
+  await expect(linhasModal).toContainText("Prédio Azul");
+  await page.click("#modalDashGeoProjetosOk");
+
+  // Total da linha Sul de Minas: todos os segmentos naquela regional.
+  await page.locator('#tableB2cGeo tbody [data-dash-geo-key=""][data-dash-geo-nome="Regional Sul de Minas"]').last().click();
+  await expect(linhasModal).toHaveCount(2);
+});
