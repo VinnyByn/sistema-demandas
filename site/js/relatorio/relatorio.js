@@ -21,6 +21,7 @@ const REL_SITUACOES = [
 const REL_PRAZOS = [
   ["", "Qualquer prazo"],
   ["atrasado", "Em atraso (em andamento)"],
+  ["atraso_qualquer", "Atrasados (em andamento ou concluídos fora do prazo)"],
   ["vencendo", "Vence em até 3 dias"],
   ["no_prazo", "Dentro do prazo"],
   ["concluido_atrasado", "Concluídos fora do prazo"],
@@ -326,6 +327,8 @@ function relPassaPrazo(d, prazo) {
   switch (prazo) {
     case "atrasado":
       return isAtrasoAtivo(d);
+    case "atraso_qualquer":
+      return isAtraso(d);
     case "vencendo":
       return demandaPrazoProximo(d);
     case "no_prazo":
@@ -1013,6 +1016,40 @@ function abrirRelatorio() {
   const dlg = document.getElementById("modalRelatorio");
   if (!dlg) return;
   relFiltros = relCarregarFiltros();
+  relAtualizar({ podar: true });
+  if (!dlg.open) dlg.showModal();
+}
+
+/** Filtros do Relatório que mostram a lista por trás de um cartão do dashboard. */
+const REL_ATALHOS_DASHBOARD = {
+  todos: {},
+  concluido: { situacoes: ["concluido"] },
+  atrasado: { prazo: "atraso_qualquer" }, // o dashboard conta também os concluídos fora do prazo
+  atrasado_ativo: { prazo: "atrasado" },
+  sem_projetista: { projetistas: ["__none__"], situacoes: ["andamento"] },
+  pausado: { situacoes: ["pausado"] },
+  reprovado: { situacoes: ["reprovado"] },
+  "b2b:aprovacao_bp": { etapas: ["b2b:aprovacao_bp"] },
+};
+
+/** Abre o Relatório filtrado pelo cartão clicado, no mesmo período (data de chegada) do dashboard. */
+function abrirRelatorioDoDashboard(alvo, esteira = LINHA_ESTEIRA_OPERACIONAL) {
+  const dlg = document.getElementById("modalRelatorio");
+  if (!dlg) return;
+  const salvo = relCarregarFiltros();
+  const periodo = typeof getDashPeriodoFiltro === "function" ? getDashPeriodoFiltro() : { inicio: "", fim: "" };
+  relFiltros = {
+    ...relFiltrosPadrao(),
+    agrupar: salvo.agrupar,
+    colunas: salvo.colunas,
+    vista: salvo.vista,
+    esteira: esteira === LINHA_ESTEIRA_B2B ? LINHA_ESTEIRA_B2B : LINHA_ESTEIRA_OPERACIONAL,
+    arquivados: true, // o dashboard conta os arquivados
+    campoData: "chegada",
+    de: periodo.inicio || "",
+    ate: periodo.fim || "",
+    ...(REL_ATALHOS_DASHBOARD[alvo] || {}),
+  };
   relAtualizar({ podar: true });
   if (!dlg.open) dlg.showModal();
 }
