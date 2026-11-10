@@ -204,7 +204,12 @@ function chartInk() {
 
 function applyTheme(theme) {
   const t = theme === "light" ? "light" : "dark";
-  document.documentElement.setAttribute("data-theme", t);
+  // Sem transições na troca: as cores mudam de uma vez (nada fica «no meio do caminho» por um instante).
+  const raiz = document.documentElement;
+  raiz.classList.add("trocando-tema");
+  raiz.setAttribute("data-theme", t);
+  void raiz.offsetHeight; // aplica as cores novas antes de religar as transições
+  requestAnimationFrame(() => requestAnimationFrame(() => raiz.classList.remove("trocando-tema")));
   try {
     localStorage.setItem("demandas-theme", t);
   } catch (_) {}

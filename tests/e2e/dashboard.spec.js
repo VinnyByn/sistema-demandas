@@ -9,7 +9,34 @@ async function abrirDashboard(page) {
 test("dashboard: navegação no topo abre o bloco recolhido, e a explicação fica em «Como ler»", async ({ app: { page } }) => {
   await abrirDashboard(page);
   const nav = page.locator("#dashNav [data-dash-ir]");
-  await expect(nav).toHaveText(["Geral", "Tempo", "Projetistas", "Regionais", "B2C", "B2B"]);
+  await expect(nav).toHaveText([/^Geral\d*$/, /^Tempo\d*$/, /^Projetistas\d*$/, /^Regionais\d*$/, /^B2C\d*$/, /^B2B\d*$/]);
+  await expect(page.locator('#dashNav [data-dash-ir="projetistas"] .dash-nav__n')).toHaveText("2");
+
+  // Durante a rolagem do clique a marcação fica no destino (não passa pelos blocos do caminho).
+  await page.evaluate(() => {
+    window.__marcas = new Set();
+    window.__amostra = setInterval(() => window.__marcas.add(document.querySelector("#dashNav .is-active")?.dataset.dashIr), 20);
+  });
+  await page.click('#dashNav [data-dash-ir="indicadores-b2c"]');
+  await expect(page.locator('#dashNav [data-dash-ir="indicadores-b2c"]')).toHaveClass(/is-active/);
+  await page.waitForTimeout(900);
+  const marcas = await page.evaluate(() => (clearInterval(window.__amostra), [...window.__marcas]));
+  expect(marcas.filter((m) => !["kpi-geral", "indicadores-b2c"].includes(m))).toEqual([]); // nada do caminho
+  // O título do bloco para logo abaixo da barra (a posição é corrigida se a página mudar de altura no caminho).
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const nav = document.getElementById("dashNav").getBoundingClientRect();
+        const bloco = document.querySelector('[data-dash-block="indicadores-b2c"]').getBoundingClientRect();
+        const corte = Math.round(bloco.top - nav.bottom);
+        return corte >= 0 && corte < 30;
+      }),
+    )
+    .toBe(true);
+  // A barra fica abaixo do cabeçalho do topo, nunca atrás dele (mesmo montada antes da tela aparecer).
+  const sobra = await page.evaluate(() => Math.round(document.getElementById("dashNav").getBoundingClientRect().top - document.querySelector(".topbar").getBoundingClientRect().bottom));
+  expect(sobra).toBeGreaterThanOrEqual(0);
+  await expect(page.locator("#dashNavTopo")).toBeVisible();
 
   await page.click('.dash-block[data-dash-block="indicadores-b2b"] .dash-block__toggle');
   await expect(page.locator('.dash-block[data-dash-block="indicadores-b2b"]')).toHaveClass(/is-collapsed/);

@@ -7378,20 +7378,40 @@ button.kpi.kpi--link:hover .kpi__ver, button.kpi.kpi--link:focus-visible .kpi__v
 /* ===== Dashboard: navegação fixa e «Como ler este bloco» ===== */
 .dash-nav {
   position: sticky; top: calc(var(--dash-nav-top, 0px) + 0.4rem); z-index: 15;
-  display: flex; gap: 0.35rem; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
-  margin: 0 0 1rem; padding: 0.4rem; border: 1px solid var(--border); border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(8px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  display: flex; align-items: center; gap: 0.5rem; width: fit-content; max-width: 100%;
+  margin: 0 0 1rem; padding: 0.3rem; border: 1px solid var(--border); border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
 }
-.dash-nav::-webkit-scrollbar { display: none; }
+.dash-nav__itens {
+  display: flex; gap: 0.2rem; overflow-x: auto; scrollbar-width: none; min-width: 0;
+  scroll-snap-type: x proximity;
+}
+.dash-nav__itens::-webkit-scrollbar { display: none; }
 .dash-nav__item {
-  flex: 0 0 auto; padding: 0.38rem 0.9rem; border: 0; border-radius: 999px; background: transparent;
-  color: var(--muted); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.4rem; scroll-snap-align: center;
+  padding: 0.42rem 0.85rem; border: 0; border-radius: 9px; background: transparent;
+  color: color-mix(in srgb, var(--muted) 85%, var(--text)); font: inherit; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap; transition: background 0.15s ease, color 0.15s ease;
 }
 .dash-nav__item:hover { color: var(--text); background: var(--surface2); }
 .dash-nav__item.is-active { background: var(--accent-fill, #2563eb); color: #fff; }
 .dash-nav__item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-#panelDashboard .dash-block { scroll-margin-top: calc(var(--dash-nav-top, 0px) + 4.25rem); }
+.dash-nav__n {
+  min-width: 1.35rem; padding: 0.05rem 0.4rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700;
+  text-align: center; background: var(--surface2); color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.dash-nav__item.is-active .dash-nav__n { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.dash-nav__topo {
+  flex: 0 0 auto; padding: 0.42rem 0.75rem; border: 1px solid var(--border); border-radius: 9px;
+  background: transparent; color: var(--muted); font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.dash-nav__topo:hover { color: var(--text); border-color: var(--accent); }
+.dash-nav__topo:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (max-width: 640px) {
+  .dash-nav { width: 100%; border-radius: 10px; }
+  .dash-nav__item { padding: 0.4rem 0.65rem; }
+}
 .dash-info { margin: 0 0 0.75rem; font-size: 0.82rem; }
 .dash-info > summary {
   display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; list-style: none;
@@ -7428,3 +7448,4 @@ button.kpi.kpi--link:hover .kpi__ver, button.kpi.kpi--link:focus-visible .kpi__v
 .dash-b2c-abrir:focus-visible, .dash-matrix-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .dash-b2c-seg tbody td:not(.is-vazio), .dash-b2c-seg tfoot td, .dash-b2c-seg tfoot th { cursor: pointer; }
 #modalDashGeoProjetosTable .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+html.trocando-tema *, html.trocando-tema *::before, html.trocando-tema *::after { transition: none !important; }

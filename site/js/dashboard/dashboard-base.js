@@ -166,59 +166,176 @@ const DASH_NAV_ROTULOS = {
   "indicadores-b2b": "B2B",
 };
 
-/** Barra fixa com um atalho por bloco: abre o bloco (se recolhido) e rola até ele. */
+/** Resumo curto (contagem) que aparece ao lado do nome do bloco na barra de navegação. */
+function dashNavContagem(bloco) {
+  const txt = bloco.querySelector(".dash-block__resumo")?.textContent || "";
+  const m = txt.match(/^(\d[\d.]*)/);
+  return m ? m[1] : "";
+}
+
+/** Atualiza os números da barra (chamado a cada render do dashboard). */
+function syncDashNavContagens() {
+  document.querySelectorAll("#dashNav [data-dash-ir]").forEach((btn) => {
+    const bloco = document.querySelector(`.dash-block[data-dash-block="${btn.dataset.dashIr}"]`);
+    const n = bloco ? dashNavContagem(bloco) : "";
+    const el = btn.querySelector(".dash-nav__n");
+    if (el) {
+      el.textContent = n;
+      el.hidden = !n;
+    }
+  });
+}
+
+/**
+ * Barra fixa com um atalho por bloco. O clique abre o bloco (se recolhido) e rola até ele; a marcação
+ * acompanha a rolagem (o bloco cujo título passou logo abaixo da barra) e fica presa no destino
+ * enquanto a rolagem do clique acontece, para não «passear» pelos blocos do caminho.
+ */
 function initDashNav(state) {
   const nav = document.getElementById("dashNav");
   if (!nav) return;
   const blocos = [...document.querySelectorAll(".dash-block[data-dash-block]")];
-  nav.innerHTML = blocos
-    .map((b) => {
-      const id = b.dataset.dashBlock;
-      const titulo = b.querySelector(".dash-block__toggle > span")?.textContent.trim() || id;
-      return `<button type="button" class="dash-nav__item" data-dash-ir="${escapeHtml(id)}" title="${escapeHtml(titulo)}">${escapeHtml(DASH_NAV_ROTULOS[id] || titulo)}</button>`;
-    })
-    .join("");
+  nav.innerHTML =
+    `<div class="dash-nav__itens">` +
+    blocos
+      .map((b) => {
+        const id = b.dataset.dashBlock;
+        const titulo = b.querySelector(".dash-block__toggle > span")?.textContent.trim() || id;
+        return (
+          `<button type="button" class="dash-nav__item" data-dash-ir="${escapeHtml(id)}" title="Ir para ${escapeHtml(titulo)}">` +
+          `${escapeHtml(DASH_NAV_ROTULOS[id] || titulo)}<span class="dash-nav__n" hidden></span></button>`
+        );
+      })
+      .join("") +
+    `</div><button type="button" class="dash-nav__topo" id="dashNavTopo" title="Voltar ao topo do dashboard" hidden>↑ Topo</button>`;
+
+  // A barra gruda logo abaixo do cabeçalho do topo. A altura dele é acompanhada sempre (não só na montagem):
+  // o dashboard pode ser montado antes da tela aparecer (ex.: logo após o login), quando a altura ainda é 0.
   const topbar = document.querySelector(".topbar");
-  const ajustarTopo = () => document.documentElement.style.setProperty("--dash-nav-top", `${topbar?.offsetHeight || 0}px`);
+  let alturaTopo = -1;
+  const ajustarTopo = () => {
+    const h = Math.round(topbar?.getBoundingClientRect().height || 0);
+    if (h === alturaTopo) return;
+    alturaTopo = h;
+    document.documentElement.style.setProperty("--dash-nav-top", `${h}px`);
+  };
   ajustarTopo();
   window.addEventListener("resize", ajustarTopo);
-  nav.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-dash-ir]");
-    if (!btn) return;
-    const id = btn.dataset.dashIr;
+  if (topbar && typeof ResizeObserver === "function") new ResizeObserver(ajustarTopo).observe(topbar);
+
+  const painel = document.getElementById("panelDashboard");
+  const botoes = () => [...nav.querySelectorAll("[data-dash-ir]")];
+  /** Onde o conteúdo começa abaixo da barra (topo da barra fixa + altura dela + folga). */
+  const linhaDeCorte = () => {
+    ajustarTopo();
+    const topoFixo = parseFloat(getComputedStyle(nav).top) || 0;
+    return topoFixo + nav.offsetHeight + 12;
+  };
+  const marcar = (id) => {
+    botoes().forEach((b) => {
+      const on = b.dataset.dashIr === id;
+      b.classList.toggle("is-active", on);
+      if (on) {
+        b.setAttribute("aria-current", "true");
+        // Em tela estreita a barra rola de lado: mantém o atalho marcado à vista.
+        const r = b.getBoundingClientRect();
+        const rn = nav.getBoundingClientRect();
+        if (r.left < rn.left || r.right > rn.right) b.scrollIntoView({ block: "nearest", inline: "center" });
+      } else b.removeAttribute("aria-current");
+    });
+  };
+
+  let alvoClique = "";
+  let fimClique = 0;
+  const blocoAtual = () => {
+    const corte = linhaDeCorte() + 8;
+    let atual = blocos[0]?.dataset.dashBlock || "";
+    for (const b of blocos) {
+      if (b.offsetParent === null) continue;
+      if (b.getBoundingClientRect().top <= corte) atual = b.dataset.dashBlock;
+    }
+    // No fim da página, o último bloco visível é o atual (mesmo que o título não chegue lá em cima).
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+      const ultimo = [...blocos].reverse().find((b) => b.getBoundingClientRect().top < window.innerHeight * 0.6);
+      if (ultimo) atual = ultimo.dataset.dashBlock;
+    }
+    return atual;
+  };
+  let pedido = 0;
+  const aoRolar = () => {
+    cancelAnimationFrame(pedido);
+    pedido = requestAnimationFrame(() => {
+      if (!painel || painel.hidden) return;
+      ajustarTopo();
+      const topoBtn = document.getElementById("dashNavTopo");
+      if (topoBtn) topoBtn.hidden = window.scrollY < 400;
+      if (alvoClique) return; // rolagem do clique: a marcação já está no destino
+      marcar(blocoAtual());
+    });
+  };
+  window.addEventListener("scroll", aoRolar, { passive: true });
+  window.addEventListener("resize", aoRolar);
+
+  const terminarClique = () => {
+    alvoClique = "";
+    clearTimeout(fimClique);
+    aoRolar();
+  };
+  const irPara = (id) => {
     const bloco = document.querySelector(`.dash-block[data-dash-block="${id}"]`);
     if (!bloco) return;
     if (bloco.classList.contains("is-collapsed")) bloco.querySelector(".dash-block__toggle")?.click();
-    bloco.scrollIntoView({ behavior: "smooth", block: "start" });
-    bloco.querySelector(".dash-block__toggle")?.focus({ preventScroll: true });
-  });
-  // Marca o bloco que está na tela.
-  if (typeof IntersectionObserver === "function") {
-    const visiveis = new Map();
-    const marcar = () => {
-      let atual = "";
-      let menorTopo = Infinity;
-      for (const [id, topo] of visiveis) if (topo < menorTopo) [atual, menorTopo] = [id, topo];
-      nav.querySelectorAll("[data-dash-ir]").forEach((b) => {
-        const on = b.dataset.dashIr === atual;
-        b.classList.toggle("is-active", on);
-        if (on) b.setAttribute("aria-current", "true");
-        else b.removeAttribute("aria-current");
-      });
+    alvoClique = id;
+    marcar(id);
+    const destino = () => Math.max(0, Math.round(bloco.getBoundingClientRect().top + window.scrollY - linhaDeCorte()));
+    window.scrollTo({ top: destino(), behavior: "smooth" });
+    // Gráficos e blocos que abrem mudam a altura da página durante a rolagem: confere e corrige o destino.
+    let tentativas = 0;
+    const conferir = () => {
+      clearTimeout(fimClique);
+      fimClique = setTimeout(() => {
+        const falta = Math.abs(bloco.getBoundingClientRect().top - linhaDeCorte());
+        const noFim = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+        if (falta > 6 && !noFim && tentativas++ < 3) {
+          window.scrollTo({ top: destino(), behavior: "auto" });
+          conferir();
+        } else terminarClique();
+      }, 650);
     };
-    const obs = new IntersectionObserver(
-      (entradas) => {
-        for (const en of entradas) {
-          const id = en.target.dataset.dashBlock;
-          if (en.isIntersecting) visiveis.set(id, Math.abs(en.boundingClientRect.top));
-          else visiveis.delete(id);
-        }
-        marcar();
-      },
-      { rootMargin: "-120px 0px -55% 0px" },
-    );
-    blocos.forEach((b) => obs.observe(b));
-  }
+    conferir();
+    bloco.querySelector(".dash-block__toggle")?.focus({ preventScroll: true });
+  };
+  // Rolagem do usuário (roda do mouse, toque, teclado) cancela a trava do clique.
+  ["wheel", "touchstart", "keydown"].forEach((ev) =>
+    window.addEventListener(ev, (e) => {
+      if (!alvoClique) return;
+      if (ev === "keydown" && !["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(e.key)) return;
+      terminarClique();
+    }, { passive: true }),
+  );
+
+  nav.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-dash-ir]");
+    if (btn) irPara(btn.dataset.dashIr);
+    if (e.target.closest("#dashNavTopo")) {
+      alvoClique = blocos[0]?.dataset.dashBlock || "";
+      marcar(alvoClique);
+      window.scrollTo({ top: Math.max(0, (painel?.getBoundingClientRect().top || 0) + window.scrollY - 80), behavior: "smooth" });
+      clearTimeout(fimClique);
+      fimClique = setTimeout(terminarClique, 900);
+    }
+  });
+  // ← → navegam entre os atalhos (padrão de barra de abas).
+  nav.addEventListener("keydown", (e) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    const lista = botoes();
+    const i = lista.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    const j = e.key === "Home" ? 0 : e.key === "End" ? lista.length - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + lista.length) % lista.length;
+    lista[j].focus();
+  });
+  aoRolar();
   void state;
 }
 
