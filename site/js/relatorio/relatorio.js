@@ -187,7 +187,7 @@ const REL_DADOS = [
  * `semSoma` tira do total do rodapé (dias, percentuais, médias).
  */
 const REL_COLUNAS = [
-  { key: "titulo", grupo: "Projeto", label: "Projeto", padrao: true, val: (d) => d.titulo || "" },
+  { key: "titulo", longo: true, grupo: "Projeto", label: "Projeto", padrao: true, val: (d) => d.titulo || "" },
   { key: "esteira", grupo: "Projeto", label: "Esteira", padrao: true, val: (d) => relEsteiraLabel(inferLinhaEsteira(d)) },
   { key: "tipo", grupo: "Projeto", label: "Tipo", padrao: true, val: (d) => normalizeTipo(d.tipo) || "" },
   { key: "produto", grupo: "Projeto", label: "Produto B2B", val: (d) => d.produtoB2b || "" },
@@ -195,16 +195,16 @@ const REL_COLUNAS = [
   { key: "etapa", grupo: "Projeto", label: "Etapa", padrao: true, val: relEtapaLabel },
   { key: "situacao", grupo: "Projeto", label: "Situação", padrao: true, val: relSituacaoLabel },
   { key: "regional", grupo: "Projeto", label: "Regional", padrao: true, val: (d) => demandaRegionaisLabels(d).map(regionalSelectLabel).join(" · ") },
-  { key: "cidades", grupo: "Projeto", label: "Cidade(s)", padrao: true, val: (d) => demandaCidadesLabels(d).join(" · ") },
-  { key: "projetistas", grupo: "Projeto", label: "Projetista(s)", padrao: true, val: (d) => formatProjetistasDemanda(d) || "Não atribuído" },
-  { key: "solicitante", grupo: "Projeto", label: "Solicitante", val: (d) => d.solicitante || "" },
+  { key: "cidades", longo: true, grupo: "Projeto", label: "Cidade(s)", padrao: true, val: (d) => demandaCidadesLabels(d).join(" · ") },
+  { key: "projetistas", longo: true, grupo: "Projeto", label: "Projetista(s)", padrao: true, val: (d) => formatProjetistasDemanda(d) || "Não atribuído" },
+  { key: "solicitante", longo: true, grupo: "Projeto", label: "Solicitante", val: (d) => d.solicitante || "" },
   { key: "chegada", grupo: "Datas e prazos", label: "Chegada", padrao: true, val: (d) => relDataBr(demandaDataChegadaDash(d)) },
   { key: "prazo", grupo: "Datas e prazos", label: "Prazo previsto", padrao: true, val: (d) => relDataBr(d.dataFimPrevista) },
   { key: "prazoAtual", grupo: "Datas e prazos", label: "Prazo atualizado", val: (d) => relDataBr(d.dataFimAtualizada) },
   { key: "termino", grupo: "Datas e prazos", label: "Término", padrao: true, val: (d) => relDataBr(demandaDataTermino(d)) },
   { key: "diasAberto", grupo: "Datas e prazos", label: "Dias em aberto", padrao: true, num: (d) => demandaDiasAberto(d), semSoma: true },
   { key: "diasAtraso", grupo: "Datas e prazos", label: "Dias de atraso", padrao: true, num: (d) => demandaDiasAtraso(d), semSoma: true },
-  { key: "motivoAtraso", grupo: "Datas e prazos", label: "Motivo do atraso", val: (d) => d.motivosAtraso || "" },
+  { key: "motivoAtraso", longo: true, grupo: "Datas e prazos", label: "Motivo do atraso", val: (d) => d.motivosAtraso || "" },
   { key: "temCusto", grupo: "Custo", label: "Levantamento de custo", val: (d) => (relCusto(d).temLevantamento ? "Sim" : "Não") },
   { key: "valorProjeto", grupo: "Custo", label: "Valor do projeto (R$)", num: (d) => relNumOuZero(relCusto(d).valorProjeto), moeda: true },
   { key: "valor5", grupo: "Custo", label: "Acréscimo 5% (R$)", num: (d) => relNumOuZero(relCusto(d).valor5), moeda: true },
@@ -220,13 +220,13 @@ const REL_COLUNAS = [
   { key: "novaPenetracao", grupo: "Portas", label: "Nova penetração", num: (d) => relNumOuZero(relCusto(d).novaPenetracao), pct: true, semSoma: true },
   { key: "valorPorPorta", grupo: "Portas", label: "Valor por porta nova (R$)", num: (d) => relNumOuZero(relCusto(d).valorPorPortaNova), moeda: true, semSoma: true },
   { key: "metragem", grupo: "Lançamento de cabo", label: "Metragem total (m)", num: (d) => demandaMetragemLancamento(d), casas: 2 },
-  { key: "cabos", grupo: "Lançamento de cabo", label: "Cabos (tipo e metragem)", val: relCabosTexto },
-  { key: "statusAtual", grupo: "Outros", label: "Situação atual (texto)", val: (d) => d.statusAtual || "" },
+  { key: "cabos", longo: true, grupo: "Lançamento de cabo", label: "Cabos (tipo e metragem)", val: relCabosTexto },
+  { key: "statusAtual", longo: true, grupo: "Outros", label: "Situação atual (texto)", val: (d) => d.statusAtual || "" },
   { key: "ocomon", grupo: "Outros", label: "Chamado Ocomon", val: (d) => d.chamadoOcomon || "" },
   { key: "aniel", grupo: "Outros", label: "OS Aniel", val: (d) => d.osAniel || "" },
   { key: "asana", grupo: "Outros", label: "Asana", val: (d) => (d.asana?.taskId || d.asanaTaskId ? "Sim" : "") },
-  { key: "resumo", grupo: "Outros", label: "Resumo", val: relResumoDescricao },
-  { key: "ultimoComentario", grupo: "Outros", label: "Último comentário", val: relUltimoComentario },
+  { key: "resumo", longo: true, grupo: "Outros", label: "Resumo", val: relResumoDescricao },
+  { key: "ultimoComentario", longo: true, grupo: "Outros", label: "Último comentário", val: relUltimoComentario },
   { key: "arquivado", grupo: "Outros", label: "Arquivado", val: (d) => (d.arquivadoEm ? relDataBr(d.arquivadoEm) : "") },
   { key: "criadoEm", grupo: "Outros", label: "Cadastrado em", val: (d) => relDataHoraBr(d.createdAt) },
   { key: "atualizadoEm", grupo: "Outros", label: "Alterado em", val: (d) => relDataHoraBr(d.updatedAt) },
@@ -775,12 +775,17 @@ function relResumoTabelaHtml(linhas, agrupar, total) {
 
 function relDetalheTabelaHtml(lista, colunas, limite = Infinity) {
   const mostrar = lista.slice(0, limite);
-  const cab = colunas.map((c) => `<th scope="col"${c.num ? ' class="num"' : ""}>${escapeHtml(c.label)}</th>`).join("");
+  // Colunas de texto longo quebram linha (com largura máxima); as demais ficam numa linha só e a tabela rola de lado.
+  const classe = (c) => {
+    const cls = [c.num ? "num" : "", c.longo ? "rel-col-longo" : ""].filter(Boolean).join(" ");
+    return cls ? ` class="${cls}"` : "";
+  };
+  const cab = colunas.map((c) => `<th scope="col"${classe(c)}>${escapeHtml(c.label)}</th>`).join("");
   const corpo = mostrar
     .map(
       (d) =>
         `<tr data-rel-id="${escapeHtml(d.id)}">` +
-        colunas.map((c) => `<td${c.num ? ' class="num"' : ""}>${escapeHtml(relValorCelula(c, d))}</td>`).join("") +
+        colunas.map((c) => `<td${classe(c)}>${escapeHtml(relValorCelula(c, d))}</td>`).join("") +
         `</tr>`,
     )
     .join("");
@@ -911,6 +916,14 @@ function relRender() {
         `<h3 class="rel-sub">Projetos <span class="muted">(${relNumero(lista.length)})</span></h3>` +
         aviso +
         (relFiltros.vista === "fichas" ? relFichasHtml(lista, REL_PREVIA_LIMITE) : relDetalheTabelaHtml(lista, colunas, REL_PREVIA_LIMITE));
+      // Tabela mais larga que a janela: avisa que dá para rolar de lado.
+      const wrap = det.querySelector(".rel-tabela-wrap");
+      if (wrap && wrap.scrollWidth > wrap.clientWidth + 4) {
+        const dica = document.createElement("p");
+        dica.className = "rel-rolar-dica";
+        dica.textContent = "↔ Há mais colunas à direita: role a tabela para o lado (ou Shift + roda do mouse).";
+        wrap.before(dica);
+      }
     }
   }
   ["btnRelCsv", "btnRelImprimir"].forEach((id) => {

@@ -158,3 +158,39 @@ test("relatório: custo e portas de cada projeto (colunas, filtro, fichas e CSV)
   await ficha.click();
   await expect(page.locator("#modalDemanda")).toBeVisible();
 });
+
+test("relatório: muitas colunas rolam de lado e a ficha não espreme os nomes com valor longo", async ({ app: { page } }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await abrir(page);
+  await page.evaluate(() => {
+    Object.assign(state.demandas.find((d) => d.id === "p4"), {
+      motivosAtrasoItens: [{ motivo: "Licença da prefeitura ainda não liberada para a passagem dos cabos na avenida principal", detalhe: "" }],
+      cidadesExtra: ["Pouso Alegre - PSA", "Itajubá - IJA", "Santa Rita do Sapucaí - SRS"],
+      custo: { temLevantamento: true, valorProjeto: 123456.78, execucao: "Terceirizada", custoTerceirizada: 45000 },
+    });
+    state.demandas.forEach((d) => delete d.__isMigrated);
+  });
+  await page.click("#btnRelFechar");
+  await page.click("#btnRelatorio");
+  await page.locator(".rel-multi--colunas summary").click();
+  await page.click('[data-rel-atalho="todas"]');
+  await page.keyboard.press("Escape");
+  const wrap = page.locator("#relDetalhe .rel-tabela-wrap");
+  const medidas = await wrap.evaluate((w) => ({
+    rola: w.scrollWidth > w.clientWidth,
+    alturaLimitada: w.clientHeight <= window.innerHeight * 0.72,
+    primeiraFixa: getComputedStyle(w.querySelector("tbody td")).position,
+  }));
+  expect(medidas).toEqual({ rola: true, alturaLimitada: true, primeiraFixa: "sticky" });
+  await expect(page.locator("#relDetalhe .rel-rolar-dica")).toBeVisible();
+
+  await page.click('#relVistaSeg [data-vista="fichas"]');
+  const ficha = page.locator('.rel-ficha[data-rel-id="p4"]');
+  await ficha.scrollIntoViewIfNeeded();
+  // Cada nome de campo mantém largura de texto (o bug deixava a coluna com ~0 px e as letras «em pé»).
+  const larguras = await ficha.locator(".rel-ficha__item dt").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)));
+  expect(Math.min(...larguras)).toBeGreaterThanOrEqual(80);
+  // E valor em reais não quebra no meio.
+  const valor = ficha.locator(".rel-ficha__item", { hasText: "Valor do projeto" }).locator("dd");
+  expect(await valor.evaluate((e) => e.getClientRects().length === 1 && e.getBoundingClientRect().height < 24)).toBe(true);
+});
