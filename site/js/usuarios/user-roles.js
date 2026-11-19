@@ -198,17 +198,32 @@ window.DemandasRoles = (function () {
 
   const ESTEIRAS_INICIAIS = ["operacional", "b2b"];
 
-  /** Só guarda o que difere do padrão (Esteira Projetos). */
+  /**
+   * Preferências por conta que o administrador define (gravadas em `userHomes`):
+   * `esteira` = tela inicial (só guarda quando não é a Esteira Projetos, o padrão) e
+   * `neon` = o Tema Neon está liberado para a conta. Só guarda o que difere do padrão.
+   */
   function normalizeHomesMap(map) {
     const out = {};
     if (!map || typeof map !== "object") return out;
     for (const [email, home] of Object.entries(map)) {
       const e = normalizeEmail(email);
+      if (!e) continue;
       const esteira = String(home?.esteira || "").trim().toLowerCase();
-      if (!e || !ESTEIRAS_INICIAIS.includes(esteira) || esteira === "operacional") continue;
-      out[e] = { esteira };
+      const item = {};
+      if (ESTEIRAS_INICIAIS.includes(esteira) && esteira !== "operacional") item.esteira = esteira;
+      if (home?.neon === true) item.neon = true;
+      if (Object.keys(item).length) out[e] = item;
     }
     return out;
+  }
+
+  /** O administrador liberou o Tema Neon para esta conta? (Administradores sempre podem usar.) */
+  function temaNeonLiberado(email) {
+    const e = normalizeEmail(email);
+    if (!e) return false;
+    if (isAdmin({ email: e })) return true;
+    return homesMap[e]?.neon === true;
   }
 
   function setHomesMap(map) {
@@ -411,6 +426,7 @@ window.DemandasRoles = (function () {
     setHomesMap,
     getHomesMap,
     homeEsteiraForEmail,
+    temaNeonLiberado,
     isDisabled,
     isPurged,
     roleForEmail,

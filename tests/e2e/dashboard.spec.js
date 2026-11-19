@@ -150,6 +150,7 @@ test("dashboard B2C: clicar nos números da tabela abre os projetos daquele segm
 
 test("tema Neon: liga pela conta, fica salvo, e escolher o claro desliga", async ({ app: { page } }) => {
   await page.evaluate(() => {
+    fillContaScreen(); // como o botão «Minha conta» faz
     showContaPane("perfil");
     document.getElementById("modalUserConta").showModal();
   });

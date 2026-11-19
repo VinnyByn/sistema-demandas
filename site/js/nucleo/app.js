@@ -893,7 +893,10 @@ document.getElementById("formNovoUsuario")?.addEventListener("submit", async (e)
       DemandasRoles.setRegionalsMap(regionals);
       DemandasRoles.setNamesMap(names);
       const homes = DemandasRoles.getHomesMap?.() || {};
-      if (esteiraNova === "b2b") homes[email] = { esteira: "b2b" };
+      const item = { ...(homes[email] || {}) };
+      if (esteiraNova === "b2b") item.esteira = "b2b";
+      else delete item.esteira;
+      if (Object.keys(item).length) homes[email] = item;
       else delete homes[email];
       DemandasRoles.setHomesMap?.(homes);
     }

@@ -143,6 +143,7 @@ function usuarioValoresSalvos(email) {
     role: R ? R.getRolesMap()[email] || "" : "",
     regional: R?.regionalForEmail ? R.regionalForEmail(email) || "" : "",
     esteira: R?.homeEsteiraForEmail ? R.homeEsteiraForEmail(email) : "operacional",
+    neon: R?.getHomesMap ? R.getHomesMap()[String(email).toLowerCase()]?.neon === true : false,
   };
 }
 
@@ -159,7 +160,8 @@ function usuarioTemAlteracao(email) {
     normalizeAccountDisplayName(r.nome ?? s.nome) !== s.nome ||
     (r.role ?? s.role) !== s.role ||
     (r.regional ?? s.regional) !== s.regional ||
-    (r.esteira ?? s.esteira) !== s.esteira
+    (r.esteira ?? s.esteira) !== s.esteira ||
+    (r.neon ?? s.neon) !== s.neon
   );
 }
 
@@ -504,6 +506,8 @@ function renderUsuariosPanel() {
           `<label><span>Papel</span><select class="user-role-select" aria-label="Papel de ${escapeHtml(email)}"${dis}>${roleOptionsHtml(tela.role)}</select></label>` +
           `<label><span>Regional</span><select class="user-regional-select" aria-label="Regional de ${escapeHtml(email)}"${dis}>${regionalOptionsHtml(tela.regional)}</select></label>` +
           `<label><span>Tela inicial</span><select class="user-esteira-select" aria-label="Tela inicial de ${escapeHtml(email)}"${dis}>${esteiraInicialOptionsHtml(tela.esteira)}</select></label>` +
+          `<label title="Libera a opção Tema Neon em Minha conta → Aparência (administradores sempre têm)"><span>Tema Neon</span><select class="user-neon-select" aria-label="Tema Neon de ${escapeHtml(email)}"${dis}>` +
+          `<option value="nao"${tela.neon ? "" : " selected"}>Não liberado</option><option value="sim"${tela.neon ? " selected" : ""}>Liberado</option></select></label>` +
           `</div>` +
           `<div class="usuarios-row__edit-acoes">` +
           `<span class="usuarios-row__sujo" role="note"${sujo ? "" : " hidden"}>Alterações não salvas</span>` +
@@ -541,6 +545,7 @@ function syncLinhaUsuario(row) {
     role: row.querySelector(".user-role-select")?.value ?? "",
     regional: row.querySelector(".user-regional-select")?.value ?? "",
     esteira: row.querySelector(".user-esteira-select")?.value ?? "operacional",
+    neon: row.querySelector(".user-neon-select")?.value === "sim",
   });
   const sujo = usuarioTemAlteracao(email);
   if (!sujo) usuariosRascunhos.delete(email);
@@ -676,7 +681,7 @@ function bindUsuariosBusca() {
   if (list) {
     const aoEditar = (ev) => {
       const row = ev.target.closest(".usuarios-row");
-      if (row && ev.target.matches(".user-nome-input, .user-role-select, .user-regional-select, .user-esteira-select")) {
+      if (row && ev.target.matches(".user-nome-input, .user-role-select, .user-regional-select, .user-esteira-select, .user-neon-select")) {
         syncLinhaUsuario(row);
       }
     };
@@ -704,7 +709,7 @@ function bindUsuariosBusca() {
       }
       if (alvo.matches(".user-role-save")) {
         const v = usuarioValoresNaTela(email);
-        void saveUserAccess(email, { role: v.role, regional: v.regional, nome: v.nome, esteira: v.esteira });
+        void saveUserAccess(email, { role: v.role, regional: v.regional, nome: v.nome, esteira: v.esteira, neon: v.neon });
         return;
       }
       if (alvo.matches(".user-row-editar")) {
@@ -764,6 +769,7 @@ const HISTORICO_ACOES = {
   nome: (h) => `renomeou ${h.alvo}: «${h.de || "—"}» → «${h.para || "—"}»`,
   regional: (h) => `mudou a regional de ${h.alvo}: ${h.de || "Todas"} → ${h.para || "Todas"}`,
   esteira: (h) => `mudou a tela inicial de ${h.alvo}: ${h.de || "—"} → ${h.para || "—"}`,
+  "tema-neon": (h) => `${h.para === "liberado" ? "liberou" : "tirou"} o Tema Neon ${h.para === "liberado" ? "para" : "de"} ${h.alvo}`,
   "login-criado": (h) => `criou o login de ${h.alvo}${h.para ? ` (${h.para})` : ""}`,
 };
 
@@ -841,6 +847,9 @@ function diferencasDeAcesso(antes, depois) {
     if (est(antes.homes?.[e]) !== est(depois.homes?.[e])) {
       out.push({ alvo: e, acao: "esteira", de: est(antes.homes?.[e]), para: est(depois.homes?.[e]) });
     }
+    const neon0 = antes.homes?.[e]?.neon === true;
+    const neon1 = depois.homes?.[e]?.neon === true;
+    if (neon0 !== neon1) out.push({ alvo: e, acao: "tema-neon", para: neon1 ? "liberado" : "bloqueado" });
   }
   return out;
 }
@@ -952,7 +961,7 @@ async function persistRolesMap(nextMap) {
   applyRoleUi();
 }
 
-async function saveUserAccess(email, { role, regional, nome, esteira } = {}) {
+async function saveUserAccess(email, { role, regional, nome, esteira, neon } = {}) {
   if (!isAdminUser()) {
     toast("Apenas administrador");
     return;
@@ -1018,9 +1027,19 @@ async function saveUserAccess(email, { role, regional, nome, esteira } = {}) {
   if (typeof DemandasRoles !== "undefined") {
     DemandasRoles.setRegionalsMap(regionals);
     DemandasRoles.setNamesMap(names);
-    if (esteira !== undefined && DemandasRoles.setHomesMap) {
+    if ((esteira !== undefined || neon !== undefined) && DemandasRoles.setHomesMap) {
+      // Tela inicial e Tema Neon moram no mesmo registro da conta: muda um sem perder o outro.
       const homes = DemandasRoles.getHomesMap?.() || {};
-      if (esteira === "b2b") homes[e] = { esteira: "b2b" };
+      const item = { ...(homes[e] || {}) };
+      if (esteira !== undefined) {
+        if (esteira === "b2b") item.esteira = "b2b";
+        else delete item.esteira;
+      }
+      if (neon !== undefined) {
+        if (neon) item.neon = true;
+        else delete item.neon;
+      }
+      if (Object.keys(item).length) homes[e] = item;
       else delete homes[e];
       DemandasRoles.setHomesMap(homes);
     }

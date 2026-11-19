@@ -150,6 +150,7 @@ function applyRoleUi(opts = {}) {
     }
   }
   if (tabUsers) tabUsers.hidden = !info.isAdmin;
+  syncTemaNeonPermissao();
   if (!info.isAdmin && usuariosModalAberto()) {
     document.getElementById("panelUsuarios")?.close();
   }
@@ -248,6 +249,60 @@ function trocarLogoTema(neon) {
       l.setAttribute("type", neon ? "image/svg+xml" : "image/png");
     }
   });
+}
+
+/**
+ * A conta logada pode usar o Tema Neon (liberado pelo administrador na aba Usuários)?
+ * "sim" | "nao" | "indefinido" — indefinido enquanto o login ou a lista de acessos ainda carregam.
+ */
+function temaNeonPermissao() {
+  const email = typeof getCurrentUserEmail === "function" ? getCurrentUserEmail() : "";
+  if (!email || typeof DemandasRoles === "undefined") return "indefinido";
+  if (!Object.keys(DemandasRoles.getRolesMap?.() || {}).length) return "indefinido";
+  return DemandasRoles.temaNeonLiberado?.(email) === true ? "sim" : "nao";
+}
+
+function temaNeonPermitido() {
+  return temaNeonPermissao() === "sim";
+}
+
+function temaNeonEscolhido() {
+  try {
+    return localStorage.getItem("demandas-visual") === "neon";
+  } catch (_) {
+    return false;
+  }
+}
+
+/** Liga ou desliga só o visual, sem mexer na escolha guardada (a permissão pode chegar depois, com os acessos). */
+function aplicarVisualNeonNaTela(ligado) {
+  const raiz = document.documentElement;
+  if (ligado) {
+    raiz.setAttribute("data-visual", "neon");
+    raiz.setAttribute("data-theme", "dark");
+  } else raiz.removeAttribute("data-visual");
+  trocarLogoTema(ligado);
+}
+
+/**
+ * Mostra a opção só para quem o administrador liberou. Sem permissão, a tela volta ao visual normal
+ * (a escolha fica guardada: se a liberação vier — ou os acessos terminarem de carregar — o neon volta).
+ */
+function syncTemaNeonPermissao() {
+  const permissao = temaNeonPermissao();
+  const pode = permissao === "sim";
+  const linha = document.getElementById("neonToggle")?.closest(".conta-row");
+  if (linha) linha.hidden = !pode;
+  const neon = document.getElementById("neonToggle");
+  if (neon) neon.checked = pode && temaNeonEscolhido();
+  // Enquanto não se sabe (carregando), fica como está: evita o neon «piscar» a cada recarga.
+  if (permissao === "indefinido") return;
+  const deveMostrar = pode && temaNeonEscolhido();
+  if (deveMostrar !== isVisualNeon()) {
+    aplicarVisualNeonNaTela(deveMostrar);
+    const dash = document.getElementById("panelDashboard");
+    if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
+  }
 }
 
 function applyVisualNeon(ligado) {
@@ -383,8 +438,7 @@ function fillContaScreen() {
   }
   const toggle = document.getElementById("themeToggle");
   if (toggle) toggle.checked = currentTheme() === "light";
-  const neon = document.getElementById("neonToggle");
-  if (neon) neon.checked = isVisualNeon();
+  syncTemaNeonPermissao();
   const segEmail = document.getElementById("userSegurancaEmail");
   if (segEmail) segEmail.textContent = info.email || "—";
 }
@@ -445,10 +499,14 @@ function initShellUi() {
   document.getElementById("themeToggle")?.addEventListener("change", (e) => {
     applyTheme(e.target.checked ? "light" : "dark");
   });
-  document.getElementById("neonToggle")?.addEventListener("change", (e) => applyVisualNeon(e.target.checked));
-  try {
-    if (localStorage.getItem("demandas-visual") === "neon") applyVisualNeon(true);
-  } catch (_) {}
+  document.getElementById("neonToggle")?.addEventListener("change", (e) => {
+    if (e.target.checked && !temaNeonPermitido()) {
+      e.target.checked = false;
+      return;
+    }
+    applyVisualNeon(e.target.checked);
+  });
+  syncTemaNeonPermissao();
   initAparenciaAcessivel();
   document.getElementById("btnSidebarToggle")?.addEventListener("click", () => {
     const app = document.getElementById("appRoot");

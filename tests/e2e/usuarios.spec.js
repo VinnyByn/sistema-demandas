@@ -212,3 +212,42 @@ test("quem chega pelo link do e-mail define a senha", async ({ app: { page } }) 
   await expect(dlg).toBeHidden();
   expect(await page.evaluate(() => window.__novaSenha)).toBe("senha-boa-123");
 });
+
+test("Tema Neon: só aparece para quem o administrador liberar (e a tela inicial não se perde)", async ({ app: { page } }) => {
+  await abrirUsuarios(page);
+  const bia = linha(page, "bia.souza@x.com");
+  await bia.locator(".user-row-editar").click();
+  await bia.locator(".user-esteira-select").selectOption("b2b");
+  await bia.locator(".user-neon-select").selectOption("sim");
+  await bia.locator(".user-role-save").click();
+  await expect(bia.locator(".usuarios-row__sujo")).toBeHidden();
+  expect(await page.evaluate(() => DemandasRoles.getHomesMap()["bia.souza@x.com"])).toEqual({ esteira: "b2b", neon: true });
+  expect(await page.evaluate(() => DemandasRoles.temaNeonLiberado("bia.souza@x.com"))).toBe(true);
+  expect(await page.evaluate(() => DemandasRoles.temaNeonLiberado("matheus.costa@x.com"))).toBe(false);
+  // Mudar só a tela inicial não tira a liberação.
+  await bia.locator(".user-row-editar").click();
+  await bia.locator(".user-esteira-select").selectOption("operacional");
+  await bia.locator(".user-role-save").click();
+  expect(await page.evaluate(() => DemandasRoles.getHomesMap()["bia.souza@x.com"])).toEqual({ neon: true });
+  await page.evaluate(() => document.getElementById("panelUsuarios").close());
+
+  const linhaNeon = page.locator("#neonToggle").locator("xpath=ancestor::div[contains(@class,'conta-row')]");
+  const comoConta = (email) =>
+    page.evaluate((e) => {
+      DemandasAuth.currentUser = () => ({ email: e, displayName: "" });
+      window.getCurrentUserEmail = () => e;
+      localStorage.setItem("demandas-visual", "neon");
+      applyRoleUi();
+      showContaPane("perfil");
+      const dlg = document.getElementById("modalUserConta");
+      if (!dlg.open) dlg.showModal();
+      return document.documentElement.getAttribute("data-visual");
+    }, email);
+  // Sem liberação: a opção não aparece e o neon não é aplicado (a escolha fica guardada).
+  expect(await comoConta("matheus.costa@x.com")).toBeNull();
+  await expect(linhaNeon).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem("demandas-visual"))).toBe("neon");
+  // Liberada: a opção aparece e o neon guardado volta.
+  expect(await comoConta("bia.souza@x.com")).toBe("neon");
+  await expect(linhaNeon).toBeVisible();
+});
