@@ -7559,3 +7559,65 @@ html[data-visual="neon"] ::selection { background: rgba(255, 61, 154, 0.45); col
 html[data-visual="neon"] img.brand__logo,
 html[data-visual="neon"] img.login-card__logo { content: url("../img/logo-neon.svg"); border-radius: 22%; filter: drop-shadow(0 0 10px rgba(255, 61, 154, 0.45)); }
 .conta-row[hidden] { display: none !important; }
+
+/* ===== Tema Neon: bolinha do usuário, barras de rolagem e listas dos seletores ===== */
+html[data-visual="neon"] { accent-color: #ff3d9a; }
+
+/* Bolinha do usuário (topo) e avatares da conta: anel em degradê de pôr do sol com brilho. */
+html[data-visual="neon"] .user-menu__toggle {
+  border: 0; padding: 2px; background: var(--neon-sol); box-shadow: 0 0 14px rgba(255, 61, 154, 0.45);
+}
+html[data-visual="neon"] .user-menu__toggle .user-menu__avatar { width: 100%; height: 100%; }
+html[data-visual="neon"] .user-menu__toggle:hover { box-shadow: 0 0 20px rgba(255, 61, 154, 0.7); }
+html[data-visual="neon"] .user-menu__avatar,
+html[data-visual="neon"] .conta-shell__avatar {
+  background: radial-gradient(circle at 50% 120%, rgba(255, 61, 154, 0.45), transparent 60%), #160d2a;
+  color: #fff; text-shadow: 0 0 8px rgba(46, 230, 200, 0.7); letter-spacing: 0.04em;
+}
+html[data-visual="neon"] .conta-shell__avatar { box-shadow: 0 0 0 2px #ff3d9a, 0 0 16px rgba(255, 61, 154, 0.5); }
+html[data-visual="neon"] .card__avatar,
+html[data-visual="neon"] .ck-avatar { box-shadow: 0 0 8px hsl(var(--avatar-h) 90% 60% / 0.55); }
+html[data-visual="neon"] .usuarios-avatar { box-shadow: 0 0 10px rgba(255, 61, 154, 0.35); }
+
+/* Barras de rolagem: trilho escuro e alça magenta → violeta. */
+html[data-visual="neon"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+html[data-visual="neon"] ::-webkit-scrollbar-track { background: #0b0616; }
+html[data-visual="neon"] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #ff3d9a, #8b5cf6); border-radius: 999px; border: 2px solid #0b0616;
+}
+html[data-visual="neon"] ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #ff6bb5, #a78bfa); }
+html[data-visual="neon"] ::-webkit-scrollbar-corner { background: #0b0616; }
+html[data-visual="neon"] .column__body::-webkit-scrollbar { width: 8px; }
+@supports not selector(::-webkit-scrollbar) {
+  html[data-visual="neon"], html[data-visual="neon"] * { scrollbar-color: #ff3d9a #0b0616; }
+}
+
+/* Lista que abre no seletor: cores do tema (todos os navegadores) ... */
+html[data-visual="neon"] option, html[data-visual="neon"] optgroup { background-color: #160d2a; color: #fbf0ff; }
+html[data-visual="neon"] option:checked { background-color: #c8126b; color: #fff; }
+/* ... e, onde o navegador permite (Chrome/Edge recentes), a lista inteira no estilo neon. */
+@supports (appearance: base-select) {
+  html[data-visual="neon"] select:not([multiple]):not([size]) { appearance: base-select; }
+  html[data-visual="neon"] .esteira-toolbar .filters .filtro-chip select:not([hidden]) { display: inline-flex; align-items: center; gap: 0.35rem; }
+  /* A seta própria do seletor fica no lugar da seta do sistema (à direita, sem espaço extra). */
+  html[data-visual="neon"] select:not([multiple]):not([size])::picker-icon { margin-inline-start: auto; }
+  html[data-visual="neon"] .esteira-toolbar .filters .filtro-chip select { padding-right: 0.6rem; }
+  html[data-visual="neon"] select::picker-icon { color: #ff3d9a; transition: rotate 0.15s ease; }
+  html[data-visual="neon"] select:open::picker-icon { rotate: 180deg; }
+  html[data-visual="neon"] select::picker(select) {
+    appearance: base-select;
+    margin-top: 4px; padding: 4px; max-height: min(60vh, 22rem);
+    border: 1px solid rgba(255, 61, 154, 0.5); border-radius: 10px;
+    background: #160d2a; color: #fbf0ff;
+    box-shadow: 0 0 22px rgba(255, 61, 154, 0.25), 0 18px 40px rgba(0, 0, 0, 0.6);
+  }
+  html[data-visual="neon"] select option {
+    padding: 0.45rem 0.65rem; border-radius: 7px; background: transparent; color: #fbf0ff; font: inherit; font-size: 0.88rem;
+  }
+  html[data-visual="neon"] select option:hover,
+  html[data-visual="neon"] select option:focus-visible { background: rgba(255, 61, 154, 0.2); outline: none; }
+  html[data-visual="neon"] select option:checked { background: linear-gradient(90deg, #c8126b, #7c3aed); color: #fff; }
+  html[data-visual="neon"] select option::checkmark { color: #2ee6c8; }
+  html[data-visual="neon"] select optgroup { background: transparent; color: var(--muted); font-size: 0.75rem; padding-top: 0.35rem; }
+  html[data-visual="neon"] select optgroup option { color: #fbf0ff; }
+}
