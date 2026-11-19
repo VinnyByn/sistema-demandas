@@ -7555,3 +7555,6 @@ html[data-visual="neon"] ::selection { background: rgba(255, 61, 154, 0.45); col
   html[data-visual="neon"]:not([data-menos-animacao]) .topbar__title { animation: neon-pulsa 4s ease-in-out infinite; }
 }
 @keyframes neon-pulsa { 50% { filter: drop-shadow(0 0 16px rgba(255, 61, 154, 0.6)); } }
+/* Logo do Tema Neon (a troca do src em JS vale para o ícone da aba; aqui evita mostrar a logo padrão antes). */
+html[data-visual="neon"] img.brand__logo,
+html[data-visual="neon"] img.login-card__logo { content: url("../img/logo-neon.svg"); border-radius: 22%; filter: drop-shadow(0 0 10px rgba(255, 61, 154, 0.45)); }

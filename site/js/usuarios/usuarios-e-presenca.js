@@ -206,6 +206,7 @@ function applyTheme(theme) {
   const t = theme === "light" ? "light" : "dark";
   if (t === "light" && document.documentElement.getAttribute("data-visual") === "neon") {
     document.documentElement.removeAttribute("data-visual");
+    trocarLogoTema(false);
     try {
       localStorage.removeItem("demandas-visual");
     } catch (_) {}
@@ -232,8 +233,26 @@ function isVisualNeon() {
   return document.documentElement.getAttribute("data-visual") === "neon";
 }
 
+const LOGO_PADRAO = "img/favicon.png";
+const LOGO_NEON = "img/logo-neon.svg";
+
+/** Troca a logo (barra lateral, login e ícone da aba) pela versão do tema. */
+function trocarLogoTema(neon) {
+  const src = neon ? LOGO_NEON : LOGO_PADRAO;
+  document.querySelectorAll("img.brand__logo, img.login-card__logo").forEach((img) => {
+    if (img.getAttribute("src") !== src) img.setAttribute("src", src);
+  });
+  document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach((l) => {
+    if (l.getAttribute("href") !== src) {
+      l.setAttribute("href", src);
+      l.setAttribute("type", neon ? "image/svg+xml" : "image/png");
+    }
+  });
+}
+
 function applyVisualNeon(ligado) {
   const raiz = document.documentElement;
+  trocarLogoTema(ligado);
   if (ligado) raiz.setAttribute("data-visual", "neon");
   else raiz.removeAttribute("data-visual");
   try {

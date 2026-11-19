@@ -10,6 +10,11 @@
     if (localStorage.getItem("demandas-visual") === "neon") {
       document.documentElement.setAttribute("data-visual", "neon");
       document.documentElement.setAttribute("data-theme", "dark");
+      var icones = document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]');
+      for (var i = 0; i < icones.length; i++) {
+        icones[i].setAttribute("href", "img/logo-neon.svg");
+        icones[i].setAttribute("type", "image/svg+xml");
+      }
     }
     var f = localStorage.getItem("demandas-fonte");
     if (f === "grande" || f === "maior") document.documentElement.setAttribute("data-fonte", f);

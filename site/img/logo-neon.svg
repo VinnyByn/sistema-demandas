@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 150" width="150" height="150">
+  <!-- Logo do Projetos Master no Tema Neon: os mesmos três círculos, como sol listrado e luzes neon. -->
+  <defs>
+    <linearGradient id="ceu" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#140a28"/>
+      <stop offset="0.7" stop-color="#2a0b3f"/>
+      <stop offset="1" stop-color="#4a0f4a"/>
+    </linearGradient>
+    <linearGradient id="sol" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd166"/>
+      <stop offset="0.45" stop-color="#ff8a3d"/>
+      <stop offset="1" stop-color="#ff3d9a"/>
+    </linearGradient>
+    <clipPath id="listras">
+      <rect x="0" y="0" width="150" height="62"/>
+      <rect x="0" y="66" width="150" height="9"/>
+      <rect x="0" y="79" width="150" height="7"/>
+      <rect x="0" y="90" width="150" height="5"/>
+      <rect x="0" y="99" width="150" height="4"/>
+      <rect x="0" y="107" width="150" height="40"/>
+    </clipPath>
+    <filter id="brilho" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="150" height="150" rx="34" fill="url(#ceu)"/>
+  <rect x="2" y="2" width="146" height="146" rx="32" fill="none" stroke="#ff3d9a" stroke-opacity="0.55" stroke-width="2"/>
+  <!-- linhas do chão (grade de horizonte) -->
+  <g stroke="#2ee6c8" stroke-opacity="0.35" stroke-width="1">
+    <line x1="14" y1="122" x2="136" y2="122"/>
+    <line x1="10" y1="132" x2="140" y2="132"/>
+  </g>
+  <!-- círculo grande: sol listrado -->
+  <g clip-path="url(#listras)" filter="url(#brilho)">
+    <circle cx="58" cy="64" r="38" fill="url(#sol)"/>
+  </g>
+  <!-- círculo médio: luz ciano -->
+  <circle cx="114" cy="94" r="17" fill="none" stroke="#2ee6c8" stroke-width="6" filter="url(#brilho)"/>
+  <circle cx="114" cy="94" r="7" fill="#2ee6c8" fill-opacity="0.35"/>
+  <!-- círculo pequeno: luz magenta -->
+  <circle cx="66" cy="120" r="10" fill="#ff3d9a" filter="url(#brilho)"/>
+</svg>
