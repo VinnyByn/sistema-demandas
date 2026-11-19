@@ -7,6 +7,10 @@
   try {
     var t = localStorage.getItem("demandas-theme");
     if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    if (localStorage.getItem("demandas-visual") === "neon") {
+      document.documentElement.setAttribute("data-visual", "neon");
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
     var f = localStorage.getItem("demandas-fonte");
     if (f === "grande" || f === "maior") document.documentElement.setAttribute("data-fonte", f);
     if (localStorage.getItem("demandas-menos-animacao") === "1") document.documentElement.setAttribute("data-menos-animacao", "1");

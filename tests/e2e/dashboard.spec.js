@@ -147,3 +147,23 @@ test("dashboard B2C: clicar nos números da tabela abre os projetos daquele segm
   await page.locator('#tableB2cGeo tbody [data-dash-geo-key=""][data-dash-geo-nome="Regional Sul de Minas"]').last().click();
   await expect(linhasModal).toHaveCount(2);
 });
+
+test("tema Neon: liga pela conta, fica salvo, e escolher o claro desliga", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    showContaPane("perfil");
+    document.getElementById("modalUserConta").showModal();
+  });
+  await page.locator("#neonToggle + .conta-switch__track").click();
+  const estado = () =>
+    page.evaluate(() => ({
+      visual: document.documentElement.getAttribute("data-visual"),
+      tema: document.documentElement.getAttribute("data-theme"),
+      salvo: localStorage.getItem("demandas-visual"),
+    }));
+  expect(await estado()).toEqual({ visual: "neon", tema: "dark", salvo: "neon" });
+  await page.reload();
+  await page.waitForFunction(() => typeof window.applyLoadedState === "function");
+  expect((await estado()).visual).toBe("neon");
+  await page.evaluate(() => applyTheme("light"));
+  expect(await estado()).toEqual({ visual: null, tema: "light", salvo: null });
+});

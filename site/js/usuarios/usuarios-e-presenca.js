@@ -204,6 +204,14 @@ function chartInk() {
 
 function applyTheme(theme) {
   const t = theme === "light" ? "light" : "dark";
+  if (t === "light" && document.documentElement.getAttribute("data-visual") === "neon") {
+    document.documentElement.removeAttribute("data-visual");
+    try {
+      localStorage.removeItem("demandas-visual");
+    } catch (_) {}
+    const neon = document.getElementById("neonToggle");
+    if (neon) neon.checked = false;
+  }
   // Sem transições na troca: as cores mudam de uma vez (nada fica «no meio do caminho» por um instante).
   const raiz = document.documentElement;
   raiz.classList.add("trocando-tema");
@@ -217,6 +225,28 @@ function applyTheme(theme) {
   if (toggle) toggle.checked = t === "light";
   const dash = document.getElementById("panelDashboard");
   if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
+}
+
+/** Tema «Neon» (visual opcional sobre a base escura). Ligar força o escuro; escolher o claro desliga o neon. */
+function isVisualNeon() {
+  return document.documentElement.getAttribute("data-visual") === "neon";
+}
+
+function applyVisualNeon(ligado) {
+  const raiz = document.documentElement;
+  if (ligado) raiz.setAttribute("data-visual", "neon");
+  else raiz.removeAttribute("data-visual");
+  try {
+    if (ligado) localStorage.setItem("demandas-visual", "neon");
+    else localStorage.removeItem("demandas-visual");
+  } catch (_) {}
+  const neon = document.getElementById("neonToggle");
+  if (neon) neon.checked = ligado;
+  if (ligado && currentTheme() === "light") applyTheme("dark");
+  else {
+    const dash = document.getElementById("panelDashboard");
+    if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
+  }
 }
 
 /* ---------- Acessibilidade: tamanho do texto e animações ---------- */
@@ -334,6 +364,8 @@ function fillContaScreen() {
   }
   const toggle = document.getElementById("themeToggle");
   if (toggle) toggle.checked = currentTheme() === "light";
+  const neon = document.getElementById("neonToggle");
+  if (neon) neon.checked = isVisualNeon();
   const segEmail = document.getElementById("userSegurancaEmail");
   if (segEmail) segEmail.textContent = info.email || "—";
 }
@@ -394,6 +426,10 @@ function initShellUi() {
   document.getElementById("themeToggle")?.addEventListener("change", (e) => {
     applyTheme(e.target.checked ? "light" : "dark");
   });
+  document.getElementById("neonToggle")?.addEventListener("change", (e) => applyVisualNeon(e.target.checked));
+  try {
+    if (localStorage.getItem("demandas-visual") === "neon") applyVisualNeon(true);
+  } catch (_) {}
   initAparenciaAcessivel();
   document.getElementById("btnSidebarToggle")?.addEventListener("click", () => {
     const app = document.getElementById("appRoot");
