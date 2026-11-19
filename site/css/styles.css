@@ -7279,6 +7279,18 @@ html[data-theme="light"] .usuarios-avatar--visibilidade { background: #ede9fe; c
 .rel-barra-opcoes { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
 .rel-sub { margin: 0.4rem 0 0.4rem; font-size: 0.95rem; }
 .rel-tabela-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+/* Lista de projetos: a caixa tem altura máxima e rola nos dois sentidos, então a barra lateral fica sempre à vista. */
+#relDetalhe .rel-tabela-wrap { max-height: min(70vh, 40rem); overflow: auto; overscroll-behavior: contain; }
+.rel-tabela--detalhe { width: max-content; min-width: 100%; }
+.rel-tabela--detalhe th, .rel-tabela--detalhe td { white-space: nowrap; }
+.rel-tabela--detalhe .rel-col-longo { white-space: normal; min-width: 11rem; max-width: 22rem; overflow-wrap: break-word; }
+/* Nome do projeto fica preso à esquerda ao rolar de lado. */
+.rel-tabela--detalhe th:first-child, .rel-tabela--detalhe td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--border); }
+.rel-tabela--detalhe thead th:first-child { z-index: 3; background: var(--surface2); }
+.rel-tabela--detalhe thead th { z-index: 2; }
+.rel-tabela--detalhe tbody tr:hover td:first-child { background: var(--surface2); }
+.rel-tabela--detalhe tfoot td { position: sticky; bottom: 0; z-index: 1; }
+.rel-tabela--detalhe tfoot td:first-child { z-index: 2; }
 .rel-tabela { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
 .rel-tabela th, .rel-tabela td { padding: 0.42rem 0.6rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
 .rel-tabela thead th { position: sticky; top: 0; background: var(--surface2); color: var(--muted); font-weight: 700; white-space: nowrap; }
@@ -7308,7 +7320,10 @@ html[data-theme="light"] .usuarios-avatar--visibilidade { background: #ede9fe; c
   #relatorioImpressao .rel-kpi span { color: #374151; font-size: 7pt; }
   #relatorioImpressao .rel-kpi strong { font-size: 10pt; color: #000; }
   #relatorioImpressao .muted { color: #555; }
-  #relatorioImpressao .rel-tabela-wrap { overflow: visible; border-color: #d1d5db; }
+  #relatorioImpressao .rel-tabela-wrap { overflow: visible; max-height: none; border-color: #d1d5db; }
+  #relatorioImpressao .rel-tabela--detalhe { width: 100%; min-width: 0; }
+  #relatorioImpressao .rel-tabela--detalhe th, #relatorioImpressao .rel-tabela--detalhe td { white-space: normal; position: static; box-shadow: none; }
+  #relatorioImpressao .rel-tabela--detalhe .rel-col-longo { min-width: 0; max-width: none; }
   #relatorioImpressao .rel-tabela { font-size: 7.5pt; }
   #relatorioImpressao .rel-tabela th, #relatorioImpressao .rel-tabela td { padding: 0.2rem 0.3rem; border-color: #d1d5db; color: #000; }
   #relatorioImpressao .rel-tabela thead th { position: static; background: #e5e7eb; color: #000; }
@@ -7336,11 +7351,12 @@ html[data-theme="light"] .usuarios-avatar--visibilidade { background: #ede9fe; c
 .rel-ficha__grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.6rem 1rem; }
 .rel-ficha__secao { padding: 0.55rem 0.7rem; border-radius: 10px; background: var(--surface2); min-width: 0; }
 .rel-ficha__secao h4 { margin: 0 0 0.35rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
-.rel-ficha__secao dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.15rem 0.6rem; font-size: 0.8rem; }
+.rel-ficha__secao dl { margin: 0; display: grid; grid-template-columns: minmax(5.5rem, 1fr) auto; gap: 0.15rem 0.75rem; font-size: 0.8rem; }
 .rel-ficha__item { display: contents; }
 .rel-ficha__item dt { color: var(--muted); }
-.rel-ficha__item dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.rel-ficha__item dt { overflow-wrap: anywhere; }
+/* O nome tem largura mínima garantida (nunca fica «em pé»); o valor só quebra entre palavras (números e R$ inteiros). */
+.rel-ficha__item dd { margin: 0; min-width: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: normal; }
+.rel-ficha__item dt { min-width: 0; overflow-wrap: break-word; }
 .rel-ficha__secao p { margin: 0; }
 .rel-ficha__texto { margin-top: 0.55rem; font-size: 0.8rem; display: flex; flex-direction: column; gap: 0.2rem; }
 .rel-ficha__texto p { margin: 0; }
@@ -7621,3 +7637,4 @@ html[data-visual="neon"] option:checked { background-color: #c8126b; color: #fff
   html[data-visual="neon"] select optgroup { background: transparent; color: var(--muted); font-size: 0.75rem; padding-top: 0.35rem; }
   html[data-visual="neon"] select optgroup option { color: #fbf0ff; }
 }
+.rel-rolar-dica { margin: 0 0 0.4rem; font-size: 0.78rem; color: var(--muted); }
