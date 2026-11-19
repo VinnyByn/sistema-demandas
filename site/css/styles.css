@@ -7449,3 +7449,113 @@ button.kpi.kpi--link:hover .kpi__ver, button.kpi.kpi--link:focus-visible .kpi__v
 .dash-b2c-seg tbody td:not(.is-vazio), .dash-b2c-seg tfoot td, .dash-b2c-seg tfoot th { cursor: pointer; }
 #modalDashGeoProjetosTable .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 html.trocando-tema *, html.trocando-tema *::before, html.trocando-tema *::after { transition: none !important; }
+
+/* ===================================================================================
+ * Tema «Neon» (opcional, em Minha conta → Aparência): cidade à noite anos 80 —
+ * pôr do sol rosa/laranja, neon magenta e ciano, títulos condensados. Base escura.
+ * =================================================================================== */
+html[data-visual="neon"] {
+  --bg: #0b0616;
+  --surface: #160d2a;
+  --surface2: #21143b;
+  --border: #3a2563;
+  --text: #fbf0ff;
+  --muted: #c3b2e6;
+  --accent: #ff3d9a;
+  --accent-fill: #c8126b;
+  --accent2: #2ee6c8;
+  --danger: #ff4d6d;
+  --warn: #ffb347;
+  --topbar-bg: rgba(11, 6, 22, 0.88);
+  --shadow: 0 14px 40px rgba(255, 61, 154, 0.12), 0 10px 30px rgba(0, 0, 0, 0.5);
+  --neon-sol: linear-gradient(90deg, #ffb347 0%, #ff3d9a 45%, #8b5cf6 100%);
+  --neon-titulo: "Bebas Neue", "Arial Narrow", "DM Sans", sans-serif;
+  --neon-ciano: #2ee6c8;
+  --neon-brilho: 0 0 12px rgba(255, 61, 154, 0.55);
+  --form-segment-border: rgba(255, 61, 154, 0.35);
+  --form-segment-bg: rgba(255, 61, 154, 0.05);
+  --form-segment-title: #ffc2e1;
+}
+/* Céu: pôr do sol lá no fundo + linhas de horizonte bem discretas (o conteúdo fica nas superfícies). */
+html[data-visual="neon"] body,
+html[data-visual="neon"] .login-screen {
+  background:
+    radial-gradient(900px 420px at 85% 110%, rgba(255, 140, 60, 0.18), transparent 60%),
+    radial-gradient(1100px 520px at 15% 120%, rgba(255, 61, 154, 0.16), transparent 62%),
+    repeating-linear-gradient(180deg, transparent 0 46px, rgba(139, 92, 246, 0.05) 46px 47px),
+    linear-gradient(180deg, #0b0616 0%, #140a28 60%, #24093a 100%) fixed;
+}
+html[data-visual="neon"] .topbar { border-bottom: 2px solid transparent; border-image: var(--neon-sol) 1; }
+html[data-visual="neon"] .topbar__title,
+html[data-visual="neon"] .sidebar__brand-text h1,
+html[data-visual="neon"] .login-card h1,
+html[data-visual="neon"] .login-screen h1 {
+  font-family: var(--neon-titulo); font-weight: 400; letter-spacing: 0.06em; font-size: 1.6rem; line-height: 1;
+  background: var(--neon-sol); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 10px rgba(255, 61, 154, 0.35));
+}
+html[data-visual="neon"] .sidebar { background: linear-gradient(180deg, #140b27 0%, #0e0720 100%); border-right: 1px solid var(--border); }
+html[data-visual="neon"] .sidebar__item.is-active,
+html[data-visual="neon"] .sidebar__item[aria-current="page"] {
+  box-shadow: inset 3px 0 0 var(--accent), var(--neon-brilho);
+  background: rgba(255, 61, 154, 0.12);
+}
+html[data-visual="neon"] .btn--primary,
+html[data-visual="neon"] .sidebar__item--primary.btn.btn--primary {
+  background: linear-gradient(90deg, #c8126b, #b4237a 55%, #7c3aed);
+  border-color: transparent; color: #fff; box-shadow: var(--neon-brilho);
+}
+html[data-visual="neon"] .btn--primary:hover:not(:disabled) { background: linear-gradient(90deg, #d81b78, #c22a86 55%, #8b4af0); filter: none; }
+
+/* Títulos de bloco, colunas e números grandes em letra condensada, estilo letreiro. */
+html[data-visual="neon"] .dash-block__toggle > span:first-child,
+html[data-visual="neon"] .esteira-title,
+html[data-visual="neon"] .column__title,
+html[data-visual="neon"] .modal__head h2,
+html[data-visual="neon"] .dash-subhead,
+html[data-visual="neon"] .rel-sub {
+  font-family: var(--neon-titulo); font-weight: 400; letter-spacing: 0.05em; font-size: 1.25rem; text-transform: uppercase;
+}
+html[data-visual="neon"] .kpi__value,
+html[data-visual="neon"] .rel-kpi strong {
+  font-family: var(--neon-titulo); font-weight: 400; letter-spacing: 0.03em; line-height: 1.05;
+  font-size: clamp(1.15rem, 14cqi, 1.75rem); /* o cartão é um container: valor longo encolhe em vez de cortar */
+}
+html[data-visual="neon"] .kpi,
+html[data-visual="neon"] .rel-kpi { border-color: var(--border); background: linear-gradient(180deg, rgba(255, 61, 154, 0.06), transparent 70%), var(--surface); }
+html[data-visual="neon"] .kpi--ok .kpi__value { color: #fff; text-shadow: 0 0 10px rgba(46, 230, 200, 0.35); }
+html[data-visual="neon"] .kpi--bad { border-color: rgba(255, 77, 109, 0.7); box-shadow: 0 0 16px rgba(255, 77, 109, 0.2); }
+html[data-visual="neon"] .kpi--bad .kpi__label::after { content: " ★★★"; color: #ffd166; letter-spacing: 0.1em; text-shadow: 0 0 8px rgba(255, 209, 102, 0.6); }
+html[data-visual="neon"] .kpi--warn { border-color: rgba(255, 179, 71, 0.6); }
+html[data-visual="neon"] button.kpi.kpi--link:hover { border-color: var(--neon-ciano); box-shadow: 0 0 14px rgba(46, 230, 200, 0.3); }
+
+/* Blocos, colunas e cards com borda neon. */
+html[data-visual="neon"] .dash-block { border-color: var(--border); box-shadow: 0 0 0 1px rgba(255, 61, 154, 0.06), var(--shadow); }
+html[data-visual="neon"] .dash-block__toggle { background: linear-gradient(90deg, rgba(255, 61, 154, 0.14), rgba(139, 92, 246, 0.1) 60%, transparent), var(--surface2); }
+html[data-visual="neon"] .column { background: rgba(22, 13, 42, 0.78); border-color: var(--border); }
+html[data-visual="neon"] .card { background: var(--surface2); border-color: #45306f; }
+html[data-visual="neon"] .card:hover { border-color: var(--neon-ciano); box-shadow: 0 0 14px rgba(46, 230, 200, 0.25); }
+html[data-visual="neon"] .modal { background: var(--surface); box-shadow: 0 0 0 1px rgba(255, 61, 154, 0.25), 0 20px 60px rgba(0, 0, 0, 0.6); }
+html[data-visual="neon"] .modal::backdrop { background: rgba(11, 6, 22, 0.75); backdrop-filter: blur(3px); }
+
+/* Seletores, abas e a barra de atalhos com brilho magenta. */
+html[data-visual="neon"] .dash-seg button.is-active,
+html[data-visual="neon"] .esteira-modo button.is-active,
+html[data-visual="neon"] .dash-nav__item.is-active,
+html[data-visual="neon"] .dash-periodos__btn.is-active,
+html[data-visual="neon"] .dash-tipos-nav__btn.is-active {
+  background: var(--accent-fill); color: #fff; box-shadow: var(--neon-brilho);
+}
+html[data-visual="neon"] .dash-nav { border-color: rgba(255, 61, 154, 0.35); box-shadow: 0 0 18px rgba(255, 61, 154, 0.15), 0 8px 24px rgba(0, 0, 0, 0.4); }
+html[data-visual="neon"] a, html[data-visual="neon"] .dash-geo-link:hover { color: var(--neon-ciano); }
+html[data-visual="neon"] .dash-fases-barra { box-shadow: 0 0 12px rgba(255, 61, 154, 0.25); }
+html[data-visual="neon"] input:focus-visible, html[data-visual="neon"] select:focus-visible, html[data-visual="neon"] textarea:focus-visible { outline-color: var(--neon-ciano); }
+html[data-visual="neon"] ::selection { background: rgba(255, 61, 154, 0.45); color: #fff; }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-visual="neon"]:not([data-menos-animacao]) .topbar__title { animation: neon-pulsa 4s ease-in-out infinite; }
+}
+@keyframes neon-pulsa { 50% { filter: drop-shadow(0 0 16px rgba(255, 61, 154, 0.6)); } }
+/* Logo do Tema Neon (a troca do src em JS vale para o ícone da aba; aqui evita mostrar a logo padrão antes). */
+html[data-visual="neon"] img.brand__logo,
+html[data-visual="neon"] img.login-card__logo { content: url("../img/logo-neon.svg"); border-radius: 22%; filter: drop-shadow(0 0 10px rgba(255, 61, 154, 0.45)); }
+.conta-row[hidden] { display: none !important; }

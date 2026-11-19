@@ -15,10 +15,10 @@ async function violacoes(page, contexto) {
   }, contexto);
 }
 
-for (const tema of ["dark", "light"]) {
-  test(`acessibilidade sem violações · tema ${tema === "dark" ? "escuro" : "claro"}`, async ({ app: { page } }) => {
+for (const tema of ["dark", "light", "neon"]) {
+  test(`acessibilidade sem violações · tema ${{ dark: "escuro", light: "claro", neon: "neon" }[tema]}`, async ({ app: { page } }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.evaluate((t) => applyTheme(t), tema);
+    await page.evaluate((t) => (t === "neon" ? applyVisualNeon(true) : applyTheme(t)), tema);
     expect(await violacoes(page), "esteira").toEqual([]);
 
     await page.evaluate(() => openDemandaModal("p1"));

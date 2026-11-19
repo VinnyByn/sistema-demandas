@@ -147,3 +147,28 @@ test("dashboard B2C: clicar nos números da tabela abre os projetos daquele segm
   await page.locator('#tableB2cGeo tbody [data-dash-geo-key=""][data-dash-geo-nome="Regional Sul de Minas"]').last().click();
   await expect(linhasModal).toHaveCount(2);
 });
+
+test("tema Neon: liga pela conta, fica salvo, e escolher o claro desliga", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    fillContaScreen(); // como o botão «Minha conta» faz
+    showContaPane("perfil");
+    document.getElementById("modalUserConta").showModal();
+  });
+  await page.locator("#neonToggle + .conta-switch__track").click();
+  const estado = () =>
+    page.evaluate(() => ({
+      visual: document.documentElement.getAttribute("data-visual"),
+      tema: document.documentElement.getAttribute("data-theme"),
+      salvo: localStorage.getItem("demandas-visual"),
+    }));
+  expect(await estado()).toEqual({ visual: "neon", tema: "dark", salvo: "neon" });
+  const logos = () =>
+    page.evaluate(() => [document.querySelector("img.brand__logo").getAttribute("src"), document.querySelector('link[rel="icon"]').getAttribute("href")]);
+  expect(await logos()).toEqual(["img/logo-neon.svg", "img/logo-neon.svg"]);
+  await page.reload();
+  await page.waitForFunction(() => typeof window.applyLoadedState === "function");
+  expect((await estado()).visual).toBe("neon");
+  await page.evaluate(() => applyTheme("light"));
+  expect(await estado()).toEqual({ visual: null, tema: "light", salvo: null });
+  expect(await logos()).toEqual(["img/favicon.png", "img/favicon.png"]);
+});
