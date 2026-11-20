@@ -10,6 +10,10 @@ async function violacoes(page, contexto) {
   if (!(await page.evaluate(() => typeof window.axe !== "undefined"))) await page.evaluate(`${AXE}
 ;true`);
   return page.evaluate(async (ctx) => {
+    // Mede a tela parada: espera as animações de entrada (janelas, painéis) terminarem — no meio do
+    // «fade» o texto ainda está meio transparente e o contraste sairia errado. As infinitas ficam de fora.
+    const finitas = document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
+    await Promise.all(finitas.map((a) => a.finished.catch(() => {})));
     const r = await axe.run(ctx || document, { resultTypes: ["violations"] });
     return r.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`);
   }, contexto);
