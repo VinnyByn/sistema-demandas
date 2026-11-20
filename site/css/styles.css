@@ -5975,8 +5975,18 @@ html[data-theme="light"] .inbox-alertas__ok-ico { color: #15803d; background: #d
   letter-spacing: 0;
 }
 .column__count.is-zero { background: transparent; color: var(--muted); font-weight: 600; }
-.column__head-meta { justify-content: flex-start; flex-wrap: wrap; gap: 0.3rem; min-height: 1.35rem; }
-.column__inds { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; text-transform: none; letter-spacing: 0; }
+.column__head-meta { justify-content: flex-start; flex-wrap: nowrap; gap: 0.3rem; min-height: 1.35rem; min-width: 0; }
+/* Avisos da coluna (atrasados, vencendo, parados): sempre numa linha só, logo abaixo da meta.
+   Se alguma coluna da esteira tem aviso, as outras reservam a mesma linha vazia — todos os
+   cabeçalhos ficam com a mesma altura e os cards começam alinhados. */
+.column__inds {
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 0.25rem;
+  height: 1.25rem; min-width: 0; overflow: hidden;
+  text-transform: none; letter-spacing: 0;
+}
+.column__inds:empty { display: none; }
+.board:has(.column__inds:not(:empty)) .column__inds:empty { display: flex; }
+.column__inds .column__ind { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .column__ind {
   --tom: 148, 163, 184;
   padding: 0.1rem 0.4rem;

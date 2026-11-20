@@ -412,7 +412,9 @@ function columnHeadHtml(status, linha, count, list = null) {
     `<div class="column__head">` +
     `<div class="column__head-top"><div class="column__title" title="${title}">${title}</div>` +
     `<span class="column__count${count ? "" : " is-zero"}" title="${count} projeto(s)">${count}</span></div>` +
-    `<div class="column__head-meta">${setorHtml}${metaHtml}${indHtml ? `<span class="column__inds">${indHtml}</span>` : ""}</div>` +
+    `<div class="column__head-meta">${setorHtml}${metaHtml}</div>` +
+    // Linha própria para os avisos (sempre presente): o CSS reserva a mesma altura em todas as colunas.
+    `<div class="column__inds">${indHtml}</div>` +
     `</div>`
   );
 }

@@ -160,3 +160,33 @@ test("desfazer: salvar projeto e excluir comentário", async ({ app: { page } })
   expect(await page.evaluate(() => state.demandas.find((d) => d.id === "p1").comentarios.map((c) => c.texto))).toEqual(["primeiro"]);
   await expect(page.locator("#demComentariosList")).toContainText("primeiro");
 });
+
+test("cabeçalhos das colunas ficam da mesma altura, com ou sem avisos (atrasado, vencendo, parado)", async ({ app: { page } }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // Coloca avisos numa coluna só: um projeto atrasado e outro vencendo, na mesma etapa.
+  await page.evaluate(() => {
+    const ds = state.demandas.filter((d) => inferLinhaEsteira(d) === activeEsteiraCanal).slice(0, 2);
+    const etapa = ds[0].status;
+    const hoje = new Date();
+    const iso = (dias) => new Date(hoje.getTime() + dias * 864e5).toISOString().slice(0, 10);
+    ds[0].dataFimPrevista = iso(-5);
+    ds[1].status = etapa;
+    ds[1].dataFimPrevista = iso(1);
+    renderBoard();
+  });
+  const alturas = async () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll("#panelEsteira .board .column")]
+        .filter((c) => c.offsetParent)
+        .map((c) => ({ h: Math.round(c.querySelector(".column__head").getBoundingClientRect().height), avisos: c.querySelector(".column__inds")?.textContent || "" })),
+    );
+  const cols = await alturas();
+  expect(cols.some((c) => c.avisos)).toBe(true);
+  expect(cols.some((c) => !c.avisos)).toBe(true);
+  expect(new Set(cols.map((c) => c.h)).size).toBe(1);
+  // Os avisos ficam numa linha só, sem quebrar.
+  const linhas = await page.evaluate(() =>
+    [...document.querySelectorAll(".column__inds")].filter((el) => el.textContent).map((el) => el.scrollHeight <= el.clientHeight + 1),
+  );
+  expect(linhas.every(Boolean)).toBe(true);
+});
