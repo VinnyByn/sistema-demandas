@@ -7269,7 +7269,8 @@ html[data-theme="light"] .usuarios-avatar--visibilidade { background: #ede9fe; c
 .rel-multi__op { display: flex; align-items: center; gap: 0.45rem; padding: 0.28rem 0.4rem; border-radius: 6px; font-size: 0.84rem; cursor: pointer; }
 .rel-multi__op:hover { background: var(--surface2); }
 
-.rel-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: 0.6rem; }
+/* No máximo 5 por linha (2 linhas de 5): cartão largo o bastante para valores em reais. */
+.rel-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(10rem, calc((100% - 2.4rem) / 5)), 1fr)); gap: 0.6rem; }
 .rel-kpi { padding: 0.65rem 0.8rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; container-type: inline-size; }
 /* Valor encolhe com o cartão (e um ajuste em JS garante que nunca passe da borda). */
 .rel-kpi strong { display: block; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; font-size: clamp(0.8rem, 11cqi, 1.15rem); }

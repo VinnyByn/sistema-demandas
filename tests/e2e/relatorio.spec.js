@@ -198,6 +198,8 @@ test("relatório: muitas colunas rolam de lado e a ficha não espreme os nomes c
 test("relatório e dashboard: valores grandes cabem no quadro (tela comum e Neon)", async ({ app: { page } }) => {
   const cabem = (sel) =>
     page.evaluate((s) => [...document.querySelectorAll(s)].filter((e) => e.offsetParent && e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent), sel);
+  // Fonte larga de propósito: o resultado não depende da fonte que a máquina tem.
+  await page.addStyleTag({ content: "#relKpis strong, .kpi__value { font-family: 'DejaVu Sans', Verdana, sans-serif !important; }" });
   await page.evaluate(() => {
     for (let i = 0; i < 12; i++)
       state.demandas.push({
