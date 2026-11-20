@@ -194,3 +194,42 @@ test("relatório: muitas colunas rolam de lado e a ficha não espreme os nomes c
   const valor = ficha.locator(".rel-ficha__item", { hasText: "Valor do projeto" }).locator("dd");
   expect(await valor.evaluate((e) => e.getClientRects().length === 1 && e.getBoundingClientRect().height < 24)).toBe(true);
 });
+
+test("relatório e dashboard: valores grandes cabem no quadro (tela comum e Neon)", async ({ app: { page } }) => {
+  const cabem = (sel) =>
+    page.evaluate((s) => [...document.querySelectorAll(s)].filter((e) => e.offsetParent && e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent), sel);
+  await page.evaluate(() => {
+    for (let i = 0; i < 12; i++)
+      state.demandas.push({
+        id: "g" + i, titulo: "Grande " + i, tipo: "B2C", segmentoB2c: "MDU", status: "custo", responsavel: "Matheus", cidade: "Itajubá - IJA", descricao: "x",
+        custo: { temLevantamento: true, valorProjeto: 87654321.98, temLancamento: true, lancamento: { cabos: [{ tipo: "FO-12", metragem: 412345.5 }] } },
+      });
+    state.demandas.forEach((d) => delete d.__isMigrated);
+  });
+  for (const neon of [false, true]) {
+    await page.evaluate((n) => applyVisualNeon(n), neon);
+    for (const largura of [1366, 760]) {
+      await page.setViewportSize({ width: largura, height: 900 });
+      await page.click("#btnRelatorio");
+      await expect(page.locator("#relKpis .rel-kpi", { hasText: "Valor final" }).locator("strong")).toContainText("R$");
+      await expect.poll(() => cabem("#relKpis strong"), { message: `relatório ${neon ? "neon" : "normal"} ${largura}` }).toEqual([]);
+      await page.click("#btnRelFechar");
+      await page.click('[data-tab="dashboard"]');
+      await expect.poll(() => cabem(".kpi__value"), { message: `dashboard ${neon ? "neon" : "normal"} ${largura}` }).toEqual([]);
+      await page.click('[data-tab="esteira"]');
+    }
+  }
+});
+
+test("relatório: impressão mostra o total só no fim e Ctrl+P imprime o relatório aberto", async ({ app: { page } }) => {
+  await abrir(page);
+  await page.evaluate(() => window.dispatchEvent(new Event("beforeprint")));
+  const area = page.locator("#relatorioImpressao");
+  await expect(area).toContainText("Relatório de projetos");
+  await expect(area.locator(".rel-kpi")).toHaveCount(10);
+  await page.emulateMedia({ media: "print" });
+  expect(await area.locator(".rel-tabela--detalhe tfoot").evaluate((e) => getComputedStyle(e).display)).toBe("table-row-group");
+  await page.emulateMedia({ media: "screen" });
+  await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
+  await expect(area).toBeEmpty();
+});

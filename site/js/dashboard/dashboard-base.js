@@ -609,6 +609,25 @@ function kpiCard(label, value, tone, sub, opts) {
 }
 
 /**
+ * Valor que não cabe no cartão diminui a letra até caber (nunca corta nem põe «…»).
+ * Volta ao tamanho do CSS a cada chamada, então acompanha o redimensionamento.
+ */
+const TEXTO_MIN_PX = 10;
+function ajustarTextoAoQuadro(els) {
+  for (const el of els) {
+    if (!el.isConnected || !el.clientWidth) continue;
+    el.style.fontSize = "";
+    el.style.whiteSpace = "";
+    if (el.scrollWidth <= el.clientWidth + 1) continue;
+    const atual = parseFloat(getComputedStyle(el).fontSize) || 16;
+    const novo = Math.max(TEXTO_MIN_PX, Math.floor(atual * (el.clientWidth / el.scrollWidth) * 0.97 * 10) / 10);
+    el.style.fontSize = `${novo}px`;
+    // Ainda grande demais no tamanho mínimo: quebra em duas linhas em vez de sair da caixa.
+    if (el.scrollWidth > el.clientWidth + 1) el.style.whiteSpace = "normal";
+  }
+}
+
+/**
  * Grade de cartões sem «buraco»: calcula quantas colunas cabem, divide os cartões em linhas
  * equilibradas (6 → 6, 9 → 5 + 4, 7 → 4 + 3) e a última linha estica para fechar a largura.
  */
@@ -624,6 +643,7 @@ function equilibrarKpiGrids(root = document.getElementById("panelDashboard")) {
     if (grid.style.getPropertyValue("--kpi-cols") !== String(cols)) grid.style.setProperty("--kpi-cols", String(cols));
     grid.classList.add("is-equilibrado");
   });
+  ajustarTextoAoQuadro(root?.querySelectorAll(".kpi__value") || []);
 }
 
 let dashKpiObservador = null;
