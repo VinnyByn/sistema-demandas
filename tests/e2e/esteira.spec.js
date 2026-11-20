@@ -190,3 +190,35 @@ test("cabeçalhos das colunas ficam da mesma altura, com ou sem avisos (atrasado
   );
   expect(linhas.every(Boolean)).toBe(true);
 });
+
+test("filtro com nome grande fica numa linha só, com «…», e a lista mostra o nome inteiro", async ({ app: { page } }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const suporta = await page.evaluate(() => CSS.supports("appearance", "base-select"));
+  test.skip(!suporta, "navegador sem lista estilizada (usa a do sistema)");
+  const longo = "Regional Norte de Minas Gerais e Vale do Jequitinhonha";
+  const medir = () =>
+    page.evaluate(() => {
+      const s = document.getElementById("filterRegional");
+      return {
+        texto: s.querySelector("selectedcontent")?.textContent,
+        escolhido: s.selectedOptions[0]?.textContent,
+        quebra: s.scrollHeight > s.clientHeight + 1,
+        chip: Math.round(s.closest(".filtro-chip").getBoundingClientRect().height),
+      };
+    });
+  const antes = await medir();
+  await page.evaluate((nome) => {
+    // Preenche de novo (como o sistema faz) e escolhe o nome grande.
+    REGIONAIS_ORDER.push(nome);
+    REGIONAIS_CIDADES[nome] = [];
+    fillFilterRegionalSelect();
+    document.getElementById("filterRegional").value = nome;
+  }, longo);
+  await page.waitForFunction((nome) => document.querySelector("#filterRegional selectedcontent")?.textContent === nome, longo);
+  const depois = await medir();
+  expect(depois.quebra).toBe(false);
+  expect(depois.chip).toBe(antes.chip);
+  expect(depois.texto).toBe(depois.escolhido);
+  await page.click("#filterRegional");
+  await expect(page.locator("#filterRegional option", { hasText: longo })).toBeVisible();
+});

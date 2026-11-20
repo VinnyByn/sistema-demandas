@@ -7781,6 +7781,14 @@ select:disabled { cursor: default; }
   }
   select optgroup option { color: var(--lista-texto); text-transform: none; letter-spacing: 0; font-weight: 400; }
   select optgroup option:checked { font-weight: 600; color: var(--lista-sel-texto); }
+  /* Item escolhido numa linha só, com «…» quando não cabe (botão posto por listas-selecao.js). */
+  select > button.sel-botao {
+    display: flex; align-items: center; flex: 1 1 auto; min-width: 0; width: auto; height: auto;
+    margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
+    color: inherit; font: inherit; text-align: start; cursor: inherit;
+  }
+  select > button.sel-botao:focus-visible { outline: none; }
+  select selectedcontent { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 }
 
 /* ========================================================================
