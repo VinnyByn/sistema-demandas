@@ -225,8 +225,35 @@ function applyTheme(theme) {
   } catch (_) {}
   const toggle = document.getElementById("themeToggle");
   if (toggle) toggle.checked = t === "light";
+  syncTemaCards();
   const dash = document.getElementById("panelDashboard");
   if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
+}
+
+/** Cartões de tema da conta (Escuro / Claro / Neon): marca o que está na tela. */
+function syncTemaCards() {
+  const neon = isVisualNeon();
+  const claro = !neon && currentTheme() === "light";
+  const atual = neon ? "neon" : claro ? "claro" : "escuro";
+  const ids = { escuro: "temaEscuroToggle", claro: "themeToggle", neon: "neonToggle" };
+  document.querySelectorAll("#contaTemas [data-tema]").forEach((card) => {
+    const on = card.dataset.tema === atual;
+    card.classList.toggle("is-active", on);
+    const input = document.getElementById(ids[card.dataset.tema]);
+    if (input) input.checked = on;
+  });
+}
+
+/** Escolha feita nos cartões: um tema por vez (clicar no que já está marcado não desmarca). */
+function escolherTema(tema) {
+  if (tema === "neon") {
+    if (!temaNeonPermitido()) return syncTemaCards();
+    if (!isVisualNeon()) applyVisualNeon(true);
+  } else {
+    if (isVisualNeon()) applyVisualNeon(false);
+    if (currentTheme() !== (tema === "claro" ? "light" : "dark")) applyTheme(tema === "claro" ? "light" : "dark");
+  }
+  syncTemaCards();
 }
 
 /** Tema «Neon» (visual opcional sobre a base escura). Ligar força o escuro; escolher o claro desliga o neon. */
@@ -282,6 +309,7 @@ function aplicarVisualNeonNaTela(ligado) {
     raiz.setAttribute("data-theme", "dark");
   } else raiz.removeAttribute("data-visual");
   trocarLogoTema(ligado);
+  syncTemaCards();
 }
 
 /**
@@ -295,6 +323,7 @@ function syncTemaNeonPermissao() {
   if (linha) linha.hidden = !pode;
   const neon = document.getElementById("neonToggle");
   if (neon) neon.checked = pode && temaNeonEscolhido();
+  syncTemaCards();
   // Enquanto não se sabe (carregando), fica como está: evita o neon «piscar» a cada recarga.
   if (permissao === "indefinido") return;
   const deveMostrar = pode && temaNeonEscolhido();
@@ -316,6 +345,7 @@ function applyVisualNeon(ligado) {
   } catch (_) {}
   const neon = document.getElementById("neonToggle");
   if (neon) neon.checked = ligado;
+  syncTemaCards();
   if (ligado && currentTheme() === "light") applyTheme("dark");
   else {
     const dash = document.getElementById("panelDashboard");
@@ -387,7 +417,26 @@ function setMobileSidebarOpen(open) {
   if (backdrop) backdrop.hidden = !open;
 }
 
+function preencherCabecalhoMenuUsuario() {
+  const info = typeof currentRoleInfo === "function" ? currentRoleInfo() : {};
+  const email = info.email || (typeof getCurrentUserEmail === "function" ? getCurrentUserEmail() : "") || "";
+  const nome = (typeof getLoggedInComentarioAutor === "function" && getLoggedInComentarioAutor()) || email || "—";
+  const set = (id, txt) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  };
+  set("userMenuHeadAvatar", userInitialsFromEmail(email));
+  set("userMenuHeadNome", nome);
+  set("userMenuHeadEmail", email || "—");
+  const papel = document.getElementById("userMenuHeadPapel");
+  if (papel) {
+    papel.textContent = info.label || "";
+    papel.hidden = !info.label;
+  }
+}
+
 function setUserMenuOpen(open) {
+  if (open) preencherCabecalhoMenuUsuario();
   setDropdownMenuOpen("userMenuPanel", "btnUserMenu", open);
   document.getElementById("btnUserMenu")?.classList.toggle("is-active", !!open);
 }
@@ -436,11 +485,120 @@ function fillContaScreen() {
       situacao.textContent = "Ativo";
     }
   }
-  const toggle = document.getElementById("themeToggle");
-  if (toggle) toggle.checked = currentTheme() === "light";
   syncTemaNeonPermissao();
+  syncTemaCards();
+  renderContaResumo();
   const segEmail = document.getElementById("userSegurancaEmail");
   if (segEmail) segEmail.textContent = info.email || "—";
+}
+
+/* ---------- Minha conta: resumo dos meus projetos ---------- */
+function contaResumoDados() {
+  const linha = typeof activeEsteiraCanal !== "undefined" ? activeEsteiraCanal : "";
+  const eu = typeof minhaEtiquetaProjetista === "function" ? minhaEtiquetaProjetista() : "";
+  const tombstones = typeof demandaDeleteTombstones === "function" ? demandaDeleteTombstones() : new Set();
+  const lista = (typeof state !== "undefined" && Array.isArray(state.demandas) ? state.demandas : [])
+    .filter((d) => !tombstones.has(d.id))
+    .map((d) => (typeof migrateDemanda === "function" ? migrateDemanda(d) : d))
+    .filter((d) => !d.arquivadoEm)
+    .filter((d) => !linha || typeof inferLinhaEsteira !== "function" || inferLinhaEsteira(d) === linha)
+    .filter((d) => !eu || d.responsavel === eu || (Array.isArray(d.projetistasExtra) && d.projetistasExtra.includes(eu)));
+  const encerrada = (d) => (typeof isDemandaEncerrada === "function" ? isDemandaEncerrada(d) : false);
+  return {
+    eu,
+    canal: linha === (typeof LINHA_ESTEIRA_B2B !== "undefined" ? LINHA_ESTEIRA_B2B : "b2b") ? "Esteira B2B" : "Esteira Projetos",
+    andamento: lista.filter((d) => !encerrada(d) && d.status !== "pausado").length,
+    atraso: lista.filter((d) => typeof isAtrasoAtivo === "function" && isAtrasoAtivo(d)).length,
+    concluidos: lista.filter((d) => encerrada(d) && d.status !== "reprovado").length,
+  };
+}
+
+function animacoesReduzidas() {
+  return (
+    document.documentElement.getAttribute("data-menos-animacao") === "1" ||
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+/** Número que «sobe» até o valor (some quando o usuário pediu menos animação). */
+function contarAte(el, alvo) {
+  if (animacoesReduzidas() || alvo <= 0) {
+    el.textContent = String(alvo);
+    return;
+  }
+  const inicio = performance.now();
+  const dur = 650;
+  const passo = (agora) => {
+    const t = Math.min(1, (agora - inicio) / dur);
+    el.textContent = String(Math.round(alvo * (1 - Math.pow(1 - t, 3))));
+    if (t < 1 && el.isConnected) requestAnimationFrame(passo);
+  };
+  el.textContent = "0";
+  requestAnimationFrame(passo);
+}
+
+function renderContaResumo() {
+  const box = document.getElementById("contaResumo");
+  if (!box) return;
+  const r = contaResumoDados();
+  const extra = document.getElementById("contaResumoLinha");
+  if (extra) extra.textContent = r.eu ? `· ${r.canal}` : `· ${r.canal} (todos os projetos)`;
+  const itens = [
+    { chave: "andamento", rot: r.eu ? "Meus em andamento" : "Em andamento", n: r.andamento, tom: "info" },
+    { chave: "atraso", rot: "Em atraso", n: r.atraso, tom: r.atraso ? "bad" : "ok" },
+    { chave: "concluidos", rot: "Concluídos", n: r.concluidos, tom: "ok" },
+  ];
+  box.innerHTML = itens
+    .map(
+      (i) => `<button type="button" class="conta-resumo__item conta-resumo__item--${i.tom}" data-conta-resumo="${i.chave}">
+        <span class="conta-resumo__n" data-n="${i.n}">${i.n}</span>
+        <span class="conta-resumo__rot">${escapeHtml(i.rot)}</span>
+        <span class="conta-resumo__ir">Ver na esteira <span aria-hidden="true">→</span></span>
+      </button>`,
+    )
+    .join("");
+  box.querySelectorAll(".conta-resumo__n").forEach((el) => contarAte(el, Number(el.dataset.n) || 0));
+}
+
+/** Clicar num número do resumo: fecha a conta e mostra esses projetos na esteira. */
+function abrirResumoNaEsteira(chave) {
+  const r = contaResumoDados();
+  document.getElementById("modalUserConta")?.close();
+  if (typeof switchMainTab === "function") switchMainTab("esteira");
+  const sel = document.getElementById("filterProjetista");
+  if (sel && r.eu && [...sel.options].some((o) => o.value === r.eu)) sel.value = r.eu;
+  if (typeof esteiraFiltroRapido !== "undefined") esteiraFiltroRapido = chave === "atraso" ? "atrasados" : "";
+  if (typeof renderBoard === "function") renderBoard();
+}
+
+/* ---------- Senha: força e regras ---------- */
+function forcaSenha(senha) {
+  if (!senha) return 0;
+  let pts = 0;
+  if (senha.length >= 8) pts++;
+  if (senha.length >= 12) pts++;
+  if (/[a-z]/.test(senha) && /[A-Z]/.test(senha)) pts++;
+  if (/[0-9]/.test(senha) || /[^A-Za-z0-9]/.test(senha)) pts++;
+  if (senha.length < 8) pts = Math.min(pts, 1);
+  return Math.max(1, Math.min(4, pts));
+}
+
+function syncForcaSenha(nova, nova2) {
+  const nivel = forcaSenha(nova);
+  const box = document.getElementById("userSenhaForca");
+  if (box) box.dataset.nivel = String(nivel);
+  const txt = document.getElementById("userSenhaForcaTxt");
+  if (txt) txt.textContent = ["Força da senha", "Fraca", "Razoável", "Boa", "Forte"][nivel];
+  const min = DemandasAuth?.SENHA_MIN || 8;
+  const regras = {
+    tamanho: nova.length >= min,
+    mistura: /[a-z]/.test(nova) && /[A-Z]/.test(nova),
+    numero: /[0-9]/.test(nova) || /[^A-Za-z0-9]/.test(nova),
+    confere: Boolean(nova) && nova === nova2,
+  };
+  document.querySelectorAll("#userSenhaRegras [data-regra]").forEach((li) => {
+    li.classList.toggle("is-ok", Boolean(regras[li.dataset.regra]));
+  });
 }
 
 function syncTrocarSenhaForm() {
@@ -450,6 +608,7 @@ function syncTrocarSenhaForm() {
   const hint = document.getElementById("userSenhaHint");
   const btn = document.getElementById("btnTrocarSenha");
   const min = DemandasAuth?.SENHA_MIN || 8;
+  syncForcaSenha(nova, nova2);
   let msg = `Use ao menos ${min} caracteres.`;
   let state = "";
   if (nova && nova.length < min) {
@@ -519,6 +678,7 @@ function initShellUi() {
     setImportMenuOpen(false);
     setExportMenuOpen(false);
     setEsteiraTabMenuOpen(false);
+    if (typeof setNotifAberto === "function") setNotifAberto(false); // um painel do topo por vez
     const panel = document.getElementById("userMenuPanel");
     setUserMenuOpen(panel?.hidden !== false);
   });
@@ -532,6 +692,33 @@ function initShellUi() {
   });
   document.querySelectorAll("[data-conta-pane]").forEach((btn) => {
     btn.addEventListener("click", () => showContaPane(btn.dataset.contaPane));
+  });
+  // Cartões de tema: funcionam como opções (um por vez).
+  document.querySelectorAll("#contaTemas .conta-tema__alvo").forEach((alvo) => {
+    alvo.addEventListener("click", (e) => {
+      e.preventDefault();
+      escolherTema(alvo.closest("[data-tema]")?.dataset.tema || "escuro");
+    });
+  });
+  document.getElementById("contaResumo")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-conta-resumo]");
+    if (b) abrirResumoNaEsteira(b.dataset.contaResumo);
+  });
+  document.getElementById("btnCopiarEmail")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const email = document.getElementById("userDadosEmail")?.textContent?.trim() || "";
+    if (!email || email === "—") return;
+    try {
+      await navigator.clipboard.writeText(email);
+      btn.classList.add("is-copiado");
+      btn.setAttribute("aria-label", "E-mail copiado");
+      btn.title = "Copiado!";
+      setTimeout(() => {
+        btn.classList.remove("is-copiado");
+        btn.setAttribute("aria-label", "Copiar e-mail");
+        btn.title = "Copiar e-mail";
+      }, 1600);
+    } catch (_) {}
   });
   document.getElementById("btnMenuUsuarios")?.addEventListener("click", () => {
     setUserMenuOpen(false);

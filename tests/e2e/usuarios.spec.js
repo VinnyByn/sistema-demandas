@@ -251,3 +251,59 @@ test("Tema Neon: só aparece para quem o administrador liberar (e a tela inicial
   expect(await comoConta("bia.souza@x.com")).toBe("neon");
   await expect(linhaNeon).toBeVisible();
 });
+
+test("topo: alertas e menu do usuário nunca ficam abertos juntos (nos dois sentidos)", async ({ app: { page } }) => {
+  const alertas = page.locator("#notifPanel");
+  const usuario = page.locator("#userMenuPanel");
+  await page.click("#btnNotif");
+  await expect(alertas).toBeVisible();
+  await page.click("#btnUserMenu");
+  await expect(usuario).toBeVisible();
+  await expect(alertas).toBeHidden();
+  await page.click("#btnNotif");
+  await expect(alertas).toBeVisible();
+  await expect(usuario).toBeHidden();
+  await expect(page.locator("#btnUserMenu")).toHaveAttribute("aria-expanded", "false");
+});
+
+test("minha conta: cartões de tema, resumo que leva à esteira e força da senha", async ({ app: { page } }) => {
+  await page.click("#btnUserMenu");
+  await expect(page.locator("#userMenuHeadNome")).not.toHaveText("—");
+  await page.click('[data-user-modal="modalUserConta"]');
+  const conta = page.locator("#modalUserConta");
+  await expect(conta).toBeVisible();
+
+  // Tema: um cartão marcado por vez; clicar no já marcado não desmarca.
+  const ativo = () => page.evaluate(() => [...document.querySelectorAll("#contaTemas .conta-tema.is-active")].map((c) => c.dataset.tema));
+  expect(await ativo()).toEqual(["escuro"]);
+  await page.locator('#contaTemas [data-tema="claro"] .conta-tema__alvo').click();
+  expect(await page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
+  expect(await ativo()).toEqual(["claro"]);
+  await page.locator('#contaTemas [data-tema="claro"] .conta-tema__alvo').click();
+  expect(await page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
+  await page.locator('#contaTemas [data-tema="escuro"] .conta-tema__alvo').click();
+  expect(await page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
+  expect(await ativo()).toEqual(["escuro"]);
+
+  // Resumo: os números batem com a esteira e o clique mostra esses projetos lá.
+  const item = page.locator('#contaResumo [data-conta-resumo="andamento"]');
+  await expect(item).toBeVisible();
+  const n = Number(await item.locator(".conta-resumo__n").getAttribute("data-n"));
+  await item.click();
+  await expect(conta).toBeHidden();
+  const eu = await page.evaluate(() => minhaEtiquetaProjetista());
+  if (eu) await expect(page.locator("#filterProjetista")).toHaveValue(eu);
+  expect(await page.locator("#panelEsteira .card").count()).toBeGreaterThanOrEqual(n);
+
+  // Senha: medidor e regras acompanham o que é digitado.
+  await page.click("#btnUserMenu");
+  await page.click('[data-user-modal="modalUserConta"]');
+  await page.click('[data-conta-pane="seguranca"]');
+  await page.fill("#userSenhaNova", "abc");
+  await expect(page.locator("#userSenhaForca")).toHaveAttribute("data-nivel", "1");
+  await expect(page.locator('#userSenhaRegras [data-regra="tamanho"]')).not.toHaveClass(/is-ok/);
+  await page.fill("#userSenhaNova", "NovaSenha2026!");
+  await page.fill("#userSenhaNova2", "NovaSenha2026!");
+  await expect(page.locator("#userSenhaForca")).toHaveAttribute("data-nivel", "4");
+  await expect(page.locator("#userSenhaRegras li.is-ok")).toHaveCount(4);
+});
