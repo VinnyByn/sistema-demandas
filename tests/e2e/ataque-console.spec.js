@@ -178,6 +178,25 @@ test("projetista: continua trabalhando normalmente, e não consegue apontar a de
   await conferirSemVazamento(page, saida);
 });
 
+test("projetista: pelo console não apaga de vez, não esconde projetos e não muda as metas", async ({ page }) => {
+  const saida = await abrir(page);
+  await entrarNoApp(page, "bia@x.com");
+  const tentativas = await page.evaluate(async () => {
+    const c = DemandasAuth.cliente();
+    const cod = (r) => r.error?.code || "passou";
+    return {
+      excluirDeVez: cod(await c.rpc("demanda_excluir", { p_id: "p1" })),
+      esconderProjetos: cod(await c.rpc("meta_salvar", { p_campos: { deletedDemandaIds: ["p1", "p2"] } })),
+      mudarMetas: cod(await c.rpc("meta_salvar", { p_campos: { metasEtapa: { operacional: { novo: 1 } } } })),
+      diariasContinuam: cod(await c.rpc("meta_salvar", { p_campos: { diarias: [] } })),
+    };
+  });
+  expect(tentativas).toEqual({ excluirDeVez: "42501", esconderProjetos: "42501", mudarMetas: "42501", diariasContinuam: "passou" });
+  expect(await supabase.banco.lerDemanda("p1")).toBeTruthy();
+  expect((await supabase.banco.lerMeta()).deletedDemandaIds || []).toEqual([]);
+  await conferirSemVazamento(page, saida);
+});
+
 test("somente leitura: lê, e toda escrita é recusada", async ({ page }) => {
   const saida = await abrir(page);
   await entrarNoApp(page, "caio@x.com");
