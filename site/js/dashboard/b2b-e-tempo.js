@@ -1111,6 +1111,75 @@ function renderDashB2cSegmentos(listModo) {
   });
 }
 
+/** TCT: quantos alívios foram planejados × não planejados (com gastos, portas e metragem). */
+function renderDashB2cPlanejamentoTct(listModo) {
+  const el = document.getElementById("dashB2cPlanejamentoTct");
+  if (!el) return;
+  const titulo = document.getElementById("dashB2cPlanejamentoTctTitulo");
+  if (titulo) titulo.textContent = `TCT · ${PLANEJAMENTO_TCT.rotulo}`;
+  const tct = listModo.filter(demandaEhTct);
+  if (!tct.length) {
+    el.innerHTML = `<p class="muted small">Nenhum projeto TCT na base de indicadores selecionada no topo (${escapeHtml(labelValorDashModo())}).</p>`;
+    return;
+  }
+  const modo = getDashValorModo();
+  const grupos = [
+    { chave: "planejado", rotulo: PLANEJAMENTO_TCT.opcoes.planejado, cor: "#22c55e" },
+    { chave: "nao_planejado", rotulo: PLANEJAMENTO_TCT.opcoes.nao_planejado, cor: "#f97316" },
+    { chave: "__none__", rotulo: "Não informado", cor: "#94a3b8" },
+  ].map((g) => ({ ...g, projetos: 0, gastos: 0, portas: 0, metragem: 0 }));
+  for (const d of tct) {
+    const g = grupos.find((x) => x.chave === (normalizePlanejamentoTct(d.planejamentoTct) || "__none__"));
+    g.projetos += 1;
+    g.gastos += demandaValorDashPorModo(d, modo);
+    g.portas += demandaPortasDashPorModo(d, modo);
+    g.metragem += demandaMetragemDashPorModo(d, modo);
+  }
+  const total = grupos.reduce((t, g) => ({ projetos: t.projetos + g.projetos, gastos: t.gastos + g.gastos, portas: t.portas + g.portas, metragem: t.metragem + g.metragem }), { projetos: 0, gastos: 0, portas: 0, metragem: 0 });
+  const visiveis = grupos.filter((g) => g.chave !== "__none__" || g.projetos);
+  const abrir = (chave, rotulo, conteudo, vazio) =>
+    vazio
+      ? conteudo
+      : `<button type="button" class="dash-b2c-abrir" data-plan-tct="${escapeHtml(chave)}" title="Ver projetos TCT: ${escapeHtml(rotulo)}">${conteudo}</button>`;
+  const celula = (valor, txt, totalCol, g) =>
+    `<td class="num${valor ? "" : " is-vazio"}">` +
+    abrir(
+      g.chave,
+      g.rotulo,
+      `<span class="dash-b2c-cel"><span class="dash-b2c-cel__valor">${txt}</span>` +
+        `<span class="dash-b2c-cel__share">${dashB2cBarraShare(pctShare(valor, totalCol), g.cor)}</span></span>`,
+      !valor,
+    ) +
+    `</td>`;
+  const body = visiveis
+    .map(
+      (g) =>
+        `<tr><th scope="row"><button type="button" class="dash-tipos__nome dash-tipos__abrir" data-plan-tct="${escapeHtml(g.chave)}" title="Ver projetos TCT: ${escapeHtml(g.rotulo)}">` +
+        `<i style="background:${g.cor}" aria-hidden="true"></i>${escapeHtml(g.rotulo)}<span class="dash-tipos__seta" aria-hidden="true">›</span></button></th>` +
+        celula(g.projetos, String(g.projetos), total.projetos, g) +
+        celula(g.gastos, g.gastos > 0 ? formatBRL(g.gastos) : "—", total.gastos, g) +
+        celula(g.portas, g.portas > 0 ? formatQtd(g.portas) : "—", total.portas, g) +
+        celula(g.metragem, g.metragem > 0 ? formatMetros(g.metragem) : "—", total.metragem, g) +
+        `</tr>`,
+    )
+    .join("");
+  const pctPlanejado = pctShare(grupos[0].projetos, grupos[0].projetos + grupos[1].projetos);
+  el.innerHTML =
+    `<div class="dashboard-table-wrap dash-tipos-wrap" tabindex="0"><table class="dash-table dash-tipos dash-b2c-seg" aria-label="TCT por planejamento do alívio">` +
+    `<thead><tr><th scope="col">${escapeHtml(PLANEJAMENTO_TCT.rotulo)}</th><th scope="col" class="num">Projetos</th><th scope="col" class="num">Gastos</th>` +
+    `<th scope="col" class="num">Portas novas</th><th scope="col" class="num">Metragem</th></tr></thead>` +
+    `<tbody>${body}</tbody>` +
+    `<tfoot><tr><th scope="row">Total TCT</th><td class="num">${total.projetos}</td><td class="num">${total.gastos > 0 ? formatBRL(total.gastos) : "—"}</td>` +
+    `<td class="num">${total.portas > 0 ? formatQtd(total.portas) : "—"}</td><td class="num">${total.metragem > 0 ? formatMetros(total.metragem) : "—"}</td></tr></tfoot>` +
+    `</table></div>` +
+    `<p class="muted small dash-tipos__nota">${
+      pctPlanejado == null ? "Ainda não há TCT com o planejamento informado." : `<strong>${String(pctPlanejado).replace(".", ",")}%</strong> dos TCT informados foram planejados.`
+    } Base: <strong>${escapeHtml(labelValorDashModo())}</strong>. Clique numa linha ou número para ver os projetos.</p>`;
+  el.querySelectorAll("[data-plan-tct]").forEach((btn) => {
+    btn.addEventListener("click", () => openDashGeoProjetosLista("segmento", "TCT", "", null, { planejamentoTct: btn.dataset.planTct }));
+  });
+}
+
 function renderDashB2cGeo(listModo) {
   const sub = document.getElementById("dashB2cGeoSub");
   const wrap = document.querySelector(".dash-b2c-geo__chart");
@@ -1169,10 +1238,13 @@ function renderDashIndicadoresB2c() {
     if (r) r.innerHTML = '<p class="muted small">Nenhum projeto tipo B2C na Esteira Projetos.</p>';
     const sg = document.getElementById("dashB2cSegmentos");
     if (sg) sg.innerHTML = "";
+    const pt = document.getElementById("dashB2cPlanejamentoTct");
+    if (pt) pt.innerHTML = "";
     return;
   }
   renderDashB2cResumo(list, listModo);
   renderDashB2cSegmentos(listModo);
+  renderDashB2cPlanejamentoTct(listModo);
   if (!listModo.length) {
     destroyDashB2cExtraCharts();
     const sub = document.getElementById("dashB2cGeoSub");

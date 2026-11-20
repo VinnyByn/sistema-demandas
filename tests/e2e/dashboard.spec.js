@@ -209,3 +209,28 @@ test("tema Miami: a letra de letreiro fica no centro da caixa (botões, títulos
     expect(Math.abs(d.desvioEm), `${d.sel} centralizado`).toBeLessThanOrEqual(0.01);
   }
 });
+
+test("dashboard B2C: TCT separado por planejamento do alívio, e o clique abre os projetos", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    const custo = (valor, portas) => ({ temLevantamento: true, valorProjeto: valor, temPortas: portas > 0, qtdCasas: 100, qtdPortasAtual: 10, qtdNovasPortas: portas });
+    const tct = (id, titulo, planejamentoTct, valor) => ({ id, titulo, tipo: "B2C", segmentoB2c: "TCT", planejamentoTct, status: "conclusao", responsavel: "Matheus", cidade: "Itajubá - IJA", descricao: "x", custo: custo(valor, 5) });
+    state.demandas.push(tct("t1", "Alívio Norte", "planejado", 1000), tct("t2", "Alívio Sul", "planejado", 500), tct("t3", "Alívio Leste", "nao_planejado", 2000), tct("t4", "Alívio Antigo", "", 100));
+    state.demandas.forEach((d) => delete d.__isMigrated);
+  });
+  await page.evaluate(() => localStorage.removeItem("demandasDashBlocks_v1"));
+  await page.click('[data-tab="dashboard"]');
+  const bloco = page.locator("#dashB2cPlanejamentoTct");
+  await expect(bloco.locator("tbody tr")).toHaveCount(3);
+  const linha = (rotulo) => bloco.locator("tbody tr", { hasText: rotulo });
+  await expect(linha("Não planejado").locator("td").first()).toContainText("1");
+  await expect(linha("Planejado").first().locator("td").first()).toContainText("2");
+  await expect(linha("Não informado").locator("td").first()).toContainText("1");
+  await expect(bloco).toContainText("66,7%");
+
+  const modal = page.locator("#modalDashGeoProjetos");
+  await bloco.locator('th [data-plan-tct="nao_planejado"]').click();
+  await expect(modal).toBeVisible();
+  await expect(modal.locator("tbody tr")).toHaveCount(1);
+  await expect(modal.locator("tbody")).toContainText("Alívio Leste");
+  await expect(page.locator("#modalDashGeoProjetosTitle")).toContainText("Não planejado");
+});
