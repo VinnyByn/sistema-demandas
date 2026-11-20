@@ -193,8 +193,8 @@ test("cabeçalhos das colunas ficam da mesma altura, com ou sem avisos (atrasado
 
 test("filtro com nome grande fica numa linha só, com «…», e a lista mostra o nome inteiro", async ({ app: { page } }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  const suporta = await page.evaluate(() => CSS.supports("appearance", "base-select"));
-  test.skip(!suporta, "navegador sem lista estilizada (usa a do sistema)");
+  const suporta = await page.evaluate(() => window.listasSelecaoAtivas === true);
+  test.skip(!suporta, "navegador sem lista estilizada confiável (usa a do sistema)");
   const longo = "Regional Norte de Minas Gerais e Vale do Jequitinhonha";
   const medir = () =>
     page.evaluate(() => {
@@ -221,4 +221,14 @@ test("filtro com nome grande fica numa linha só, com «…», e a lista mostra 
   expect(depois.texto).toBe(depois.escolhido);
   await page.click("#filterRegional");
   await expect(page.locator("#filterRegional option", { hasText: longo })).toBeVisible();
+  await page.keyboard.press("Escape");
+  // Toda lista visível mostra o item que está escolhido (inclusive depois de mudar pelo código).
+  await page.evaluate(() => (document.getElementById("filterTipo").selectedIndex = 1));
+  const errados = await page.evaluate(() =>
+    [...document.querySelectorAll("select")]
+      .filter((s) => s.querySelector(":scope > button.sel-botao"))
+      .filter((s) => s.querySelector("selectedcontent").textContent !== (s.selectedOptions[0]?.textContent || ""))
+      .map((s) => s.id),
+  );
+  expect(errados).toEqual([]);
 });
