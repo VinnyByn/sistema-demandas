@@ -2003,11 +2003,6 @@ textarea {
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
 }
-.column__body::-webkit-scrollbar { width: 8px; }
-.column__body::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.35); border-radius: 4px;
-}
-.column__body::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.5); }
 .card {
   --card-accent: var(--accent);
   background: var(--surface2); border: 1px solid var(--border); border-radius: 14px;
@@ -7614,48 +7609,18 @@ html[data-visual="neon"] .card__avatar,
 html[data-visual="neon"] .ck-avatar { box-shadow: 0 0 8px hsl(var(--avatar-h) 90% 60% / 0.55); }
 html[data-visual="neon"] .usuarios-avatar { box-shadow: 0 0 10px rgba(255, 61, 154, 0.35); }
 
-/* Barras de rolagem: trilho escuro e alça magenta → violeta. */
-html[data-visual="neon"] ::-webkit-scrollbar { width: 10px; height: 10px; }
-html[data-visual="neon"] ::-webkit-scrollbar-track { background: #0b0616; }
-html[data-visual="neon"] ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #ff3d9a, #8b5cf6); border-radius: 999px; border: 2px solid #0b0616;
-}
-html[data-visual="neon"] ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #ff6bb5, #a78bfa); }
-html[data-visual="neon"] ::-webkit-scrollbar-corner { background: #0b0616; }
-html[data-visual="neon"] .column__body::-webkit-scrollbar { width: 8px; }
-@supports not selector(::-webkit-scrollbar) {
-  html[data-visual="neon"], html[data-visual="neon"] * { scrollbar-color: #ff3d9a #0b0616; }
+/* Barras de rolagem e listas do neon: só as cores (o desenho é o mesmo de todos os temas, mais abaixo). */
+html[data-visual="neon"] {
+  --scroll-track: #0b0616; --scroll-track-ff: #0b0616; --scroll-borda: #0b0616;
+  --scroll-thumb: linear-gradient(180deg, #ff3d9a, #8b5cf6); --scroll-thumb-ff: #ff3d9a;
+  --scroll-thumb-hover: linear-gradient(180deg, #ff6bb5, #a78bfa);
+  --lista-bg: #160d2a; --lista-texto: #fbf0ff; --lista-borda: rgba(255, 61, 154, 0.5);
+  --lista-sombra: 0 0 22px rgba(255, 61, 154, 0.25), 0 18px 40px rgba(0, 0, 0, 0.6);
+  --lista-hover: rgba(255, 61, 154, 0.2);
+  --lista-sel-bg: linear-gradient(90deg, #c8126b, #7c3aed); --lista-sel-fallback: #c8126b; --lista-sel-texto: #fff;
+  --lista-icone: #ff3d9a; --lista-check: #2ee6c8;
 }
 
-/* Lista que abre no seletor: cores do tema (todos os navegadores) ... */
-html[data-visual="neon"] option, html[data-visual="neon"] optgroup { background-color: #160d2a; color: #fbf0ff; }
-html[data-visual="neon"] option:checked { background-color: #c8126b; color: #fff; }
-/* ... e, onde o navegador permite (Chrome/Edge recentes), a lista inteira no estilo neon. */
-@supports (appearance: base-select) {
-  html[data-visual="neon"] select:not([multiple]):not([size]) { appearance: base-select; }
-  html[data-visual="neon"] .esteira-toolbar .filters .filtro-chip select:not([hidden]) { display: inline-flex; align-items: center; gap: 0.35rem; }
-  /* A seta própria do seletor fica no lugar da seta do sistema (à direita, sem espaço extra). */
-  html[data-visual="neon"] select:not([multiple]):not([size])::picker-icon { margin-inline-start: auto; }
-  html[data-visual="neon"] .esteira-toolbar .filters .filtro-chip select { padding-right: 0.6rem; }
-  html[data-visual="neon"] select::picker-icon { color: #ff3d9a; transition: rotate 0.15s ease; }
-  html[data-visual="neon"] select:open::picker-icon { rotate: 180deg; }
-  html[data-visual="neon"] select::picker(select) {
-    appearance: base-select;
-    margin-top: 4px; padding: 4px; max-height: min(60vh, 22rem);
-    border: 1px solid rgba(255, 61, 154, 0.5); border-radius: 12px;
-    background: #160d2a; color: #fbf0ff;
-    box-shadow: 0 0 22px rgba(255, 61, 154, 0.25), 0 18px 40px rgba(0, 0, 0, 0.6);
-  }
-  html[data-visual="neon"] select option {
-    padding: 0.45rem 0.65rem; border-radius: 7px; background: transparent; color: #fbf0ff; font: inherit; font-size: 0.88rem;
-  }
-  html[data-visual="neon"] select option:hover,
-  html[data-visual="neon"] select option:focus-visible { background: rgba(255, 61, 154, 0.2); outline: none; }
-  html[data-visual="neon"] select option:checked { background: linear-gradient(90deg, #c8126b, #7c3aed); color: #fff; }
-  html[data-visual="neon"] select option::checkmark { color: #2ee6c8; }
-  html[data-visual="neon"] select optgroup { background: transparent; color: var(--muted); font-size: 0.75rem; padding-top: 0.35rem; }
-  html[data-visual="neon"] select optgroup option { color: #fbf0ff; }
-}
 .rel-rolar-dica { margin: 0 0 0.4rem; font-size: 0.78rem; color: var(--muted); }
 
 /* ========================================================================
@@ -7715,3 +7680,95 @@ html[data-theme="light"] .btn.btn--danger { color: #fff; background: var(--perig
 /* Cantos suaves também nos painéis do topo e nas caixas de formulário. */
 .notif__panel, .user-menu__panel, .import-menu__panel { border-radius: 16px; }
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { border-radius: 12px; }
+
+/* ========================================================================
+   Barras de rolagem (todos os temas): alça fina e arredondada, trilho discreto,
+   fica na cor de destaque ao passar o mouse.
+   ======================================================================== */
+:root {
+  --scroll-track: transparent; --scroll-track-ff: transparent; --scroll-borda: transparent;
+  --scroll-thumb: rgba(148, 163, 184, 0.38); --scroll-thumb-ff: rgba(148, 163, 184, 0.45);
+  --scroll-thumb-hover: rgba(59, 130, 246, 0.75);
+}
+html[data-theme="light"] {
+  --scroll-thumb: #cbd5e1; --scroll-thumb-ff: #cbd5e1;
+  --scroll-thumb-hover: #60a5fa;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--scroll-track); }
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb); background-clip: padding-box;
+  border: 2px solid var(--scroll-borda); border-radius: 999px; min-height: 32px;
+}
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { background: var(--scroll-thumb-hover); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.column__body::-webkit-scrollbar { width: 8px; }
+/* Navegadores sem ::-webkit-scrollbar (Firefox): versão fina nas mesmas cores. */
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb-ff) var(--scroll-track-ff); }
+}
+
+/* ========================================================================
+   Listas de seleção (selects) em todos os temas.
+   Chrome/Edge recentes: a lista inteira é desenhada no estilo do sistema
+   (cantos suaves, sombra, item marcado em destaque). Outros navegadores:
+   lista do sistema, mas com as cores do tema.
+   ======================================================================== */
+:root {
+  --lista-bg: var(--surface); --lista-texto: var(--text); --lista-borda: var(--border);
+  --lista-sombra: 0 18px 40px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --lista-hover: rgba(59, 130, 246, 0.14);
+  --lista-sel-bg: rgba(59, 130, 246, 0.24); --lista-sel-fallback: #1d4ed8; --lista-sel-texto: #dbeafe;
+  --lista-icone: var(--muted); --lista-check: #60a5fa;
+}
+html[data-theme="light"] {
+  --lista-sombra: 0 18px 40px rgba(15, 23, 42, 0.14), 0 2px 6px rgba(15, 23, 42, 0.08);
+  --lista-hover: #eff6ff;
+  --lista-sel-bg: #dbeafe; --lista-sel-fallback: #2563eb; --lista-sel-texto: #1d4ed8;
+  --lista-check: #2563eb;
+}
+select option, select optgroup { background-color: var(--lista-bg); color: var(--lista-texto); }
+select option:checked { background-color: var(--lista-sel-fallback); color: #fff; }
+select:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+select { transition: border-color 0.15s ease, box-shadow 0.15s ease; cursor: pointer; }
+select:disabled { cursor: default; }
+
+@supports (appearance: base-select) {
+  select:not([multiple]):not([size]) { appearance: base-select; }
+  .esteira-toolbar .filters .filtro-chip select:not([hidden]) { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .esteira-toolbar .filters .filtro-chip select { padding-right: 0.6rem; }
+  /* A seta do seletor fica à direita, gira ao abrir. */
+  select:not([multiple]):not([size])::picker-icon { margin-inline-start: auto; color: var(--lista-icone); transition: rotate 0.18s ease, color 0.15s ease; }
+  select:hover:not(:disabled)::picker-icon, select:open::picker-icon { color: var(--accent); }
+  html[data-visual="neon"] select::picker-icon { color: var(--lista-icone); }
+  select:open::picker-icon { rotate: 180deg; }
+  select:open { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18); }
+  /* O status do checklist já tem a setinha própria. */
+  .ck-status::picker-icon { display: none; }
+  select::picker(select) {
+    appearance: base-select;
+    margin-top: 6px; padding: 5px; max-height: min(60vh, 22rem);
+    border: 1px solid var(--lista-borda); border-radius: 14px;
+    background: var(--lista-bg); color: var(--lista-texto);
+    box-shadow: var(--lista-sombra);
+    opacity: 1; transition: opacity 0.14s ease, translate 0.14s ease, overlay 0.14s allow-discrete, display 0.14s allow-discrete;
+  }
+  @starting-style { select:open::picker(select) { opacity: 0; translate: 0 -4px; } }
+  select option {
+    padding: 0.5rem 0.7rem; border-radius: 9px; background: transparent; color: var(--lista-texto);
+    font: inherit; font-size: 0.88rem; cursor: pointer; transition: background-color 0.12s ease;
+  }
+  select option + option { margin-top: 1px; }
+  select option:hover,
+  select option:focus-visible { background: var(--lista-hover); outline: none; }
+  select option:checked { background: var(--lista-sel-bg); color: var(--lista-sel-texto); font-weight: 600; }
+  select option:disabled { opacity: 0.45; cursor: default; }
+  select option::checkmark { color: var(--lista-check); }
+  select optgroup {
+    background: transparent; color: var(--muted); font-size: 0.72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em; padding-top: 0.4rem;
+  }
+  select optgroup option { color: var(--lista-texto); text-transform: none; letter-spacing: 0; font-weight: 400; }
+  select optgroup option:checked { font-weight: 600; color: var(--lista-sel-texto); }
+}
