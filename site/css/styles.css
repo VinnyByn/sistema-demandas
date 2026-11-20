@@ -8083,21 +8083,19 @@ html[data-visual="neon"] .conta-resumo__item--info { --tom: #ff3c78; }
 html[data-visual="neon"] .conta-pref__icone { background: rgba(255, 60, 120, 0.14); color: #ff6b9a; }
 
 /* ========================================================================
-   Tema Miami: a mesma letra dos títulos das colunas (condensada, estilo letreiro)
-   em tudo — textos, botões, campos, listas, tabelas e gráficos.
-   A letra só tem um peso: o negrito não é «inventado» pelo navegador (fica limpo),
-   e a hierarquia vem do tamanho e da cor. Um pouco de espaço entre as letras
-   ajuda a leitura das maiúsculas.
+   Tema Miami: a letra condensada (estilo letreiro) fica só onde ela brilha —
+   títulos, números grandes, nomes dos cards, botões e menus curtos.
+   Textos, campos, listas, tabelas, etiquetas e gráficos ficam na letra de
+   leitura (DM Sans, com minúsculas), para não cansar a vista.
    ======================================================================== */
-html[data-visual="neon"] { --font: var(--neon-titulo); font-synthesis: none; }
-html[data-visual="neon"] body,
-html[data-visual="neon"] :is(button, input, select, textarea, option, optgroup, table, th, td, label, legend, small, strong, b, h1, h2, h3, h4, p, span, li, dt, dd, summary, a, code, kbd) {
-  font-family: var(--neon-titulo);
+html[data-visual="neon"] :is(
+  .card__title, .conta-hero__id strong, .conta-resumo__n, .conta-shell__head h2, .conta-tema__nome,
+  .btn, .sidebar__item, .tabs__btn, .dash-nav__item, .user-menu__head-txt strong
+) {
+  font-family: var(--neon-titulo); font-weight: 400; letter-spacing: 0.05em; font-synthesis: none;
 }
-html[data-visual="neon"] body { letter-spacing: 0.04em; }
-html[data-visual="neon"] :is(input, textarea)::placeholder { letter-spacing: 0.04em; }
-/* A letra condensada é mais estreita e fica miúda nos textos pequenos: no Miami tudo cresce ~10%
-   (somado ao «Tamanho do texto» escolhido na conta). */
-html[data-visual="neon"] { font-size: 110%; }
-html[data-visual="neon"][data-fonte="grande"] { font-size: 123.75%; }
-html[data-visual="neon"][data-fonte="maior"] { font-size: 137.5%; }
+html[data-visual="neon"] .card__title { font-size: 1.2rem; line-height: 1.15; }
+html[data-visual="neon"] .conta-hero__id strong { font-size: 1.5rem; }
+html[data-visual="neon"] .conta-resumo__n { font-size: 2rem; }
+html[data-visual="neon"] .conta-tema__nome { font-size: 1.05rem; }
+html[data-visual="neon"] .user-menu__head-txt strong { font-size: 1.1rem; }

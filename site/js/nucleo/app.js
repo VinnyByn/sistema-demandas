@@ -703,7 +703,8 @@ document.getElementById("inputImport")?.addEventListener("change", async (e) => 
     applyLoadedState(data);
     saveState({ importFull: true });
     const metaFields = {};
-    if (data.metasEtapa && typeof data.metasEtapa === "object") metaFields.metasEtapa = data.metasEtapa;
+    // Metas por etapa: só o administrador muda (o banco também recusa de quem não é).
+    if (data.metasEtapa && typeof data.metasEtapa === "object" && isAdminUser()) metaFields.metasEtapa = data.metasEtapa;
     if (data.filtrosSalvos && typeof data.filtrosSalvos === "object") metaFields.filtrosSalvos = data.filtrosSalvos;
     if (Object.keys(metaFields).length) saveState({ metaFields });
     refreshAllViews();

@@ -132,8 +132,16 @@ test("meta: leitura só para quem está no mapa; quem escreve não mexe nos aces
   assert.equal((await (await como("removido@x.com")).from("sistema_meta").select("dados").eq("id", "meta").maybeSingle()).data, null);
 
   const bia = await como("bia@x.com");
-  liberado(await bia.rpc("meta_salvar", { p_campos: { diarias: [{ id: "x" }], metasEtapa: { operacional: { novo: 3 } } } }));
+  liberado(await bia.rpc("meta_salvar", { p_campos: { diarias: [{ id: "x" }] } }));
   assert.deepEqual((await banco.lerMeta()).diarias, [{ id: "x" }]);
+  // Metas por etapa: na tela só o administrador mexe — no banco também.
+  negado(await bia.rpc("meta_salvar", { p_campos: { metasEtapa: { operacional: { novo: 3 } } } }));
+  assert.equal((await banco.lerMeta()).metasEtapa, undefined);
+  liberado(await (await como("ana@x.com")).rpc("meta_salvar", { p_campos: { metasEtapa: { operacional: { novo: 3 } } } }));
+  assert.deepEqual((await banco.lerMeta()).metasEtapa, { operacional: { novo: 3 } });
+  // A lista de excluídas só muda pela exclusão: à mão esconderia (ou traria de volta) projetos de toda a equipe.
+  negado(await bia.rpc("meta_salvar", { p_campos: { deletedDemandaIds: ["d1", "d2"] } }));
+  negado(await (await como("ana@x.com")).rpc("meta_salvar", { p_campos: { deletedDemandaIds: [] } }));
   for (const campos of [{ roles: { "bia@x.com": "admin" } }, { disabledUsers: {} }, { purgedUsers: {} }, { userDisplayNames: {} }, { userRegionals: {} }, { userHomes: {} }]) {
     negado(await bia.rpc("meta_salvar", { p_campos: campos }));
     negado(await bia.rpc("acessos_salvar", { p_campos: campos }));
@@ -235,7 +243,7 @@ test("salvar demanda: chave com ponto (e-mail) é uma chave só, e merge cria a 
   assert.deepEqual(await banco.lerDemanda("nova"), { titulo: "Nova" });
 });
 
-test("presença não encosta no resto da demanda; excluir registra a marca uma vez só", async () => {
+test("presença não encosta no resto da demanda; excluir (só admin) registra a marca uma vez só", async () => {
   await banco.semear([{ id: "p1", dados: { titulo: "T", updatedAt: "2026-01-01" } }]);
   const bia = await como("bia@x.com");
   liberado(await bia.rpc("demanda_presenca", { p_id: "p1", p_editing_by: { email: "bia@x.com", since: "agora" }, p_editing_at: "agora" }));
@@ -245,8 +253,12 @@ test("presença não encosta no resto da demanda; excluir registra a marca uma v
   liberado(await bia.rpc("demanda_presenca", { p_id: "nao-existe", p_editing_by: { email: "x" }, p_editing_at: "y" }));
   assert.equal(await banco.lerDemanda("nao-existe"), undefined, "presença não ressuscita demanda apagada");
 
-  liberado(await bia.rpc("demanda_excluir", { p_id: "p1" }));
-  liberado(await bia.rpc("demanda_excluir", { p_id: "p1" }));
+  // Excluir de vez (esvaziar a lixeira) é só do administrador, como na tela.
+  negado(await bia.rpc("demanda_excluir", { p_id: "p1" }));
+  assert.ok(await banco.lerDemanda("p1"), "projetista não apaga de vez");
+  const ana = await como("ana@x.com");
+  liberado(await ana.rpc("demanda_excluir", { p_id: "p1" }));
+  liberado(await ana.rpc("demanda_excluir", { p_id: "p1" }));
   assert.equal(await banco.lerDemanda("p1"), undefined);
   assert.deepEqual((await banco.lerMeta()).deletedDemandaIds, ["p1"]);
 });

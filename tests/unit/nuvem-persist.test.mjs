@@ -94,15 +94,19 @@ test("somente leitura: gravar é recusado com mensagem clara", async () => {
 
 test("presença e exclusão", async () => {
   await banco.semear([{ id: "p1", dados: { titulo: "T" } }]);
-  const { api, armazem } = await abrir("bia@x.com");
+  const { api } = await abrir("bia@x.com");
   await api.patchDemandaPresence("p1", { email: "bia@x.com", since: "agora" });
   assert.deepEqual((await banco.lerDemanda("p1")).editingBy, { email: "bia@x.com", since: "agora" });
   await api.patchDemandaPresence("p1", null);
   assert.equal("editingBy" in (await banco.lerDemanda("p1")), false);
-  await api.deleteDemanda("p1");
+  // Excluir de vez é só do administrador (na tela e no banco).
+  await assert.rejects(api.deleteDemanda("p1"), /Sem permissão/);
+  assert.ok(await banco.lerDemanda("p1"), "projetista não apaga de vez");
+  const adm = await abrir(SEED);
+  await adm.api.deleteDemanda("p1");
   assert.equal(await banco.lerDemanda("p1"), undefined);
   assert.deepEqual((await banco.lerMeta()).deletedDemandaIds, ["p1"]);
-  assert.ok(JSON.parse(armazem.get("demandasProjetos_v1:bia@x.com")).deletedDemandaIds.includes("p1"), "marca local impede a demanda de voltar");
+  assert.ok(JSON.parse(adm.armazem.get(`demandasProjetos_v1:${SEED}`)).deletedDemandaIds.includes("p1"), "marca local impede a demanda de voltar");
 });
 
 test("tempo real: o aviso só diz o id; a linha é relida, mesmo sem o campo dados (aviso acima de 1 MB)", async () => {
@@ -238,15 +242,16 @@ test("mais de uma página de demandas: carrega todas (o servidor corta em 1000 p
 test("diárias, metas e histórico de acessos", async () => {
   const bia = await abrir("bia@x.com");
   await bia.api.persistMeta({ diarias: [{ id: "x" }], projetistas: { Ana: { ativo: true } }, deletedDiariaIds: ["y"] });
-  await bia.api.persistMetaFields({ metasEtapa: { operacional: { novo: 3 } }, ignorado: 1 });
+  await assert.rejects(bia.api.persistMetaFields({ metasEtapa: { operacional: { novo: 3 } } }), /Sem permissão|metas/);
   await bia.api.persistMetaFields({ filtrosSalvos: { "bia@x.com": { a: 1 } } });
+  const admin = await abrir(SEED);
+  await admin.api.persistMetaFields({ metasEtapa: { operacional: { novo: 3 } }, ignorado: 1 });
   const meta = await banco.lerMeta();
   assert.deepEqual(meta.diarias, [{ id: "x" }]);
   assert.deepEqual(meta.metasEtapa, { operacional: { novo: 3 } });
   assert.deepEqual(meta.filtrosSalvos, { "bia@x.com": { a: 1 } });
   assert.equal(meta.ignorado, undefined);
 
-  const admin = await abrir(SEED);
   await admin.api.appendAccessHistory([{ alvo: "bia@x.com", acao: "papel", de: "A", para: "B" }, { alvo: "caio@x.com", acao: "desabilitado" }, { acao: "sem alvo" }]);
   const hist = await admin.api.loadAccessHistory(10);
   assert.equal(hist.length, 2);
