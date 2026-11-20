@@ -834,7 +834,7 @@ function situacaoCor(chave) {
 
 /** Cor única de série (magnitude), conforme o tema. */
 function dashSerieCor() {
-  if (document.documentElement.getAttribute("data-visual") === "neon") return "#ff4fa3";
+  if (document.documentElement.getAttribute("data-visual") === "neon") return "#ff4f86";
   return document.documentElement.getAttribute("data-theme") === "light" ? "#2a78d6" : "#3987e5";
 }
 
