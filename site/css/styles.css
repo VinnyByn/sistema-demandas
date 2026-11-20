@@ -8116,3 +8116,10 @@ html[data-visual="neon"] .conta-hero__id strong { font-size: 1.5rem; }
 html[data-visual="neon"] .conta-resumo__n { font-size: 2rem; }
 html[data-visual="neon"] .conta-tema__nome { font-size: 1.05rem; }
 html[data-visual="neon"] .user-menu__head-txt strong { font-size: 1.1rem; }
+
+/* Planejamento do alívio (projetos B2C TCT): verde = planejado, laranja = não planejado. */
+.badge--plan-tct-sim { background: rgba(34, 197, 94, 0.16); color: #86efac; border-color: rgba(34, 197, 94, 0.4); }
+.badge--plan-tct-nao { background: rgba(249, 115, 22, 0.16); color: #fdba74; border-color: rgba(249, 115, 22, 0.45); }
+.badge--plan-tct-vazio { background: transparent; color: var(--muted); border-style: dashed; font-weight: 600; }
+html[data-theme="light"] .badge--plan-tct-sim { background: #dcfce7; color: #166534; border-color: #86efac; }
+html[data-theme="light"] .badge--plan-tct-nao { background: #ffedd5; color: #9a3412; border-color: #fdba74; }

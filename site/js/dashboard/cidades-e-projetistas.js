@@ -156,6 +156,9 @@ function listDemandasDashGeo(kind, key, slice, extra = {}) {
     // B2C: segmento vazio = todos; `extra.geoNivel/geoNome` restringe a uma regional ou cidade.
     let list = filterDemandasModoDash(demandasB2cDashboardList());
     if (alvo) list = list.filter((d) => segmentoB2cBucket(d) === alvo);
+    if (extra.planejamentoTct) {
+      list = list.filter((d) => demandaEhTct(d) && (normalizePlanejamentoTct(d.planejamentoTct) || "__none__") === extra.planejamentoTct);
+    }
     if (extra.geoNome) {
       list =
         extra.geoNivel === "cidade"
@@ -263,7 +266,13 @@ function renderDashGeoProjetosTable() {
   const filtroLabels = labelDashGeoFiltrosAtivos(filtros);
   const b2c = kind === "segmento";
   const alvoTitulo = b2c
-    ? [ctx.key ? `Segmento: ${ctx.key}` : "B2C: todos os segmentos", ctx.extra?.geoNome ? semPrefixoRegional(ctx.extra.geoNome) : ""]
+    ? [
+        ctx.key ? `Segmento: ${ctx.key}` : "B2C: todos os segmentos",
+        ctx.extra?.planejamentoTct
+          ? `${PLANEJAMENTO_TCT.rotulo}: ${ctx.extra.planejamentoTct === "__none__" ? "não informado" : planejamentoTctLabel(ctx.extra.planejamentoTct)}`
+          : "",
+        ctx.extra?.geoNome ? semPrefixoRegional(ctx.extra.geoNome) : "",
+      ]
         .filter(Boolean)
         .join(" · ")
     : `${kindLabel}: ${ctx.key}`;

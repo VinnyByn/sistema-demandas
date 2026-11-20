@@ -249,9 +249,38 @@ function syncDemSegmentoB2cField() {
   if (!isB2c) sel.value = "";
 }
 
+function initDemPlanejamentoTctSelect() {
+  const sel = document.getElementById("demPlanejamentoTct");
+  if (!sel || sel.dataset.inited === "1") return;
+  sel.dataset.inited = "1";
+  sel.innerHTML =
+    '<option value="">Selecione…</option>' +
+    Object.entries(PLANEJAMENTO_TCT.opcoes).map(([v, l]) => `<option value="${escapeHtml(v)}">${escapeHtml(l)}</option>`).join("");
+  const rotulo = document.getElementById("labelDemPlanejamentoTct");
+  if (rotulo) rotulo.textContent = PLANEJAMENTO_TCT.rotulo;
+  document.getElementById("demSegmentoB2c")?.addEventListener("change", syncDemPlanejamentoTctField);
+}
+
+/** Só aparece (e é obrigatório) em projeto B2C do segmento TCT. */
+function syncDemPlanejamentoTctField() {
+  initDemPlanejamentoTctSelect();
+  const field = document.getElementById("fieldDemPlanejamentoTct");
+  const sel = document.getElementById("demPlanejamentoTct");
+  if (!field || !sel) return;
+  const tct = demandaEhTct({
+    tipo: document.getElementById("demTipo")?.value,
+    segmentoB2c: document.getElementById("demSegmentoB2c")?.value,
+  });
+  field.hidden = !tct;
+  field.classList.toggle("is-hidden", !tct);
+  sel.required = tct;
+  sel.disabled = !tct;
+}
+
 function syncDemCamposPorTipo() {
   syncDemProdutoB2bField();
   syncDemSegmentoB2cField();
+  syncDemPlanejamentoTctField();
   syncDemSolicitanteField();
 }
 

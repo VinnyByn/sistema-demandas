@@ -97,6 +97,7 @@ function migrateDemanda(d) {
     tipo: normalizeTipo(d.tipo),
     produtoB2b: normalizeTipo(d.tipo) === "B2B" ? normalizeProdutoB2b(d.produtoB2b) : "",
     segmentoB2c: normalizeTipo(d.tipo) === "B2C" ? normalizeSegmentoB2c(d.segmentoB2c) : "",
+    planejamentoTct: demandaEhTct(d) ? normalizePlanejamentoTct(d.planejamentoTct) : "",
     linhaEsteira: linha,
     status,
     ordemEsteira: (() => {

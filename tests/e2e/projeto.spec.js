@@ -142,3 +142,50 @@ test("linha do tempo: 'Mover para antes' desce a fase na tela (lista mais recent
   expect(depois[1]).toBe(antes[0]);
   expect(depois[0]).toBe(antes[1]);
 });
+
+test("B2C TCT: planejamento do alívio aparece só no TCT, é obrigatório e vai para card, ficha e relatório", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    state.demandas.find((d) => d.id === "p3").cidade = "Betim - BET";
+    openDemandaModal("p3");
+  });
+  const campo = page.locator("#fieldDemPlanejamentoTct");
+  expect(await campo.getAttribute("hidden"), "TCR não tem o campo").not.toBeNull();
+  const escolher = (id, valor) =>
+    page.evaluate(([i, v]) => {
+      const el = document.getElementById(i);
+      el.value = v;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }, [id, valor]);
+  await escolher("demSegmentoB2c", "TCT");
+  expect(await campo.getAttribute("hidden"), "TCT mostra o campo").toBeNull();
+  expect(await page.locator("#demPlanejamentoTct option").allTextContents()).toEqual(["Selecione…", "Planejado", "Não planejado"]);
+
+  // Obrigatório no TCT.
+  await page.click("#btnSalvarDemanda");
+  await expect(page.locator("#toast")).toContainText("planejamento do alívio");
+  expect(await page.evaluate(() => state.demandas.find((d) => d.id === "p3").segmentoB2c)).toBe("TCR");
+
+  await escolher("demPlanejamentoTct", "nao_planejado");
+  await page.click("#btnSalvarDemanda");
+  await expect(page.locator("#toast")).toContainText("Demanda salva");
+  expect(await page.evaluate(() => state.demandas.find((d) => d.id === "p3").planejamentoTct)).toBe("nao_planejado");
+  await expect(page.locator('.card[data-id="p3"] .badge--plan-tct-nao')).toHaveText("Não planejado");
+
+  // Relatório: coluna e filtro.
+  expect(
+    await page.evaluate(() => {
+      const d = state.demandas.find((x) => x.id === "p3");
+      return [REL_COLUNAS.find((c) => c.key === "planejamentoTct").val(migrateDemanda(d)), relOpcoesFiltro("planejamentosTct").map(([, l]) => l)];
+    }),
+  ).toEqual(["Não planejado", ["Planejado", "Não planejado", "Não informado"]]);
+
+  // Mudou para outro segmento: o campo some e o valor não fica guardado.
+  await page.evaluate(() => openDemandaModal("p3"));
+  expect(await page.inputValue("#demPlanejamentoTct")).toBe("nao_planejado");
+  await escolher("demSegmentoB2c", "MDU");
+  expect(await campo.getAttribute("hidden")).not.toBeNull();
+  await page.click("#btnSalvarDemanda");
+  await expect(page.locator("#toast")).toContainText("Demanda salva");
+  expect(await page.evaluate(() => state.demandas.find((d) => d.id === "p3").planejamentoTct)).toBe("");
+  await expect(page.locator('.card[data-id="p3"] .badge--plan-tct')).toHaveCount(0);
+});
