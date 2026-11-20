@@ -1154,6 +1154,7 @@ const HISTORICO_EDICAO_CAMPOS = [
   { campo: "tipo", label: "Tipo" },
   { campo: "produtoB2b", label: "Produto B2B", format: (v) => v || "—" },
   { campo: "segmentoB2c", label: "Segmento B2C", format: (v) => v || "—" },
+  { campo: "planejamentoTct", label: PLANEJAMENTO_TCT.rotulo, format: (v) => planejamentoTctLabel(v) || "—" },
   { campo: "cidade", label: "Cidade", format: (v) => v || "—" },
   {
     campo: "cidadesExtra",

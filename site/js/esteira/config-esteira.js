@@ -587,6 +587,41 @@ function normalizeSegmentoB2c(v) {
   return SEGMENTOS_B2C.includes(s) ? s : "";
 }
 
+/**
+ * Projetos B2C do segmento TCT: o alívio foi planejado ou não?
+ * Para trocar o nome do campo na tela, mude só `rotulo` (e os textos das opções, se quiser);
+ * o valor guardado no projeto (planejamentoTct = "planejado" | "nao_planejado") continua o mesmo.
+ */
+const PLANEJAMENTO_TCT = {
+  rotulo: "Planejamento do alívio",
+  opcoes: { planejado: "Planejado", nao_planejado: "Não planejado" },
+};
+
+/** O projeto é B2C do segmento TCT (o único que tem o campo de planejamento)? */
+function demandaEhTct(d) {
+  return normalizeTipo(d?.tipo) === "B2C" && normalizeSegmentoB2c(d?.segmentoB2c) === "TCT";
+}
+
+function normalizePlanejamentoTct(v) {
+  const s = String(v || "").trim();
+  return Object.hasOwn(PLANEJAMENTO_TCT.opcoes, s) ? s : "";
+}
+
+function planejamentoTctLabel(v) {
+  return PLANEJAMENTO_TCT.opcoes[normalizePlanejamentoTct(v)] || "";
+}
+
+/** Etiqueta do planejamento (card e ficha). Vazio: nada no card; «Não informado» na ficha (semValor). */
+function planejamentoTctBadgeHtml(v, { semValor = false } = {}) {
+  const valor = normalizePlanejamentoTct(v);
+  const titulo = escapeHtml(PLANEJAMENTO_TCT.rotulo);
+  if (!valor) {
+    return semValor ? `<span class="badge badge--plan-tct badge--plan-tct-vazio" title="${titulo}">${titulo}: não informado</span>` : "";
+  }
+  const cls = valor === "planejado" ? "badge--plan-tct-sim" : "badge--plan-tct-nao";
+  return `<span class="badge badge--plan-tct ${cls}" title="${titulo}">${escapeHtml(planejamentoTctLabel(valor))}</span>`;
+}
+
 /** Regionais e cidades (ordem alfabética por regional e por cidade). */
 const REGIONAIS_CIDADES = {
   "Regional Centro Oeste": [

@@ -163,6 +163,10 @@ function demSecaoLeituraHtml(key) {
         `<div class="seg-lv-hero"><p class="seg-lv-hero__titulo">${escapeHtml(lvVal("demTitulo")) || lvVazio("Sem nome")}</p>` +
         `<div class="seg-lv-hero__tags"><span class="badge ${tipoBadgeClass(tipo)}">${escapeHtml(tipo)}</span>` +
         (extraTipo ? `<span class="badge badge--segmento-b2c">${escapeHtml(extraTipo)}</span>` : "") +
+        planejamentoTctBadgeHtml(
+          demandaEhTct({ tipo, segmentoB2c: lvVal("demSegmentoB2c") }) ? lvVal("demPlanejamentoTct") : "",
+          { semValor: true },
+        ) +
         `<span class="seg-lv-etapa">${escapeHtml(labelStatus(lvVal("demStatus"), editingLinhaEsteira))}</span>` +
         `</div></div>` +
         `<div class="seg-lv-texto">${desc ? escapeHtml(desc) : lvVazio("Sem descrição")}</div>` +
@@ -656,6 +660,9 @@ function openDemandaModal(id) {
   if (selProduto) selProduto.value = dm?.produtoB2b || "";
   const selSegmento = document.getElementById("demSegmentoB2c");
   if (selSegmento) selSegmento.value = dm?.segmentoB2c || "";
+  initDemPlanejamentoTctSelect();
+  const selPlanejamento = document.getElementById("demPlanejamentoTct");
+  if (selPlanejamento) selPlanejamento.value = dm?.planejamentoTct || "";
   syncDemCamposPorTipo();
   document.getElementById("demStatus").value = d?.status || cfg.inboxStatus;
   renderMotivosAtrasoLista(dm?.motivosAtrasoItens || normalizeMotivosAtrasoItens(d));

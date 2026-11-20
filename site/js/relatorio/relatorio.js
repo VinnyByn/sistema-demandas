@@ -48,6 +48,7 @@ const REL_AGRUPAR = [
   ["esteira", "Esteira"],
   ["produto", "Produto B2B"],
   ["segmento", "Segmento B2C"],
+  ["planejamentoTct", `${PLANEJAMENTO_TCT.rotulo} (TCT)`],
   ["solicitante", "Solicitante"],
   ["mes", "Mês de chegada"],
   ["", "Sem agrupar"],
@@ -192,6 +193,7 @@ const REL_COLUNAS = [
   { key: "tipo", grupo: "Projeto", label: "Tipo", padrao: true, val: (d) => normalizeTipo(d.tipo) || "" },
   { key: "produto", grupo: "Projeto", label: "Produto B2B", val: (d) => d.produtoB2b || "" },
   { key: "segmento", grupo: "Projeto", label: "Segmento B2C", val: (d) => d.segmentoB2c || "" },
+  { key: "planejamentoTct", grupo: "Projeto", label: `${PLANEJAMENTO_TCT.rotulo} (TCT)`, val: (d) => (demandaEhTct(d) ? planejamentoTctLabel(d.planejamentoTct) || "Não informado" : "") },
   { key: "etapa", grupo: "Projeto", label: "Etapa", padrao: true, val: relEtapaLabel },
   { key: "situacao", grupo: "Projeto", label: "Situação", padrao: true, val: relSituacaoLabel },
   { key: "regional", grupo: "Projeto", label: "Regional", padrao: true, val: (d) => demandaRegionaisLabels(d).map(regionalSelectLabel).join(" · ") },
@@ -255,6 +257,7 @@ function relFiltrosPadrao() {
     tipos: [],
     produtos: [],
     segmentos: [],
+    planejamentosTct: [],
     etapas: [],
     situacoes: [],
     solicitantes: [],
@@ -363,6 +366,8 @@ function relFiltrarDemandas(lista, f) {
     if (has(f.tipos) && !f.tipos.includes(normalizeTipo(d.tipo))) return false;
     if (has(f.produtos) && !f.produtos.includes(d.produtoB2b || "__none__")) return false;
     if (has(f.segmentos) && !f.segmentos.includes(d.segmentoB2c || "__none__")) return false;
+    // Só projetos TCT têm planejamento: escolher um valor deixa só os TCT com aquele valor.
+    if (has(f.planejamentosTct) && !(demandaEhTct(d) && f.planejamentosTct.includes(normalizePlanejamentoTct(d.planejamentoTct) || "__none__"))) return false;
     if (has(f.etapas) && !f.etapas.includes(relEtapaChave(d))) return false;
     if (has(f.situacoes) && !f.situacoes.includes(relSituacao(d))) return false;
     if (has(f.solicitantes) && !f.solicitantes.includes(String(d.solicitante || "").trim() || "__none__")) return false;
@@ -425,6 +430,8 @@ function relChavesGrupo(d, agrupar) {
       return [d.produtoB2b || "Sem produto"];
     case "segmento":
       return [d.segmentoB2c || "Sem segmento"];
+    case "planejamentoTct":
+      return [demandaEhTct(d) ? planejamentoTctLabel(d.planejamentoTct) || "TCT sem planejamento informado" : "Não é TCT"];
     case "solicitante":
       return [String(d.solicitante || "").trim() || "Sem solicitante"];
     case "mes": {
@@ -521,6 +528,7 @@ function relDescricaoFiltros(f = relFiltros) {
   lista("Tipo", f.tipos);
   lista("Produto", f.produtos, (p) => (p === "__none__" ? "Sem produto" : p));
   lista("Segmento", f.segmentos, (p) => (p === "__none__" ? "Sem segmento" : p));
+  lista(PLANEJAMENTO_TCT.rotulo, f.planejamentosTct, (p) => (p === "__none__" ? "Não informado" : planejamentoTctLabel(p)));
   lista("Etapa", f.etapas, (k) => {
     const [linha, status] = k.split(":");
     return `${labelStatus(status, linha)}${f.esteira ? "" : ` (${relEsteiraLabel(linha)})`}`;
@@ -569,6 +577,8 @@ function relOpcoesFiltro(nome, f = relFiltros) {
       return [...PRODUTOS_B2B.map((p) => [p, p]), ["__none__", "Sem produto"]];
     case "segmentos":
       return [...SEGMENTOS_B2C.map((s) => [s, s]), ["__none__", "Sem segmento"]];
+    case "planejamentosTct":
+      return [...Object.entries(PLANEJAMENTO_TCT.opcoes), ["__none__", "Não informado"]];
     case "etapas": {
       const linhas = f.esteira ? [f.esteira] : [LINHA_ESTEIRA_OPERACIONAL, LINHA_ESTEIRA_B2B];
       const out = [];
@@ -605,6 +615,7 @@ const REL_MULTI = [
   ["tipos", "Tipo", "Todos"],
   ["produtos", "Produto B2B", "Todos"],
   ["segmentos", "Segmento B2C", "Todos"],
+  ["planejamentosTct", `${PLANEJAMENTO_TCT.rotulo} (TCT)`, "Todos"],
   ["etapas", "Etapa", "Todas"],
   ["situacoes", "Situação", "Todas"],
   ["solicitantes", "Solicitante", "Todos"],
@@ -639,7 +650,7 @@ function relRenderMulti() {
   const esteira = relFiltros.esteira;
   box.innerHTML = REL_MULTI.map(([nome, rotulo, vazio]) => {
     if (nome === "produtos" && esteira === LINHA_ESTEIRA_OPERACIONAL) return "";
-    if (nome === "segmentos" && esteira === LINHA_ESTEIRA_B2B) return "";
+    if ((nome === "segmentos" || nome === "planejamentosTct") && esteira === LINHA_ESTEIRA_B2B) return "";
     const opcoes = relOpcoesFiltro(nome);
     const sel = new Set(relFiltros[nome]);
     const ativo = sel.size > 0;
@@ -821,6 +832,7 @@ function relFichaHtml(d) {
   const geral = secao("Projeto", [
     item("Esteira", relEsteiraLabel(inferLinhaEsteira(d))),
     item("Tipo", [normalizeTipo(d.tipo), d.produtoB2b, d.segmentoB2c].filter(Boolean).join(" · ")),
+    demandaEhTct(d) ? item(PLANEJAMENTO_TCT.rotulo, planejamentoTctLabel(d.planejamentoTct) || "Não informado") : "",
     item("Etapa", relEtapaLabel(d)),
     item("Situação", relSituacaoLabel(d)),
     item("Regional", demandaRegionaisLabels(d).map(regionalSelectLabel).join(" · ")),
