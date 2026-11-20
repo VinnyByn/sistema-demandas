@@ -251,3 +251,17 @@ test("Tema Neon: só aparece para quem o administrador liberar (e a tela inicial
   expect(await comoConta("bia.souza@x.com")).toBe("neon");
   await expect(linhaNeon).toBeVisible();
 });
+
+test("topo: alertas e menu do usuário nunca ficam abertos juntos (nos dois sentidos)", async ({ app: { page } }) => {
+  const alertas = page.locator("#notifPanel");
+  const usuario = page.locator("#userMenuPanel");
+  await page.click("#btnNotif");
+  await expect(alertas).toBeVisible();
+  await page.click("#btnUserMenu");
+  await expect(usuario).toBeVisible();
+  await expect(alertas).toBeHidden();
+  await page.click("#btnNotif");
+  await expect(alertas).toBeVisible();
+  await expect(usuario).toBeHidden();
+  await expect(page.locator("#btnUserMenu")).toHaveAttribute("aria-expanded", "false");
+});

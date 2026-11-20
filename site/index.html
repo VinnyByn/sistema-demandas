@@ -562,7 +562,7 @@
             <h3 class="dash-subhead" id="dashPjDrillTitle">Detalhe do projetista</h3>
             <div class="dash-pj-drill__actions">
               <button type="button" class="btn btn--ghost btn--sm" id="btnDashPjVerProjetos">Ver projetos</button>
-              <button type="button" class="btn btn--ghost btn--sm" id="btnDashPjDrillFechar">Fechar detalhe</button>
+              <button type="button" class="btn btn--fechar btn--ghost btn--sm" id="btnDashPjDrillFechar">Fechar detalhe</button>
             </div>
           </div>
           <p class="muted small dash-block__hint" id="dashPjDrillHint"></p>
@@ -634,7 +634,7 @@
             <h3 class="dash-subhead" id="dashCidadesDrillTitle">Detalhe da regional</h3>
             <div class="dash-pj-drill__actions">
               <button type="button" class="btn btn--ghost btn--sm" id="btnDashCidadesVerProjetos">Ver projetos</button>
-              <button type="button" class="btn btn--ghost btn--sm" id="btnDashCidadesDrillFechar">Fechar detalhe</button>
+              <button type="button" class="btn btn--fechar btn--ghost btn--sm" id="btnDashCidadesDrillFechar">Fechar detalhe</button>
             </div>
           </div>
           <p class="muted small dash-block__hint" id="dashCidadesDrillHint"></p>
@@ -1053,7 +1053,7 @@
                 <a class="btn btn--ghost btn--sm asana-ref__link" id="demAsanaLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Abrir no Asana</a>
                 <button type="button" class="btn btn--ghost btn--sm" id="btnAnexarAsana" hidden title="Envia PDF, Word, imagem… direto para a tarefa no Asana">📎 Anexar ao Asana</button>
                 <input type="file" id="asanaAnexarInput" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.txt,.csv,.kmz,.kml,.dwg,.dxf,.zip,.rar,image/*" hidden />
-                <button type="button" class="btn btn--ghost btn--sm" id="btnNovaOrdemAsana" hidden title="A tarefa atual continua no Asana; os próximos comentários vão para a nova">+ Nova ordem</button>
+                <button type="button" class="btn btn--ghost btn--sm btn--add" id="btnNovaOrdemAsana" hidden title="A tarefa atual continua no Asana; os próximos comentários vão para a nova">+ Nova ordem</button>
                 <button type="button" class="btn btn--danger btn--sm" id="btnCancelarAsana" hidden>Cancelar envio</button>
                 <p class="muted small asana-ref__anteriores" id="demAsanaAnteriores" hidden></p>
               </div>
@@ -1399,9 +1399,9 @@
         </div>
       </form>
       <div class="modal__foot">
-        <button type="button" class="btn btn--ghost btn--danger-ghost" id="btnExcluirDemanda">Excluir</button>
+        <button type="button" class="btn btn--danger" id="btnExcluirDemanda">Excluir</button>
         <span class="modal__foot-aviso" id="demSujoAviso" hidden role="status">● Alterações não salvas</span>
-        <button type="button" class="btn btn--ghost" id="btnFecharDemanda" title="Fechar (Esc)">Fechar</button>
+        <button type="button" class="btn btn--fechar btn--ghost" id="btnFecharDemanda" title="Fechar (Esc)">Fechar</button>
         <button type="button" class="btn btn--primary" id="btnSalvarDemanda" title="Salvar (Ctrl+S)">✓ Salvar</button>
       </div>
     </div>
@@ -1418,7 +1418,7 @@
         <div class="hist-edicao-list" id="histEdicaoList" aria-live="polite"></div>
       </div>
       <div class="modal__foot">
-        <button type="button" class="btn btn--ghost" id="btnFecharHistoricoEdicao">Fechar</button>
+        <button type="button" class="btn btn--fechar btn--ghost" id="btnFecharHistoricoEdicao">Fechar</button>
       </div>
     </div>
   </dialog>
@@ -1441,9 +1441,9 @@
         <div id="lixeiraLista" class="lixeira-lista" aria-live="polite"></div>
       </div>
       <div class="modal__foot">
-        <button type="button" class="btn btn--ghost btn--danger-ghost" id="btnEsvaziarLixeira" hidden>Esvaziar lixeira</button>
+        <button type="button" class="btn btn--danger" id="btnEsvaziarLixeira" hidden>Esvaziar lixeira</button>
         <span style="flex:1"></span>
-        <button type="button" class="btn btn--ghost" id="btnFecharLixeira">Fechar</button>
+        <button type="button" class="btn btn--fechar btn--ghost" id="btnFecharLixeira">Fechar</button>
       </div>
     </div>
   </dialog>
@@ -1487,7 +1487,7 @@
       </div>
       <div class="modal__foot">
         <span style="flex:1"></span>
-        <button type="button" class="btn btn--ghost" id="btnFecharBackups">Fechar</button>
+        <button type="button" class="btn btn--fechar btn--ghost" id="btnFecharBackups">Fechar</button>
         <button type="button" class="btn btn--primary" id="btnBackupAgora">Fazer backup agora</button>
       </div>
     </div>
@@ -1612,7 +1612,7 @@
       </div>
       <div class="modal__foot">
         <span style="flex:1"></span>
-        <button type="button" class="btn btn--ghost" id="btnRelFechar">Fechar</button>
+        <button type="button" class="btn btn--fechar btn--ghost" id="btnRelFechar">Fechar</button>
         <button type="button" class="btn btn--ghost" id="btnRelImprimir" title="Abre a impressão — escolha «Salvar como PDF» para gerar o arquivo">Imprimir / PDF</button>
         <button type="button" class="btn btn--primary" id="btnRelCsv" title="Planilha CSV com «;» — abre direto no Excel">Exportar Excel</button>
       </div>
@@ -1736,7 +1736,7 @@
         <div class="dashboard-table-wrap" id="modalDashGeoProjetosTable"></div>
       </div>
       <div class="modal__foot">
-        <button type="button" class="btn btn--ghost" id="modalDashGeoProjetosOk">Fechar</button>
+        <button type="button" class="btn btn--fechar btn--ghost" id="modalDashGeoProjetosOk">Fechar</button>
       </div>
     </div>
   </dialog>
@@ -1752,7 +1752,7 @@
       </div>
       <div class="modal__body" id="modalDashPjTiposBody"></div>
       <div class="modal__foot">
-        <button type="button" class="btn btn--ghost" id="modalDashPjTiposOk">Fechar</button>
+        <button type="button" class="btn btn--fechar btn--ghost" id="modalDashPjTiposOk">Fechar</button>
       </div>
     </div>
   </dialog>

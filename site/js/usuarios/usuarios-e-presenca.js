@@ -519,6 +519,7 @@ function initShellUi() {
     setImportMenuOpen(false);
     setExportMenuOpen(false);
     setEsteiraTabMenuOpen(false);
+    if (typeof setNotifAberto === "function") setNotifAberto(false); // um painel do topo por vez
     const panel = document.getElementById("userMenuPanel");
     setUserMenuOpen(panel?.hidden !== false);
   });

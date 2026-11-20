@@ -539,6 +539,13 @@ function initNotifMenu() {
   if (!menu || !btn || !panel) return;
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
+    // Um painel do topo por vez: abrir os alertas fecha o menu do usuário (e os outros menus).
+    if (panel.hidden) {
+      if (typeof setUserMenuOpen === "function") setUserMenuOpen(false);
+      if (typeof setImportMenuOpen === "function") setImportMenuOpen(false);
+      if (typeof setExportMenuOpen === "function") setExportMenuOpen(false);
+      if (typeof setEsteiraTabMenuOpen === "function") setEsteiraTabMenuOpen(false);
+    }
     setNotifAberto(panel.hidden);
   });
   // composedPath: as abas re-renderizam o painel, então o alvo do clique já pode ter saído do DOM.
