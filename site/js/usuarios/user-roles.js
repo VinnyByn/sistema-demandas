@@ -4,10 +4,9 @@
  * admin         — tudo, inclusive gerenciar usuários
  * projetista    — operação completa (sem gerenciar usuários)
  * visibilidade  — somente leitura
- * disabled      — conta no mapa, sem operação (somente leitura / fora das listas)
+ * disabled      — conta no mapa, mas sem acesso (não vê nada; pode ser reabilitada)
  *
- * E-mail fora do mapa de papéis ou removido (purged) → sem acesso.
- * E-mail no mapa com disabled → somente leitura.
+ * E-mail fora do mapa de papéis, removido (purged) ou desabilitado → sem acesso.
  */
 /*
  * Fonte de verdade dos acessos: a tabela sistema_meta (roles, disabledUsers, purgedUsers), que as regras do banco e as
@@ -286,6 +285,20 @@ window.DemandasRoles = (function () {
     }
     const role = normalizeRole(rolesMap[email]);
     const disabled = isDisabled(email);
+    // Desabilitada não vê nada (mesma regra do banco e do servidor).
+    if (disabled) {
+      return {
+        email,
+        role,
+        label: `${ROLE_LABELS[role] || role} · desabilitado`,
+        isAdmin: false,
+        isProjetista: false,
+        isVisibilidade: false,
+        isDisabled: true,
+        isBlocked: true,
+        isReadOnly: true,
+      };
+    }
     return {
       email,
       role,

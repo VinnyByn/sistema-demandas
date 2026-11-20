@@ -119,8 +119,9 @@ async function enforceAccessOrSignOut() {
   // Demora para carregar a lista não é "acesso removido": só tira quando a lista chegou
   // (e a pessoa não está nela) ou o servidor recusou a leitura.
   if (!acessosProntos()) return false;
-  const msg =
-    "Seu acesso foi removido do sistema. Peça ao administrador para adicionar seu e-mail na lista de usuários.";
+  const msg = info.isDisabled
+    ? "Sua conta está desabilitada. Peça ao administrador para habilitá-la de novo."
+    : "Seu acesso foi removido do sistema. Peça ao administrador para adicionar seu e-mail na lista de usuários.";
   try {
     sessionStorage.setItem("demandas-aviso-saida", msg);
     if (typeof DemandasAuth?.signOut === "function") await DemandasAuth.signOut();

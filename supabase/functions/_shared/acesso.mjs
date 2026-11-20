@@ -1,6 +1,6 @@
 /**
  * Quem pode o quê no backend, lido de sistema_meta (a mesma fonte do app e das regras do banco).
- * roles: e-mail → admin | projetista | visibilidade (fora do mapa = sem acesso); disabledUsers: só lê; purgedUsers: sem acesso.
+ * roles: e-mail → admin | projetista | visibilidade (fora do mapa = sem acesso); disabledUsers e purgedUsers: sem acesso.
  * Mesma lógica das regras de acesso do banco e de site/js/usuarios/user-roles.js (tests/unit/acesso.test.mjs confere): mudou aqui, mude lá.
  */
 import { normalizarEmail } from "./email.mjs";
@@ -50,11 +50,12 @@ function acessoPorMeta(meta, email) {
   const removido = estaMarcado(dadosMeta.purgedUsers?.[emailNormalizado]);
   if (!papel || removido) return semAcesso;
 
-  const desabilitado = estaMarcado(dadosMeta.disabledUsers?.[emailNormalizado]);
+  // Desabilitada não vê nada (quem saiu da equipe não segue lendo os projetos).
+  if (estaMarcado(dadosMeta.disabledUsers?.[emailNormalizado])) return { ...semAcesso, papel, desabilitado: true };
   const ehAdmin = PAPEIS_ADMIN.includes(papel);
   // Papel desconhecido só lê: um valor digitado errado nunca pode dar mais poder do que o administrador quis dar.
-  const podeEscrever = !desabilitado && (ehAdmin || PAPEIS_ESCRITA.includes(papel));
-  return { ...identidade, papel, desabilitado, temAcesso: true, podeEscrever, admin: podeEscrever && ehAdmin };
+  const podeEscrever = ehAdmin || PAPEIS_ESCRITA.includes(papel);
+  return { ...identidade, papel, desabilitado: false, temAcesso: true, podeEscrever, admin: ehAdmin };
 }
 
 // `lerMeta` devolve o meta de onde ele estiver: assim este arquivo não depende de nenhum banco.

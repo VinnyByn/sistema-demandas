@@ -48,11 +48,12 @@ function lerMetaDe(admin) {
 async function exigirNivel({ email, admin }, nivel, acao) {
   if (!email) throw new ErroApi("unauthenticated", `Faça login para ${acao}.`);
   const acesso = await lerAcesso(email, lerMetaDe(admin));
-  if (!acesso.temAcesso) throw new ErroApi("permission-denied", "Seu e-mail não tem acesso ao sistema.");
+  if (!acesso.temAcesso) {
+    throw new ErroApi("permission-denied", acesso.desabilitado ? "Sua conta está desabilitada." : "Seu e-mail não tem acesso ao sistema.");
+  }
   if (nivel === "admin" && !acesso.admin) throw new ErroApi("permission-denied", `Só administradores podem ${acao}.`);
   if (nivel === "escrita" && !acesso.podeEscrever) {
-    const motivo = acesso.desabilitado ? "Sua conta está desabilitada." : `Seu perfil é somente leitura: não dá para ${acao}.`;
-    throw new ErroApi("permission-denied", motivo);
+    throw new ErroApi("permission-denied", `Seu perfil é somente leitura: não dá para ${acao}.`);
   }
   return acesso;
 }
