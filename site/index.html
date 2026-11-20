@@ -467,7 +467,7 @@
           <div class="dash-tempo-intro__map">
             <h4 class="dash-tempo-intro__title">Resumo por etapa</h4>
             <p class="muted small dash-tempo-resumo-hint">Tempo acumulado, % do total e média de dias em cada coluna da esteira.</p>
-            <div class="dashboard-table-wrap">
+            <div class="dashboard-table-wrap" tabindex="0">
               <table class="dash-table dash-table--fase-resumo" aria-label="Tempo por etapa da esteira">
                 <thead><tr><th>Etapa</th><th>Setor</th><th>Tempo acumulado</th><th>% do total</th><th>Média de dias</th></tr></thead>
                 <tbody id="dashTempoSetorMapBody"></tbody>
@@ -478,7 +478,7 @@
             <h4 class="dash-tempo-intro__title">Resumo por setor</h4>
             <p class="muted small dash-tempo-resumo-hint" id="dashTempoResumoHint">Tempo acumulado de todos os projetos na esteira operacional.</p>
             <div class="dash-tempo-resumo-body">
-              <div class="dashboard-table-wrap" id="dashTempoSetorResumoTable"></div>
+              <div class="dashboard-table-wrap" id="dashTempoSetorResumoTable" tabindex="0"></div>
               <div class="chart-card chart-card--resumo-setor">
                 <p class="muted small chart-card__sub">Barras = média de dias por setor.</p>
                 <div class="chart-wrap chart-wrap--resumo-setor"><canvas id="chartTempoSetorResumo" aria-label="Gráfico de tempo por setor"></canvas></div>
@@ -808,7 +808,7 @@
                   <div class="chart-card chart-card--wide">
                     <h4>Principais cidades por solicitante</h4>
                     <p class="muted small chart-card__sub">Até 10 cidades com mais projetos. Quanto mais forte o fundo, mais projetos.</p>
-                    <div class="dashboard-table-wrap" id="dashB2bSolicitanteCidadeTable"></div>
+                    <div class="dashboard-table-wrap" id="dashB2bSolicitanteCidadeTable" tabindex="0"></div>
                   </div>
                 </div>
               </div>
@@ -835,13 +835,13 @@
                     <h4>Produtos B2B por cidade</h4>
                     <p class="muted small chart-card__sub">Segmentos comerciais (Evento IP, IP Dedicado, etc.) — até 12 cidades com mais projetos.</p>
                     <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bProdutoCidade"></canvas></div>
-                    <div class="dashboard-table-wrap" id="dashB2bProdutoCidadeTable"></div>
+                    <div class="dashboard-table-wrap" id="dashB2bProdutoCidadeTable" tabindex="0"></div>
                   </div>
                   <div class="chart-card chart-card--wide">
                     <h4>Produtos B2B por regional</h4>
                     <p class="muted small chart-card__sub">Segmentos comerciais por regional.</p>
                     <div class="chart-wrap chart-wrap--tall"><canvas id="chartB2bProdutoRegional"></canvas></div>
-                    <div class="dashboard-table-wrap" id="dashB2bProdutoRegionalTable"></div>
+                    <div class="dashboard-table-wrap" id="dashB2bProdutoRegionalTable" tabindex="0"></div>
                   </div>
                 </div>
               </div>
@@ -858,7 +858,7 @@
               <div class="dash-tempo-intro__map">
                 <h4 class="dash-tempo-intro__title">Resumo por etapa</h4>
                 <p class="muted small dash-tempo-resumo-hint">Tempo acumulado, % do total e média de dias em cada coluna da esteira B2B.</p>
-                <div class="dashboard-table-wrap">
+                <div class="dashboard-table-wrap" tabindex="0">
                   <table class="dash-table dash-table--fase-resumo" aria-label="Tempo por etapa da esteira B2B">
                     <thead><tr><th>Etapa</th><th>Setor</th><th>Tempo acumulado</th><th>% do total</th><th>Média de dias</th></tr></thead>
                     <tbody id="dashTempoB2bSetorMapBody"></tbody>
@@ -869,7 +869,7 @@
                 <h4 class="dash-tempo-intro__title">Resumo por setor</h4>
                 <p class="muted small dash-tempo-resumo-hint" id="dashTempoB2bResumoHint">Tempo acumulado de todos os projetos na esteira B2B.</p>
                 <div class="dash-tempo-resumo-body">
-                  <div class="dashboard-table-wrap" id="dashTempoB2bSetorResumoTable"></div>
+                  <div class="dashboard-table-wrap" id="dashTempoB2bSetorResumoTable" tabindex="0"></div>
                   <div class="chart-card chart-card--resumo-setor">
                     <p class="muted small chart-card__sub">Barras = média de dias por setor.</p>
                     <div class="chart-wrap chart-wrap--resumo-setor"><canvas id="chartTempoB2bSetorResumo" aria-label="Gráfico de tempo por setor B2B"></canvas></div>
@@ -1750,7 +1750,7 @@
             </select>
           </label>
         </div>
-        <div class="dashboard-table-wrap" id="modalDashGeoProjetosTable"></div>
+        <div class="dashboard-table-wrap" id="modalDashGeoProjetosTable" tabindex="0"></div>
       </div>
       <div class="modal__foot">
         <button type="button" class="btn btn--fechar btn--ghost" id="modalDashGeoProjetosOk">Fechar</button>

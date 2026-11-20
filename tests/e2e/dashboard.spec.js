@@ -172,3 +172,17 @@ test("tema Neon: liga pela conta, fica salvo, e escolher o claro desliga", async
   expect(await estado()).toEqual({ visual: null, tema: "light", salvo: null });
   expect(await logos()).toEqual(["img/favicon.png", "img/favicon.png"]);
 });
+
+test("tema Miami: a mesma letra dos títulos das colunas em tudo; fora dele, a letra normal", async ({ app: { page } }) => {
+  const letras = () =>
+    page.evaluate(() =>
+      ["body", ".column__title", ".card__title", "#filterRegional", "#btnRelatorio", "#filterBusca"].map((sel) => {
+        const el = document.querySelector(sel);
+        return el ? getComputedStyle(el).fontFamily.split(",")[0].replace(/["']/g, "").trim() : sel + " ausente";
+      }),
+    );
+  await page.evaluate(() => applyVisualNeon(true));
+  expect(new Set(await letras())).toEqual(new Set(["Bebas Neue"]));
+  await page.evaluate(() => applyVisualNeon(false));
+  expect((await letras()).filter((f) => f === "Bebas Neue")).toEqual([]);
+});
