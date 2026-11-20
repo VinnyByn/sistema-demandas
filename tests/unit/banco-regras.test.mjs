@@ -42,12 +42,13 @@ beforeEach(async () => {
   await banco.semear([{ id: "d1", dados: { titulo: "Projeto" } }]);
 });
 
-test("demandas: só quem está no mapa lê; só quem não é somente leitura grava", async () => {
-  for (const email of ["ana@x.com", "bia@x.com", "caio@x.com", "duda@x.com", "adm.off@x.com", SEED]) {
+test("demandas: só quem está no mapa (e habilitado) lê; só quem não é somente leitura grava", async () => {
+  for (const email of ["ana@x.com", "bia@x.com", "caio@x.com", SEED]) {
     const { data } = await (await como(email)).from("demandas").select("id");
     assert.equal(data.length, 1, `${email} lê`);
   }
-  for (const email of ["estranho@x.com", "removido@x.com"]) {
+  // Desabilitada não vê nada: quem saiu da equipe não segue lendo os projetos.
+  for (const email of ["estranho@x.com", "removido@x.com", "duda@x.com", "adm.off@x.com"]) {
     const { data, error } = await (await como(email)).from("demandas").select("id");
     assert.equal(error, null);
     assert.equal(data.length, 0, `${email} não vê nada`);

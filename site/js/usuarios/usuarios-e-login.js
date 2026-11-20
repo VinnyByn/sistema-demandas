@@ -1078,7 +1078,7 @@ async function toggleUserDisabled(email) {
   if (nextDisabled) {
     const ok = await confirmDialog({
       title: "Desabilitar usuário?",
-      message: `«${e}» permanece no sistema, mas sem acesso operacional e fora da lista de projetistas.`,
+      message: `«${e}» perde o acesso na hora: não entra mais nem vê os projetos, e sai da lista de projetistas. Dá para habilitar de novo depois.`,
       hint: "Demandas já atribuídas a ele continuam; você pode redistribuí-las depois.",
       confirmText: "Desabilitar",
       variant: "danger",

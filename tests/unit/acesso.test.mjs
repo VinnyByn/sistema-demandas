@@ -34,10 +34,11 @@ test("acesso segue o doc meta: papel, desabilitado e removido", () => {
   };
   assert.deepEqual(ver("ana@x.com"), [true, true, true]);
   assert.deepEqual(ver("ANA@X.COM "), [true, true, true], "e-mail sem diferença de maiúsculas");
-  assert.deepEqual(ver("adm.off@x.com"), [true, false, false], "admin desabilitado não é admin");
+  assert.deepEqual(ver("adm.off@x.com"), [false, false, false], "admin desabilitado não vê nada");
   assert.deepEqual(ver("bia@x.com"), [true, true, false]);
   assert.deepEqual(ver("caio@x.com"), [true, false, false], "visibilidade só lê");
-  assert.deepEqual(ver("duda@x.com"), [true, false, false], "desabilitado só lê");
+  assert.deepEqual(ver("duda@x.com"), [false, false, false], "desabilitado não vê nada");
+  assert.equal(acessoPorMeta(META, "duda@x.com").desabilitado, true, "o motivo fica marcado (a mensagem diz «desabilitada»)");
   assert.deepEqual(ver("removido@x.com"), [false, false, false], "removido perde tudo, mesmo com papel antigo");
   assert.deepEqual(ver("estranho@x.com"), [false, false, false], "fora do mapa não acessa");
   assert.deepEqual(ver(""), [false, false, false]);

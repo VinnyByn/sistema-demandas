@@ -8,14 +8,14 @@ const SCRIPT_DO_CONSOLE = fs.readFileSync(path.join(__dirname, "../../scripts/se
 
 const SEED = "vinicius.morais@soumaster.com.br";
 const SENHA = "senha-forte-1";
-const CONTAS = [SEED, "ana@x.com", "bia@x.com", "caio@x.com", "estranho@x.com"];
+const CONTAS = [SEED, "ana@x.com", "bia@x.com", "caio@x.com", "estranho@x.com", "saiu@x.com"];
 const META = {
   diarias: [],
   projetistas: {},
   deletedDemandaIds: [],
   deletedDiariaIds: [],
-  roles: { [SEED]: "admin", "ana@x.com": "admin", "bia@x.com": "projetista", "caio@x.com": "visibilidade" },
-  disabledUsers: {},
+  roles: { [SEED]: "admin", "ana@x.com": "admin", "bia@x.com": "projetista", "caio@x.com": "visibilidade", "saiu@x.com": "projetista" },
+  disabledUsers: { "saiu@x.com": true },
   purgedUsers: {},
   userDisplayNames: {},
 };
@@ -213,6 +213,28 @@ test("somente leitura: lê, e toda escrita é recusada", async ({ page }) => {
   });
   expect(r).toEqual({ nivel: "leitura", le: 2, salvar: "42501", excluir: "42501", presenca: "42501", meta: "42501" });
   expect((await supabase.banco.lerDemanda("p1")).titulo).toBe(TITULO);
+  await conferirSemVazamento(page, saida);
+});
+
+test("conta desabilitada (quem saiu da equipe): é posta para fora e, pelo console, não lê nada", async ({ page }) => {
+  const saida = await abrir(page);
+  await entrarEVerSerPostoParaFora(page, "saiu@x.com");
+  await expect(page.locator("#appRoot")).toBeHidden();
+  const r = await page.evaluate(async (senha) => {
+    const cfg = window.SUPABASE_CONFIG;
+    const c = supabase.createClient(cfg.url, cfg.publishableKey, { auth: { persistSession: false } });
+    await c.auth.signInWithPassword({ email: "saiu@x.com", password: senha });
+    const linhas = async (t) => (await c.from(t).select("*")).data;
+    return {
+      demandas: await linhas("demandas"),
+      meta: await linhas("sistema_meta"),
+      nivel: (await c.rpc("acesso_nivel")).data,
+      salvar: (await c.rpc("demanda_salvar", { p_id: "p9", p_campos: {} })).error?.code,
+      emMemoria: state.demandas.length,
+    };
+  }, SENHA);
+  expect(r).toEqual({ demandas: [], meta: [], nivel: "", salvar: "42501", emMemoria: 0 });
+  expect(await page.locator("body").innerText()).not.toContain(TITULO);
   await conferirSemVazamento(page, saida);
 });
 
