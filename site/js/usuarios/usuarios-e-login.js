@@ -506,7 +506,7 @@ function renderUsuariosPanel() {
           `<label><span>Papel</span><select class="user-role-select" aria-label="Papel de ${escapeHtml(email)}"${dis}>${roleOptionsHtml(tela.role)}</select></label>` +
           `<label><span>Regional</span><select class="user-regional-select" aria-label="Regional de ${escapeHtml(email)}"${dis}>${regionalOptionsHtml(tela.regional)}</select></label>` +
           `<label><span>Tela inicial</span><select class="user-esteira-select" aria-label="Tela inicial de ${escapeHtml(email)}"${dis}>${esteiraInicialOptionsHtml(tela.esteira)}</select></label>` +
-          `<label title="Libera a opção Tema Neon em Minha conta → Aparência (administradores sempre têm)"><span>Tema Neon</span><select class="user-neon-select" aria-label="Tema Neon de ${escapeHtml(email)}"${dis}>` +
+          `<label title="Libera a opção Tema Miami em Minha conta → Aparência (administradores sempre têm)"><span>Tema Miami</span><select class="user-neon-select" aria-label="Tema Miami de ${escapeHtml(email)}"${dis}>` +
           `<option value="nao"${tela.neon ? "" : " selected"}>Não liberado</option><option value="sim"${tela.neon ? " selected" : ""}>Liberado</option></select></label>` +
           `</div>` +
           `<div class="usuarios-row__edit-acoes">` +
@@ -769,7 +769,7 @@ const HISTORICO_ACOES = {
   nome: (h) => `renomeou ${h.alvo}: «${h.de || "—"}» → «${h.para || "—"}»`,
   regional: (h) => `mudou a regional de ${h.alvo}: ${h.de || "Todas"} → ${h.para || "Todas"}`,
   esteira: (h) => `mudou a tela inicial de ${h.alvo}: ${h.de || "—"} → ${h.para || "—"}`,
-  "tema-neon": (h) => `${h.para === "liberado" ? "liberou" : "tirou"} o Tema Neon ${h.para === "liberado" ? "para" : "de"} ${h.alvo}`,
+  "tema-neon": (h) => `${h.para === "liberado" ? "liberou" : "tirou"} o Tema Miami ${h.para === "liberado" ? "para" : "de"} ${h.alvo}`,
   "login-criado": (h) => `criou o login de ${h.alvo}${h.para ? ` (${h.para})` : ""}`,
 };
 

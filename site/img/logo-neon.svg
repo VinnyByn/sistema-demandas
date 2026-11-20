@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 150" width="150" height="150">
-  <!-- Logo do Projetos Master no Tema Neon: os mesmos três círculos, como sol listrado e luzes neon. -->
+  <!-- Logo do Projetos Master no Tema Miami: os mesmos três círculos, como sol listrado e luzes neon. -->
   <defs>
     <linearGradient id="ceu" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#140a28"/>
@@ -8,8 +8,8 @@
     </linearGradient>
     <linearGradient id="sol" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#ffd166"/>
-      <stop offset="0.45" stop-color="#ff8a3d"/>
-      <stop offset="1" stop-color="#ff3d9a"/>
+      <stop offset="0.45" stop-color="#ff6b35"/>
+      <stop offset="1" stop-color="#ff3c78"/>
     </linearGradient>
     <clipPath id="listras">
       <rect x="0" y="0" width="150" height="62"/>
@@ -25,7 +25,7 @@
     </filter>
   </defs>
   <rect width="150" height="150" rx="34" fill="url(#ceu)"/>
-  <rect x="2" y="2" width="146" height="146" rx="32" fill="none" stroke="#ff3d9a" stroke-opacity="0.55" stroke-width="2"/>
+  <rect x="2" y="2" width="146" height="146" rx="32" fill="none" stroke="#ff3c78" stroke-opacity="0.55" stroke-width="2"/>
   <!-- linhas do chão (grade de horizonte) -->
   <g stroke="#2ee6c8" stroke-opacity="0.35" stroke-width="1">
     <line x1="14" y1="122" x2="136" y2="122"/>
@@ -39,5 +39,5 @@
   <circle cx="114" cy="94" r="17" fill="none" stroke="#2ee6c8" stroke-width="6" filter="url(#brilho)"/>
   <circle cx="114" cy="94" r="7" fill="#2ee6c8" fill-opacity="0.35"/>
   <!-- círculo pequeno: luz magenta -->
-  <circle cx="66" cy="120" r="10" fill="#ff3d9a" filter="url(#brilho)"/>
+  <circle cx="66" cy="120" r="10" fill="#ff3c78" filter="url(#brilho)"/>
 </svg>

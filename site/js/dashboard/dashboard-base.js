@@ -834,7 +834,7 @@ function situacaoCor(chave) {
 
 /** Cor única de série (magnitude), conforme o tema. */
 function dashSerieCor() {
-  if (document.documentElement.getAttribute("data-visual") === "neon") return "#ff4fa3";
+  if (document.documentElement.getAttribute("data-visual") === "neon") return "#ff4f86";
   return document.documentElement.getAttribute("data-theme") === "light" ? "#2a78d6" : "#3987e5";
 }
 
@@ -956,10 +956,13 @@ function criarDashChart(el, cfg) {
 
 /** Padrões globais do Chart.js (fonte do app, cores neutras). */
 function aplicarPadroesChartJs() {
-  if (typeof Chart === "undefined" || aplicarPadroesChartJs.feito) return;
+  if (typeof Chart === "undefined") return;
+  // A letra acompanha o tema (no Miami, a mesma letra condensada do resto da tela).
+  const miami = document.documentElement.getAttribute("data-visual") === "neon";
+  Chart.defaults.font.family = miami ? '"Bebas Neue", "Arial Narrow", "DM Sans", sans-serif' : '"DM Sans", system-ui, sans-serif';
+  Chart.defaults.font.size = miami ? 12 : 11;
+  if (aplicarPadroesChartJs.feito) return;
   aplicarPadroesChartJs.feito = true;
-  Chart.defaults.font.family = '"DM Sans", system-ui, sans-serif';
-  Chart.defaults.font.size = 11;
   Chart.defaults.animation.duration = 450;
 }
 

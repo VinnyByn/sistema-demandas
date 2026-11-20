@@ -5975,8 +5975,18 @@ html[data-theme="light"] .inbox-alertas__ok-ico { color: #15803d; background: #d
   letter-spacing: 0;
 }
 .column__count.is-zero { background: transparent; color: var(--muted); font-weight: 600; }
-.column__head-meta { justify-content: flex-start; flex-wrap: wrap; gap: 0.3rem; min-height: 1.35rem; }
-.column__inds { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; text-transform: none; letter-spacing: 0; }
+.column__head-meta { justify-content: flex-start; flex-wrap: nowrap; gap: 0.3rem; min-height: 1.35rem; min-width: 0; }
+/* Avisos da coluna (atrasados, vencendo, parados): sempre numa linha só, logo abaixo da meta.
+   Se alguma coluna da esteira tem aviso, as outras reservam a mesma linha vazia — todos os
+   cabeçalhos ficam com a mesma altura e os cards começam alinhados. */
+.column__inds {
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 0.25rem;
+  height: 1.25rem; min-width: 0; overflow: hidden;
+  text-transform: none; letter-spacing: 0;
+}
+.column__inds:empty { display: none; }
+.board:has(.column__inds:not(:empty)) .column__inds:empty { display: flex; }
+.column__inds .column__ind { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .column__ind {
   --tom: 148, 163, 184;
   padding: 0.1rem 0.4rem;
@@ -7481,8 +7491,8 @@ button.kpi.kpi--link:hover .kpi__ver, button.kpi.kpi--link:focus-visible .kpi__v
 html.trocando-tema *, html.trocando-tema *::before, html.trocando-tema *::after { transition: none !important; }
 
 /* ===================================================================================
- * Tema «Neon» (opcional, em Minha conta → Aparência): cidade à noite anos 80 —
- * pôr do sol rosa/laranja, neon magenta e ciano, títulos condensados. Base escura.
+ * Tema «Miami» (opcional, em Minha conta → Aparência; no código continua «neon»): noite em
+ * Miami — pôr do sol coral → rosa → roxo, neon rosa e água-marinha, títulos condensados. Base escura.
  * =================================================================================== */
 html[data-visual="neon"] {
   --bg: #0b0616;
@@ -7491,19 +7501,19 @@ html[data-visual="neon"] {
   --border: #3a2563;
   --text: #fbf0ff;
   --muted: #c3b2e6;
-  --accent: #ff3d9a;
-  --accent-fill: #c8126b;
+  --accent: #ff3c78;
+  --accent-fill: #c4104f;
   --accent2: #2ee6c8;
   --danger: #ff4d6d;
   --warn: #ffb347;
   --topbar-bg: rgba(11, 6, 22, 0.88);
-  --shadow: 0 14px 40px rgba(255, 61, 154, 0.12), 0 10px 30px rgba(0, 0, 0, 0.5);
-  --neon-sol: linear-gradient(90deg, #ffb347 0%, #ff3d9a 45%, #8b5cf6 100%);
+  --shadow: 0 14px 40px rgba(255, 60, 120, 0.12), 0 10px 30px rgba(0, 0, 0, 0.5);
+  --neon-sol: linear-gradient(90deg, #ff6b35 0%, #ff3c78 45%, #8b5cf6 100%);
   --neon-titulo: "Bebas Neue", "Arial Narrow", "DM Sans", sans-serif;
   --neon-ciano: #2ee6c8;
-  --neon-brilho: 0 0 12px rgba(255, 61, 154, 0.55);
-  --form-segment-border: rgba(255, 61, 154, 0.35);
-  --form-segment-bg: rgba(255, 61, 154, 0.05);
+  --neon-brilho: 0 0 12px rgba(255, 60, 120, 0.55);
+  --form-segment-border: rgba(255, 60, 120, 0.35);
+  --form-segment-bg: rgba(255, 60, 120, 0.05);
   --form-segment-title: #ffc2e1;
 }
 /* Céu: pôr do sol lá no fundo + linhas de horizonte bem discretas (o conteúdo fica nas superfícies). */
@@ -7511,7 +7521,7 @@ html[data-visual="neon"] body,
 html[data-visual="neon"] .login-screen {
   background:
     radial-gradient(900px 420px at 85% 110%, rgba(255, 140, 60, 0.18), transparent 60%),
-    radial-gradient(1100px 520px at 15% 120%, rgba(255, 61, 154, 0.16), transparent 62%),
+    radial-gradient(1100px 520px at 15% 120%, rgba(255, 60, 120, 0.16), transparent 62%),
     repeating-linear-gradient(180deg, transparent 0 46px, rgba(139, 92, 246, 0.05) 46px 47px),
     linear-gradient(180deg, #0b0616 0%, #140a28 60%, #24093a 100%) fixed;
 }
@@ -7522,17 +7532,17 @@ html[data-visual="neon"] .login-card h1,
 html[data-visual="neon"] .login-screen h1 {
   font-family: var(--neon-titulo); font-weight: 400; letter-spacing: 0.06em; font-size: 1.6rem; line-height: 1;
   background: var(--neon-sol); -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(0 0 10px rgba(255, 61, 154, 0.35));
+  filter: drop-shadow(0 0 10px rgba(255, 60, 120, 0.35));
 }
 html[data-visual="neon"] .sidebar { background: linear-gradient(180deg, #140b27 0%, #0e0720 100%); border-right: 1px solid var(--border); }
 html[data-visual="neon"] .sidebar__item.is-active,
 html[data-visual="neon"] .sidebar__item[aria-current="page"] {
   box-shadow: inset 3px 0 0 var(--accent), var(--neon-brilho);
-  background: rgba(255, 61, 154, 0.12);
+  background: rgba(255, 60, 120, 0.12);
 }
 html[data-visual="neon"] .btn--primary,
 html[data-visual="neon"] .sidebar__item--primary.btn.btn--primary {
-  background: linear-gradient(90deg, #c8126b, #b4237a 55%, #7c3aed);
+  background: linear-gradient(90deg, #c4104f, #b0185f 55%, #7c3aed);
   border-color: transparent; color: #fff; box-shadow: var(--neon-brilho);
 }
 html[data-visual="neon"] .btn--primary:hover:not(:disabled) { background: linear-gradient(90deg, #d81b78, #c22a86 55%, #8b4af0); filter: none; }
@@ -7552,7 +7562,7 @@ html[data-visual="neon"] .rel-kpi strong {
   font-size: clamp(0.95rem, 12cqi, 1.75rem); /* o cartão é um container: valor longo encolhe em vez de cortar */
 }
 html[data-visual="neon"] .kpi,
-html[data-visual="neon"] .rel-kpi { border-color: var(--border); background: linear-gradient(180deg, rgba(255, 61, 154, 0.06), transparent 70%), var(--surface); }
+html[data-visual="neon"] .rel-kpi { border-color: var(--border); background: linear-gradient(180deg, rgba(255, 60, 120, 0.06), transparent 70%), var(--surface); }
 html[data-visual="neon"] .kpi--ok .kpi__value { color: #fff; text-shadow: 0 0 10px rgba(46, 230, 200, 0.35); }
 html[data-visual="neon"] .kpi--bad { border-color: rgba(255, 77, 109, 0.7); box-shadow: 0 0 16px rgba(255, 77, 109, 0.2); }
 html[data-visual="neon"] .kpi--bad .kpi__label::after { content: " ★★★"; color: #ffd166; letter-spacing: 0.1em; text-shadow: 0 0 8px rgba(255, 209, 102, 0.6); }
@@ -7560,12 +7570,12 @@ html[data-visual="neon"] .kpi--warn { border-color: rgba(255, 179, 71, 0.6); }
 html[data-visual="neon"] button.kpi.kpi--link:hover { border-color: var(--neon-ciano); box-shadow: 0 0 14px rgba(46, 230, 200, 0.3); }
 
 /* Blocos, colunas e cards com borda neon. */
-html[data-visual="neon"] .dash-block { border-color: var(--border); box-shadow: 0 0 0 1px rgba(255, 61, 154, 0.06), var(--shadow); }
-html[data-visual="neon"] .dash-block__toggle { background: linear-gradient(90deg, rgba(255, 61, 154, 0.14), rgba(139, 92, 246, 0.1) 60%, transparent), var(--surface2); }
+html[data-visual="neon"] .dash-block { border-color: var(--border); box-shadow: 0 0 0 1px rgba(255, 60, 120, 0.06), var(--shadow); }
+html[data-visual="neon"] .dash-block__toggle { background: linear-gradient(90deg, rgba(255, 60, 120, 0.14), rgba(139, 92, 246, 0.1) 60%, transparent), var(--surface2); }
 html[data-visual="neon"] .column { background: rgba(22, 13, 42, 0.78); border-color: var(--border); }
 html[data-visual="neon"] .card { background: var(--surface2); border-color: #45306f; }
 html[data-visual="neon"] .card:hover { border-color: var(--neon-ciano); box-shadow: 0 0 14px rgba(46, 230, 200, 0.25); }
-html[data-visual="neon"] .modal { background: var(--surface); box-shadow: 0 0 0 1px rgba(255, 61, 154, 0.25), 0 20px 60px rgba(0, 0, 0, 0.6); }
+html[data-visual="neon"] .modal { background: var(--surface); box-shadow: 0 0 0 1px rgba(255, 60, 120, 0.25), 0 20px 60px rgba(0, 0, 0, 0.6); }
 html[data-visual="neon"] .modal::backdrop { background: rgba(11, 6, 22, 0.75); backdrop-filter: blur(3px); }
 
 /* Seletores, abas e a barra de atalhos com brilho magenta. */
@@ -7576,49 +7586,49 @@ html[data-visual="neon"] .dash-periodos__btn.is-active,
 html[data-visual="neon"] .dash-tipos-nav__btn.is-active {
   background: var(--accent-fill); color: #fff; box-shadow: var(--neon-brilho);
 }
-html[data-visual="neon"] .dash-nav { border-color: rgba(255, 61, 154, 0.35); box-shadow: 0 0 18px rgba(255, 61, 154, 0.15), 0 8px 24px rgba(0, 0, 0, 0.4); }
+html[data-visual="neon"] .dash-nav { border-color: rgba(255, 60, 120, 0.35); box-shadow: 0 0 18px rgba(255, 60, 120, 0.15), 0 8px 24px rgba(0, 0, 0, 0.4); }
 html[data-visual="neon"] a, html[data-visual="neon"] .dash-geo-link:hover { color: var(--neon-ciano); }
-html[data-visual="neon"] .dash-fases-barra { box-shadow: 0 0 12px rgba(255, 61, 154, 0.25); }
+html[data-visual="neon"] .dash-fases-barra { box-shadow: 0 0 12px rgba(255, 60, 120, 0.25); }
 html[data-visual="neon"] input:focus-visible, html[data-visual="neon"] select:focus-visible, html[data-visual="neon"] textarea:focus-visible { outline-color: var(--neon-ciano); }
-html[data-visual="neon"] ::selection { background: rgba(255, 61, 154, 0.45); color: #fff; }
+html[data-visual="neon"] ::selection { background: rgba(255, 60, 120, 0.45); color: #fff; }
 @media (prefers-reduced-motion: no-preference) {
   html[data-visual="neon"]:not([data-menos-animacao]) .topbar__title { animation: neon-pulsa 4s ease-in-out infinite; }
 }
-@keyframes neon-pulsa { 50% { filter: drop-shadow(0 0 16px rgba(255, 61, 154, 0.6)); } }
+@keyframes neon-pulsa { 50% { filter: drop-shadow(0 0 16px rgba(255, 60, 120, 0.6)); } }
 /* Logo do Tema Neon (a troca do src em JS vale para o ícone da aba; aqui evita mostrar a logo padrão antes). */
 html[data-visual="neon"] img.brand__logo,
-html[data-visual="neon"] img.login-card__logo { content: url("../img/logo-neon.svg"); border-radius: 22%; filter: drop-shadow(0 0 10px rgba(255, 61, 154, 0.45)); }
+html[data-visual="neon"] img.login-card__logo { content: url("../img/logo-neon.svg"); border-radius: 22%; filter: drop-shadow(0 0 10px rgba(255, 60, 120, 0.45)); }
 .conta-row[hidden] { display: none !important; }
 
 /* ===== Tema Neon: bolinha do usuário, barras de rolagem e listas dos seletores ===== */
-html[data-visual="neon"] { accent-color: #ff3d9a; }
+html[data-visual="neon"] { accent-color: #ff3c78; }
 
 /* Bolinha do usuário (topo) e avatares da conta: anel em degradê de pôr do sol com brilho. */
 html[data-visual="neon"] .user-menu__toggle {
-  border: 0; padding: 2px; background: var(--neon-sol); box-shadow: 0 0 14px rgba(255, 61, 154, 0.45);
+  border: 0; padding: 2px; background: var(--neon-sol); box-shadow: 0 0 14px rgba(255, 60, 120, 0.45);
 }
 html[data-visual="neon"] .user-menu__toggle .user-menu__avatar { width: 100%; height: 100%; }
-html[data-visual="neon"] .user-menu__toggle:hover { box-shadow: 0 0 20px rgba(255, 61, 154, 0.7); }
+html[data-visual="neon"] .user-menu__toggle:hover { box-shadow: 0 0 20px rgba(255, 60, 120, 0.7); }
 html[data-visual="neon"] .user-menu__avatar,
 html[data-visual="neon"] .conta-shell__avatar {
-  background: radial-gradient(circle at 50% 120%, rgba(255, 61, 154, 0.45), transparent 60%), #160d2a;
+  background: radial-gradient(circle at 50% 120%, rgba(255, 60, 120, 0.45), transparent 60%), #160d2a;
   color: #fff; text-shadow: 0 0 8px rgba(46, 230, 200, 0.7); letter-spacing: 0.04em;
 }
-html[data-visual="neon"] .conta-shell__avatar { box-shadow: 0 0 0 2px #ff3d9a, 0 0 16px rgba(255, 61, 154, 0.5); }
+html[data-visual="neon"] .conta-shell__avatar { box-shadow: 0 0 0 2px #ff3c78, 0 0 16px rgba(255, 60, 120, 0.5); }
 html[data-visual="neon"] .card__avatar,
 html[data-visual="neon"] .ck-avatar { box-shadow: 0 0 8px hsl(var(--avatar-h) 90% 60% / 0.55); }
-html[data-visual="neon"] .usuarios-avatar { box-shadow: 0 0 10px rgba(255, 61, 154, 0.35); }
+html[data-visual="neon"] .usuarios-avatar { box-shadow: 0 0 10px rgba(255, 60, 120, 0.35); }
 
 /* Barras de rolagem e listas do neon: só as cores (o desenho é o mesmo de todos os temas, mais abaixo). */
 html[data-visual="neon"] {
   --scroll-track: #0b0616; --scroll-track-ff: #0b0616; --scroll-borda: #0b0616;
-  --scroll-thumb: linear-gradient(180deg, #ff3d9a, #8b5cf6); --scroll-thumb-ff: #ff3d9a;
-  --scroll-thumb-hover: linear-gradient(180deg, #ff6bb5, #a78bfa);
-  --lista-bg: #160d2a; --lista-texto: #fbf0ff; --lista-borda: rgba(255, 61, 154, 0.5);
-  --lista-sombra: 0 0 22px rgba(255, 61, 154, 0.25), 0 18px 40px rgba(0, 0, 0, 0.6);
-  --lista-hover: rgba(255, 61, 154, 0.2);
-  --lista-sel-bg: linear-gradient(90deg, #c8126b, #7c3aed); --lista-sel-fallback: #c8126b; --lista-sel-texto: #fff;
-  --lista-icone: #ff3d9a; --lista-check: #2ee6c8;
+  --scroll-thumb: linear-gradient(180deg, #ff3c78, #8b5cf6); --scroll-thumb-ff: #ff3c78;
+  --scroll-thumb-hover: linear-gradient(180deg, #ff6b9a, #a78bfa);
+  --lista-bg: #160d2a; --lista-texto: #fbf0ff; --lista-borda: rgba(255, 60, 120, 0.5);
+  --lista-sombra: 0 0 22px rgba(255, 60, 120, 0.25), 0 18px 40px rgba(0, 0, 0, 0.6);
+  --lista-hover: rgba(255, 60, 120, 0.2);
+  --lista-sel-bg: linear-gradient(90deg, #c4104f, #7c3aed); --lista-sel-fallback: #c4104f; --lista-sel-texto: #fff;
+  --lista-icone: #ff3c78; --lista-check: #2ee6c8;
 }
 
 .rel-rolar-dica { margin: 0 0 0.4rem; font-size: 0.78rem; color: var(--muted); }
@@ -7771,6 +7781,14 @@ select:disabled { cursor: default; }
   }
   select optgroup option { color: var(--lista-texto); text-transform: none; letter-spacing: 0; font-weight: 400; }
   select optgroup option:checked { font-weight: 600; color: var(--lista-sel-texto); }
+  /* Item escolhido numa linha só, com «…» quando não cabe (botão posto por listas-selecao.js). */
+  select > button.sel-botao {
+    display: flex; align-items: center; flex: 1 1 auto; min-width: 0; width: auto; height: auto;
+    margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
+    color: inherit; font: inherit; text-align: start; cursor: inherit;
+  }
+  select > button.sel-botao:focus-visible { outline: none; }
+  select selectedcontent { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 }
 
 /* ========================================================================
@@ -7990,11 +8008,11 @@ html[data-theme="light"] .conta-resumo__item:hover { box-shadow: 0 10px 22px rgb
 .conta-tema__amostra--claro i:nth-child(2) { background: #dce3ec; }
 .conta-tema__amostra--claro i:nth-child(3) { background: #fff; box-shadow: inset 0 0 0 1px #dce3ec; }
 .conta-tema__amostra--claro b { background: #2563eb; }
-.conta-tema__amostra--neon { background: linear-gradient(180deg, #12071f 0%, #3b0d4f 62%, #ff3d9a 140%); }
-.conta-tema__amostra--neon i:nth-child(1) { background: #160d2a; box-shadow: 1px 0 0 rgba(255, 61, 154, 0.5); }
-.conta-tema__amostra--neon i:nth-child(2) { background: linear-gradient(90deg, #ff3d9a, #8b5cf6); }
+.conta-tema__amostra--neon { background: linear-gradient(180deg, #12071f 0%, #3b0d4f 62%, #ff3c78 140%); }
+.conta-tema__amostra--neon i:nth-child(1) { background: #160d2a; box-shadow: 1px 0 0 rgba(255, 60, 120, 0.5); }
+.conta-tema__amostra--neon i:nth-child(2) { background: linear-gradient(90deg, #ff3c78, #8b5cf6); }
 .conta-tema__amostra--neon i:nth-child(3) { background: rgba(22, 13, 42, 0.9); box-shadow: inset 0 0 0 1px #2ee6c8, 0 0 8px rgba(46, 230, 200, 0.45); }
-.conta-tema__amostra--neon b { background: linear-gradient(90deg, #ff3d9a, #ffb547); box-shadow: 0 0 8px rgba(255, 61, 154, 0.6); }
+.conta-tema__amostra--neon b { background: linear-gradient(90deg, #ff3c78, #ff6b35); box-shadow: 0 0 8px rgba(255, 60, 120, 0.6); }
 .conta-tema__nome { font-weight: 700; font-size: 0.9rem; padding: 0 0.2rem; }
 .conta-tema__desc { font-size: 0.74rem; color: var(--muted); padding: 0 0.2rem; }
 .conta-temas__nota { margin: 0.45rem 0 0; }
@@ -8045,12 +8063,12 @@ html[data-theme="light"] .seg-forca[data-nivel="4"] .seg-forca__txt { color: #15
 .seg-regras li.is-ok::before { content: "✓"; background: #22c55e; border-color: #22c55e; }
 
 /* Neon: a capa e os destaques da conta no degradê do tema. */
-html[data-visual="neon"] .conta-hero__capa { background: var(--neon-sol, linear-gradient(120deg, #ff3d9a, #8b5cf6)); }
+html[data-visual="neon"] .conta-hero__capa { background: var(--neon-sol, linear-gradient(120deg, #ff3c78, #8b5cf6)); }
 html[data-visual="neon"] .user-menu__head-avatar,
-html[data-visual="neon"] .conta-tema.is-active .conta-tema__marca { background: linear-gradient(135deg, #ff3d9a, #8b5cf6); }
-html[data-visual="neon"] .conta-tema.is-active .conta-tema__alvo { border-color: #ff3d9a; box-shadow: 0 0 0 3px rgba(255, 61, 154, 0.25), 0 0 18px rgba(255, 61, 154, 0.25); }
-html[data-visual="neon"] .conta-shell__link.is-active::before { background: #ff3d9a; }
-html[data-visual="neon"] .user-menu__head { background: linear-gradient(135deg, rgba(255, 61, 154, 0.16), rgba(139, 92, 246, 0.14)); border-color: rgba(255, 61, 154, 0.3); }
+html[data-visual="neon"] .conta-tema.is-active .conta-tema__marca { background: linear-gradient(135deg, #ff3c78, #8b5cf6); }
+html[data-visual="neon"] .conta-tema.is-active .conta-tema__alvo { border-color: #ff3c78; box-shadow: 0 0 0 3px rgba(255, 60, 120, 0.25), 0 0 18px rgba(255, 60, 120, 0.25); }
+html[data-visual="neon"] .conta-shell__link.is-active::before { background: #ff3c78; }
+html[data-visual="neon"] .user-menu__head { background: linear-gradient(135deg, rgba(255, 60, 120, 0.16), rgba(139, 92, 246, 0.14)); border-color: rgba(255, 60, 120, 0.3); }
 
 @media (max-width: 720px) {
   .conta-resumo { gap: 0.45rem; }
@@ -8061,3 +8079,25 @@ html[data-visual="neon"] .user-menu__head { background: linear-gradient(135deg, 
   .seg-regras { grid-template-columns: 1fr; }
   .conta-shell__link.is-active::before { display: none; }
 }
+html[data-visual="neon"] .conta-resumo__item--info { --tom: #ff3c78; }
+html[data-visual="neon"] .conta-pref__icone { background: rgba(255, 60, 120, 0.14); color: #ff6b9a; }
+
+/* ========================================================================
+   Tema Miami: a mesma letra dos títulos das colunas (condensada, estilo letreiro)
+   em tudo — textos, botões, campos, listas, tabelas e gráficos.
+   A letra só tem um peso: o negrito não é «inventado» pelo navegador (fica limpo),
+   e a hierarquia vem do tamanho e da cor. Um pouco de espaço entre as letras
+   ajuda a leitura das maiúsculas.
+   ======================================================================== */
+html[data-visual="neon"] { --font: var(--neon-titulo); font-synthesis: none; }
+html[data-visual="neon"] body,
+html[data-visual="neon"] :is(button, input, select, textarea, option, optgroup, table, th, td, label, legend, small, strong, b, h1, h2, h3, h4, p, span, li, dt, dd, summary, a, code, kbd) {
+  font-family: var(--neon-titulo);
+}
+html[data-visual="neon"] body { letter-spacing: 0.04em; }
+html[data-visual="neon"] :is(input, textarea)::placeholder { letter-spacing: 0.04em; }
+/* A letra condensada é mais estreita e fica miúda nos textos pequenos: no Miami tudo cresce ~10%
+   (somado ao «Tamanho do texto» escolhido na conta). */
+html[data-visual="neon"] { font-size: 110%; }
+html[data-visual="neon"][data-fonte="grande"] { font-size: 123.75%; }
+html[data-visual="neon"][data-fonte="maior"] { font-size: 137.5%; }
