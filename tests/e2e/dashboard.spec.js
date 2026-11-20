@@ -187,3 +187,25 @@ test("tema Miami: letra condensada nos títulos e botões; textos, campos e list
   await page.evaluate(() => applyVisualNeon(false));
   for (const sel of [...titulos, ...leitura]) expect(await primeira(sel), sel).not.toBe("Bebas Neue");
 });
+
+test("tema Miami: a letra de letreiro fica no centro da caixa (botões, títulos e menus)", async ({ app: { page } }) => {
+  await page.evaluate(() => applyVisualNeon(true));
+  await page.evaluate(() => document.fonts.load('400 20px "Bebas Neue"'));
+  const desvios = await page.evaluate(() => {
+    const c = document.createElement("canvas").getContext("2d");
+    const alvos = [".sidebar__item", ".btn", ".column__title", ".topbar__title", ".card__title"];
+    return alvos.map((sel) => {
+      const el = document.querySelector(sel);
+      const cs = getComputedStyle(el);
+      c.font = `${cs.fontWeight} 100px ${cs.fontFamily}`;
+      const m = c.measureText("DASHBOARD");
+      const area = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
+      const centroDaTinta = m.fontBoundingBoxAscent - (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
+      return { sel, carregada: document.fonts.check('20px "Bebas Neue"'), desvioEm: Math.round(((centroDaTinta - area / 2) / 100) * 1000) / 1000 };
+    });
+  });
+  for (const d of desvios) {
+    expect(d.carregada, "a letra vem do próprio site").toBe(true);
+    expect(Math.abs(d.desvioEm), `${d.sel} centralizado`).toBeLessThanOrEqual(0.01);
+  }
+});
