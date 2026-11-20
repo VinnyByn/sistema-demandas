@@ -729,7 +729,8 @@ const REL_PREVIA_LIMITE = 200;
 
 function relKpisHtml(t) {
   const media = t.total ? Math.round(t.somaDias / t.total) : 0;
-  const kpi = (rotulo, valor, tom = "") => `<div class="rel-kpi${tom ? ` rel-kpi--${tom}` : ""}"><span>${rotulo}</span><strong>${valor}</strong></div>`;
+  const kpi = (rotulo, valor, tom = "") =>
+    `<div class="rel-kpi${tom ? ` rel-kpi--${tom}` : ""}"><span>${rotulo}</span><strong title="${escapeHtml(String(valor))}">${valor}</strong></div>`;
   return [
     kpi("Projetos", relNumero(t.total)),
     kpi("Em andamento", relNumero(t.andamento)),
@@ -895,7 +896,10 @@ function relRender() {
   const totais = relTotais(lista);
   const colunas = relColunasAtivas();
   const kpis = document.getElementById("relKpis");
-  if (kpis) kpis.innerHTML = relKpisHtml(totais);
+  if (kpis) {
+    kpis.innerHTML = relKpisHtml(totais);
+    if (typeof ajustarTextoAoQuadro === "function") requestAnimationFrame(() => ajustarTextoAoQuadro(kpis.querySelectorAll("strong")));
+  }
   const filtrosTxt = relDescricaoFiltros();
   const desc = document.getElementById("relFiltrosAtivos");
   if (desc) desc.textContent = filtrosTxt.length ? filtrosTxt.join(" · ") : "Sem filtros: todos os projetos ativos.";
@@ -986,10 +990,14 @@ function relExportarCsv() {
 function relHtmlImpressao(lista, colunas) {
   const filtros = relDescricaoFiltros();
   const totais = relTotais(lista);
+  const autor = typeof getLoggedInComentarioAutor === "function" ? getLoggedInComentarioAutor() : "";
   return (
-    `<header class="rel-print__cab"><h1>Relatório de projetos</h1>` +
-    `<p>Gerado em ${escapeHtml(relDataHoraBr(new Date().toISOString()))}${typeof getLoggedInComentarioAutor === "function" && getLoggedInComentarioAutor() ? ` por ${escapeHtml(getLoggedInComentarioAutor())}` : ""}</p>` +
-    `<p>${escapeHtml(filtros.length ? `Filtros: ${filtros.join(" · ")}` : "Sem filtros: todos os projetos ativos.")}</p></header>` +
+    `<header class="rel-print__cab">` +
+    `<img class="rel-print__logo" src="img/favicon.png" alt="" width="40" height="40" />` +
+    `<div class="rel-print__titulo"><h1>Relatório de projetos</h1>` +
+    `<p>Projetos Master · gerado em ${escapeHtml(relDataHoraBr(new Date().toISOString()))}${autor ? ` por ${escapeHtml(autor)}` : ""} · ${relNumero(lista.length)} projeto(s)</p></div>` +
+    `</header>` +
+    `<p class="rel-print__filtros">${escapeHtml(filtros.length ? `Filtros: ${filtros.join(" · ")}` : "Sem filtros: todos os projetos ativos.")}</p>` +
     `<div class="rel-kpis">${relKpisHtml(totais)}</div>` +
     relResumoTabelaHtml(relResumoAgrupado(lista, relFiltros.agrupar), relFiltros.agrupar, lista.length) +
     `<h3 class="rel-sub">Projetos (${relNumero(lista.length)})</h3>` +
@@ -997,14 +1005,11 @@ function relHtmlImpressao(lista, colunas) {
   );
 }
 
-/** Imprime só o relatório (o navegador oferece «Salvar como PDF»). */
-function relImprimir() {
+/** Monta a área de impressão com o relatório atual. Devolve false se não há o que imprimir. */
+function relPrepararImpressao() {
   const lista = relResultado();
   const colunas = relColunasAtivas();
-  if (!lista.length || (!colunas.length && relFiltros.vista !== "fichas")) {
-    toast("Nada para imprimir com esses filtros");
-    return;
-  }
+  if (!lista.length || (!colunas.length && relFiltros.vista !== "fichas")) return false;
   let area = document.getElementById("relatorioImpressao");
   if (!area) {
     area = document.createElement("div");
@@ -1014,12 +1019,21 @@ function relImprimir() {
   }
   area.innerHTML = relHtmlImpressao(lista, colunas);
   document.body.classList.add("imprimindo-relatorio");
-  const limpar = () => {
-    document.body.classList.remove("imprimindo-relatorio");
-    area.innerHTML = "";
-    window.removeEventListener("afterprint", limpar);
-  };
-  window.addEventListener("afterprint", limpar);
+  return true;
+}
+
+function relLimparImpressao() {
+  document.body.classList.remove("imprimindo-relatorio");
+  const area = document.getElementById("relatorioImpressao");
+  if (area) area.innerHTML = "";
+}
+
+/** Imprime só o relatório (o navegador oferece «Salvar como PDF»). */
+function relImprimir() {
+  if (!relPrepararImpressao()) {
+    toast("Nada para imprimir com esses filtros");
+    return;
+  }
   window.print();
 }
 
@@ -1071,6 +1085,16 @@ function initRelatorio() {
   document.getElementById("btnRelatorio")?.addEventListener("click", abrirRelatorio);
   const dlg = document.getElementById("modalRelatorio");
   if (!dlg) return;
+  // Ctrl+P com o relatório aberto imprime o relatório (e não a tela inteira com a janela por cima).
+  window.addEventListener("beforeprint", () => {
+    if (dlg.open && !document.body.classList.contains("imprimindo-relatorio")) relPrepararImpressao();
+  });
+  window.addEventListener("afterprint", relLimparImpressao);
+  // Cartões acompanham a largura da janela.
+  if (typeof ResizeObserver === "function" && typeof ajustarTextoAoQuadro === "function") {
+    const kpis = document.getElementById("relKpis");
+    if (kpis) new ResizeObserver(() => ajustarTextoAoQuadro(kpis.querySelectorAll("strong"))).observe(kpis);
+  }
   const fechar = () => dlg.close();
   document.getElementById("modalRelatorioClose")?.addEventListener("click", fechar);
   document.getElementById("btnRelFechar")?.addEventListener("click", fechar);

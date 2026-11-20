@@ -7269,10 +7269,13 @@ html[data-theme="light"] .usuarios-avatar--visibilidade { background: #ede9fe; c
 .rel-multi__op { display: flex; align-items: center; gap: 0.45rem; padding: 0.28rem 0.4rem; border-radius: 6px; font-size: 0.84rem; cursor: pointer; }
 .rel-multi__op:hover { background: var(--surface2); }
 
-.rel-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: 0.6rem; }
-.rel-kpi { padding: 0.65rem 0.8rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); display: flex; flex-direction: column; gap: 0.2rem; }
+/* No máximo 5 por linha (2 linhas de 5): cartão largo o bastante para valores em reais. */
+.rel-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(10rem, calc((100% - 2.4rem) / 5)), 1fr)); gap: 0.6rem; }
+.rel-kpi { padding: 0.65rem 0.8rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; container-type: inline-size; }
+/* Valor encolhe com o cartão (e um ajuste em JS garante que nunca passe da borda). */
+.rel-kpi strong { display: block; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; font-size: clamp(0.8rem, 11cqi, 1.15rem); }
 .rel-kpi span { font-size: 0.75rem; color: var(--muted); font-weight: 600; }
-.rel-kpi strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.rel-kpi strong { font-variant-numeric: tabular-nums; }
 .rel-kpi--ok strong { color: var(--accent2); }
 .rel-kpi--bad strong { color: var(--danger); }
 
@@ -7313,12 +7316,23 @@ html[data-theme="light"] .usuarios-avatar--visibilidade { background: #ede9fe; c
   html:has(body.imprimindo-relatorio), body.imprimindo-relatorio { background: #fff !important; color: #000 !important; }
   #relatorioImpressao .rel-tabela tbody tr, #relatorioImpressao .rel-tabela tbody tr:hover { background: transparent; cursor: default; }
   body.imprimindo-relatorio #relatorioImpressao { display: block; color: #000; font-size: 9pt; }
-  #relatorioImpressao .rel-print__cab h1 { margin: 0 0 0.2rem; font-size: 15pt; }
-  #relatorioImpressao .rel-print__cab p { margin: 0 0 0.2rem; color: #333; }
-  #relatorioImpressao .rel-kpis { grid-template-columns: repeat(7, 1fr); margin: 0.6rem 0; gap: 0.3rem; }
-  #relatorioImpressao .rel-kpi { background: #f3f4f6; border-color: #d1d5db; padding: 0.3rem 0.4rem; }
-  #relatorioImpressao .rel-kpi span { color: #374151; font-size: 7pt; }
-  #relatorioImpressao .rel-kpi strong { font-size: 10pt; color: #000; }
+  #relatorioImpressao .rel-print__cab { display: flex; align-items: center; gap: 0.6rem; padding-bottom: 0.35rem; border-bottom: 2px solid #2563eb; }
+  #relatorioImpressao .rel-print__logo { width: 34px; height: 34px; border-radius: 8px; content: normal; filter: none; }
+  #relatorioImpressao .rel-print__cab h1 { margin: 0; font-size: 15pt; line-height: 1.1; color: #0f172a; font-family: "DM Sans", system-ui, sans-serif; background: none; -webkit-text-fill-color: #0f172a; filter: none; letter-spacing: 0; text-transform: none; }
+  #relatorioImpressao .rel-print__cab p { margin: 0.1rem 0 0; color: #475569; font-size: 8pt; }
+  #relatorioImpressao .rel-print__filtros { margin: 0.35rem 0 0; color: #334155; font-size: 8pt; }
+  #relatorioImpressao .rel-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0.5rem 0; gap: 0.3rem; }
+  #relatorioImpressao .rel-kpi { background: #f8fafc; border-color: #cbd5e1; padding: 0.3rem 0.45rem; break-inside: avoid; container-type: inline-size; }
+  #relatorioImpressao .rel-kpi span { color: #475569; font-size: 7pt; }
+  #relatorioImpressao .rel-kpi strong { font-size: clamp(6.5pt, 8.5cqi, 11pt) !important; color: #0f172a; white-space: nowrap; overflow: visible; font-family: "DM Sans", system-ui, sans-serif; text-shadow: none; letter-spacing: 0; }
+  #relatorioImpressao .rel-kpi--ok strong { color: #15803d; }
+  #relatorioImpressao .rel-kpi--bad strong { color: #b91c1c; }
+  /* Total só no fim da tabela (não repetido em todas as páginas); cabeçalho repete. */
+  #relatorioImpressao .rel-tabela tfoot { display: table-row-group; }
+  #relatorioImpressao .rel-tabela tfoot td { position: static; }
+  #relatorioImpressao .rel-tabela--detalhe tbody tr:nth-child(even) td { background: #f8fafc; }
+  #relatorioImpressao .rel-sub { font-family: "DM Sans", system-ui, sans-serif; text-transform: none; letter-spacing: 0; font-size: 11pt; color: #0f172a; margin: 0.6rem 0 0.3rem; }
+  #relatorioImpressao .rel-rolar-dica { display: none; }
   #relatorioImpressao .muted { color: #555; }
   #relatorioImpressao .rel-tabela-wrap { overflow: visible; max-height: none; border-color: #d1d5db; }
   #relatorioImpressao .rel-tabela--detalhe { width: 100%; min-width: 0; }
@@ -7331,7 +7345,12 @@ html[data-theme="light"] .usuarios-avatar--visibilidade { background: #ede9fe; c
   #relatorioImpressao .rel-tabela tr { break-inside: avoid; }
   #relatorioImpressao .rel-tabela tfoot td { background: #f3f4f6; }
   #relatorioImpressao .rel-barra { background: linear-gradient(90deg, #2563eb var(--p), #d1d5db var(--p)); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  @page { size: A4 landscape; margin: 10mm; }
+  @page {
+    size: A4 landscape;
+    margin: 10mm 10mm 13mm;
+    @bottom-left { content: "Projetos Master · Relatório de projetos"; font: 7.5pt "DM Sans", system-ui, sans-serif; color: #64748b; }
+    @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 7.5pt "DM Sans", system-ui, sans-serif; color: #64748b; }
+  }
 }
 .rel-tabela-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -7535,7 +7554,7 @@ html[data-visual="neon"] .rel-sub {
 html[data-visual="neon"] .kpi__value,
 html[data-visual="neon"] .rel-kpi strong {
   font-family: var(--neon-titulo); font-weight: 400; letter-spacing: 0.03em; line-height: 1.05;
-  font-size: clamp(1.15rem, 14cqi, 1.75rem); /* o cartão é um container: valor longo encolhe em vez de cortar */
+  font-size: clamp(0.95rem, 12cqi, 1.75rem); /* o cartão é um container: valor longo encolhe em vez de cortar */
 }
 html[data-visual="neon"] .kpi,
 html[data-visual="neon"] .rel-kpi { border-color: var(--border); background: linear-gradient(180deg, rgba(255, 61, 154, 0.06), transparent 70%), var(--surface); }
