@@ -173,16 +173,17 @@ test("tema Neon: liga pela conta, fica salvo, e escolher o claro desliga", async
   expect(await logos()).toEqual(["img/favicon.png", "img/favicon.png"]);
 });
 
-test("tema Miami: a mesma letra dos títulos das colunas em tudo; fora dele, a letra normal", async ({ app: { page } }) => {
-  const letras = () =>
-    page.evaluate(() =>
-      ["body", ".column__title", ".card__title", "#filterRegional", "#btnRelatorio", "#filterBusca"].map((sel) => {
-        const el = document.querySelector(sel);
-        return el ? getComputedStyle(el).fontFamily.split(",")[0].replace(/["']/g, "").trim() : sel + " ausente";
-      }),
-    );
+test("tema Miami: letra condensada nos títulos e botões; textos, campos e listas na letra de leitura", async ({ app: { page } }) => {
+  const primeira = (sel) =>
+    page.evaluate((s) => {
+      const el = document.querySelector(s);
+      return el ? getComputedStyle(el).fontFamily.split(",")[0].replace(/["']/g, "").trim() : s + " ausente";
+    }, sel);
+  const titulos = [".column__title", ".card__title", ".topbar__title", "#btnRelatorio"];
+  const leitura = ["body", ".card .card__geo, .card [class*=meta], .card p", "#filterRegional", "#filterBusca", ".column__vazio"];
   await page.evaluate(() => applyVisualNeon(true));
-  expect(new Set(await letras())).toEqual(new Set(["Bebas Neue"]));
+  for (const sel of titulos) expect(await primeira(sel), sel).toBe("Bebas Neue");
+  for (const sel of leitura) expect(await primeira(sel), sel).toBe("DM Sans");
   await page.evaluate(() => applyVisualNeon(false));
-  expect((await letras()).filter((f) => f === "Bebas Neue")).toEqual([]);
+  for (const sel of [...titulos, ...leitura]) expect(await primeira(sel), sel).not.toBe("Bebas Neue");
 });
