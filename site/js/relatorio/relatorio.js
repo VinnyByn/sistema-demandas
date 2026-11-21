@@ -460,15 +460,18 @@ function relMetricasVazias() {
   return { total: 0, andamento: 0, concluido: 0, pausado: 0, reprovado: 0, atrasado: 0, valor: 0, somaDias: 0, portas: 0, metragem: 0, realizado: 0 };
 }
 
+/** `peso`: parte do projeto no grupo — { valor, portas } (por segmento) ou 1. */
 function relSomar(m, d, peso = 1) {
+  const pv = typeof peso === "object" ? peso.valor : peso;
+  const pp = typeof peso === "object" ? peso.portas : peso;
   m.total++;
   m[relSituacao(d)]++;
   if (isAtrasoAtivo(d)) m.atrasado++;
-  m.valor += relValorFinal(d) * peso;
+  m.valor += relValorFinal(d) * pv;
   m.somaDias += demandaDiasAberto(d);
-  m.portas += demandaPortasNovas(d) * peso;
-  m.metragem += demandaMetragemLancamento(d) * peso;
-  m.realizado += relValorRealizado(d) * peso;
+  m.portas += demandaPortasNovas(d) * pp;
+  m.metragem += demandaMetragemLancamento(d) * pv;
+  m.realizado += relValorRealizado(d) * pv;
 }
 
 /** Resumo agrupado: [{ chave, rotulo, ...métricas }] ordenado por quantidade. */
@@ -478,7 +481,10 @@ function relResumoAgrupado(lista, agrupar) {
     for (const chave of new Set(relChavesGrupo(d, agrupar))) {
       if (!mapa.has(chave)) mapa.set(chave, relMetricasVazias());
       // Por segmento, valores, portas e metragem seguem a divisão do projeto (TCR 60% / TCT 40%…).
-      const peso = agrupar === "segmento" && demandaSegmentosB2c(d).length > 1 ? demandaFracaoSegmento(d, chave) : 1;
+      const peso =
+        agrupar === "segmento" && demandaSegmentosB2c(d).length > 1
+          ? { valor: demandaFracaoSegmento(d, chave, "valor"), portas: demandaFracaoSegmento(d, chave, "portas") }
+          : 1;
       relSomar(mapa.get(chave), d, peso);
     }
   }
@@ -785,7 +791,7 @@ function relResumoTabelaHtml(linhas, agrupar, total) {
     `<h3 class="rel-sub">Resumo por ${escapeHtml(nome.toLowerCase())}</h3>` +
     (multi ? `<p class="muted small">Projeto com mais de uma ${agrupar === "projetista" ? "pessoa" : agrupar === "cidade" ? "cidade" : "regional"} conta em cada uma.</p>` : "") +
     (agrupar === "segmento"
-      ? `<p class="muted small">Projeto com mais de um segmento conta em cada um; valor, portas e metragem são divididos conforme a divisão informada no projeto.</p>`
+      ? `<p class="muted small">Projeto com mais de um segmento conta em cada um; valor e metragem seguem a divisão do valor, e as portas, a divisão das portas, informadas no projeto.</p>`
       : "") +
     `<div class="rel-tabela-wrap" tabindex="0" role="region" aria-label="Resumo por ${escapeHtml(nome.toLowerCase())}"><table class="rel-tabela rel-tabela--resumo"><thead><tr><th scope="col">${escapeHtml(nome)}</th>` +
     `<th scope="col" class="num">Projetos</th><th scope="col" class="num">%</th><th scope="col" class="num">Em andamento</th>` +

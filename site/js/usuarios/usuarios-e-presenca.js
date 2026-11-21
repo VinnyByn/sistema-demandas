@@ -1158,7 +1158,11 @@ const HISTORICO_EDICAO_CAMPOS = [
   {
     campo: "divisaoSegmentosB2c",
     label: "Divisão entre segmentos",
-    format: (v) => (v && typeof v === "object" ? Object.entries(v).map(([s, p]) => `${s} ${p}%`).join(" · ") : "—"),
+    format: (v) => {
+      if (!v || typeof v !== "object") return "—";
+      const linha = (m) => Object.entries(m || {}).map(([s, p]) => `${s} ${p}%`).join(" · ");
+      return v.valor || v.portas ? `valor: ${linha(v.valor)} | portas: ${linha(v.portas)}` : linha(v);
+    },
   },
   { campo: "planejamentoTct", label: PLANEJAMENTO_TCT.rotulo, format: (v) => planejamentoTctLabel(v) || "—" },
   { campo: "cidade", label: "Cidade", format: (v) => v || "—" },

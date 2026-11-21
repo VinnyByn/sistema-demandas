@@ -610,41 +610,60 @@ function demandaSegmentosB2c(d) {
 }
 
 /**
- * Quanto de cada segmento é o projeto (frações que somam 1), para dividir gastos, portas e metragem.
- * Com um segmento só, é tudo dele. Com vários, vale a divisão informada (em %); se faltar ou não somar
- * 100%, divide em partes iguais.
+ * Divisão entre segmentos, separada para o VALOR e para as PORTAS (podem ser diferentes: 70% das portas no TCR
+ * e só metade do custo, por exemplo). Guardada como { valor: { TCR: 50, TCT: 50 }, portas: { TCR: 70, TCT: 30 } }.
+ * A metragem de cabo segue a divisão do valor. Formato antigo ({ TCR: 60, TCT: 40 }) vale para os dois.
  */
-function demandaDivisaoSegmentos(d) {
+const DIVISAO_SEGMENTOS_TIPOS = ["valor", "portas"];
+
+function divisaoSegmentosBruta(div, tipo) {
+  if (!div || typeof div !== "object") return {};
+  if (div.valor || div.portas) return div[tipo] && typeof div[tipo] === "object" ? div[tipo] : {};
+  return div;
+}
+
+/** Frações (somam 1) de cada segmento para `tipo` ("valor" ou "portas"). Sem divisão válida: partes iguais. */
+function demandaDivisaoSegmentos(d, tipo = "valor") {
   const segs = demandaSegmentosB2c(d);
   if (segs.length <= 1) return Object.fromEntries(segs.map((s) => [s, 1]));
-  const div = d?.divisaoSegmentosB2c && typeof d.divisaoSegmentosB2c === "object" ? d.divisaoSegmentosB2c : {};
+  const div = divisaoSegmentosBruta(d?.divisaoSegmentosB2c, tipo);
   const pcts = segs.map((s) => Number(div[s]));
   const soma = pcts.reduce((t, n) => t + (Number.isFinite(n) && n >= 0 ? n : NaN), 0);
   if (!Number.isFinite(soma) || Math.abs(soma - 100) > 0.5) return Object.fromEntries(segs.map((s) => [s, 1 / segs.length]));
   return Object.fromEntries(segs.map((s, i) => [s, pcts[i] / soma]));
 }
 
-function demandaFracaoSegmento(d, seg) {
-  return demandaDivisaoSegmentos(d)[seg] || 0;
+function demandaFracaoSegmento(d, seg, tipo = "valor") {
+  return demandaDivisaoSegmentos(d, tipo)[seg] || 0;
 }
 
-/** Divisão normalizada para guardar (% inteiros por segmento), só quando há mais de um segmento. */
+/** Divisão normalizada para guardar ({ valor, portas } com % por segmento), só quando há mais de um segmento. */
 function normalizeDivisaoSegmentosB2c(segs, div) {
   if (!Array.isArray(segs) || segs.length <= 1) return null;
   const out = {};
-  for (const s of segs) {
-    const n = Number(div?.[s]);
-    out[s] = Number.isFinite(n) && n >= 0 ? Math.round(n * 10) / 10 : 0;
+  for (const tipo of DIVISAO_SEGMENTOS_TIPOS) {
+    const bruta = divisaoSegmentosBruta(div, tipo);
+    out[tipo] = {};
+    for (const s of segs) {
+      const n = Number(bruta[s]);
+      out[tipo][s] = Number.isFinite(n) && n >= 0 ? Math.round(n * 10) / 10 : 0;
+    }
   }
   return out;
 }
 
-/** «TCR 60% + TCT 40%» (ou só «TCT»). */
+function pctTexto(fracao) {
+  return `${String(Math.round(fracao * 1000) / 10).replace(".", ",")}%`;
+}
+
+/** «TCR 60% + TCT 40%» (mesma divisão) ou «TCR (valor 50% · portas 70%) + TCT (…)»; com um segmento, só «TCT». */
 function segmentosB2cTexto(d, { comPct = true } = {}) {
   const segs = demandaSegmentosB2c(d);
   if (segs.length <= 1 || !comPct) return segs.join(" + ");
-  const div = demandaDivisaoSegmentos(d);
-  return segs.map((s) => `${s} ${String(Math.round(div[s] * 1000) / 10).replace(".", ",")}%`).join(" + ");
+  const dv = demandaDivisaoSegmentos(d, "valor");
+  const dp = demandaDivisaoSegmentos(d, "portas");
+  const iguais = segs.every((s) => Math.abs(dv[s] - dp[s]) < 0.0005);
+  return segs.map((s) => (iguais ? `${s} ${pctTexto(dv[s])}` : `${s} (valor ${pctTexto(dv[s])} · portas ${pctTexto(dp[s])})`)).join(" + ");
 }
 
 /** O projeto é B2C e envolve TCT (o único segmento que tem o campo de planejamento)? */

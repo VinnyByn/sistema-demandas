@@ -228,9 +228,10 @@ function syncDemProdutoB2bField() {
   labelProduto?.classList.toggle("field-label--required", isB2b);
 }
 
-/* ---------- Segmento B2C: caixinhas (dá para marcar mais de um) e divisão dos valores ---------- */
-/** Divisão digitada por segmento (% ) — sobrevive a desmarcar e marcar de novo enquanto o formulário está aberto. */
-let demDivisaoSegmentosDigitada = {};
+/* ---------- Segmento B2C: caixinhas (dá para marcar mais de um) e divisão do valor e das portas ---------- */
+/** Divisão digitada (% por segmento), separada para valor e portas; sobrevive a desmarcar e marcar de novo. */
+let demDivisaoSegmentosDigitada = { valor: {}, portas: {} };
+const DIVISAO_ROTULOS = { valor: "Valor", portas: "Portas" };
 
 function initDemSegmentoB2cSelect() {
   const box = document.getElementById("demSegmentosB2c");
@@ -242,22 +243,27 @@ function initDemSegmentoB2cSelect() {
       `<span>${escapeHtml(s)}</span></label>`,
   ).join("");
   box.addEventListener("change", () => {
-    renderDemDivisaoSegmentos({ reequilibrar: true });
+    renderDemDivisaoSegmentos();
     syncDemPlanejamentoTctField();
   });
   document.getElementById("demDivisaoSegmentosCampos")?.addEventListener("input", (e) => {
     const inp = e.target.closest("[data-div-seg]");
     if (!inp) return;
-    demDivisaoSegmentosDigitada[inp.dataset.divSeg] = Number(String(inp.value).replace(",", "."));
-    // Com dois segmentos, o outro completa os 100% sozinho.
-    const outros = [...document.querySelectorAll("#demDivisaoSegmentosCampos [data-div-seg]")].filter((x) => x !== inp);
+    const tipo = inp.dataset.divTipo;
     const v = Number(String(inp.value).replace(",", "."));
+    demDivisaoSegmentosDigitada[tipo][inp.dataset.divSeg] = v;
+    // Com dois segmentos, o outro da mesma linha completa os 100% sozinho.
+    const outros = [...document.querySelectorAll(`#demDivisaoSegmentosCampos [data-div-tipo="${tipo}"]`)].filter((x) => x !== inp);
     if (outros.length === 1 && Number.isFinite(v) && v >= 0 && v <= 100) {
       const resto = Math.round((100 - v) * 10) / 10;
       outros[0].value = String(resto);
-      demDivisaoSegmentosDigitada[outros[0].dataset.divSeg] = resto;
+      demDivisaoSegmentosDigitada[tipo][outros[0].dataset.divSeg] = resto;
     }
     syncDemDivisaoSoma();
+  });
+  // A prévia «≈ R$ … / ≈ … portas» acompanha o custo enquanto ele é preenchido.
+  document.getElementById("formDemanda")?.addEventListener("input", (e) => {
+    if (!e.target.closest("#demDivisaoSegmentos")) syncDemDivisaoSoma();
   });
 }
 
@@ -266,10 +272,11 @@ function lerSegmentosB2cDoForm() {
   return [...document.querySelectorAll("#demSegmentosB2c [data-seg-b2c]:checked")].map((i) => i.value);
 }
 
+/** { valor: { TCR: 50, … }, portas: { TCR: 70, … } } como está nos campos. */
 function lerDivisaoSegmentosDoForm() {
-  const out = {};
+  const out = { valor: {}, portas: {} };
   document.querySelectorAll("#demDivisaoSegmentosCampos [data-div-seg]").forEach((i) => {
-    out[i.dataset.divSeg] = Number(String(i.value).replace(",", "."));
+    out[i.dataset.divTipo][i.dataset.divSeg] = Number(String(i.value).replace(",", "."));
   });
   return out;
 }
@@ -278,11 +285,14 @@ function definirSegmentosB2cNoForm(segs, divisao) {
   initDemSegmentoB2cSelect();
   const set = new Set(segs || []);
   document.querySelectorAll("#demSegmentosB2c [data-seg-b2c]").forEach((i) => (i.checked = set.has(i.value)));
-  demDivisaoSegmentosDigitada = divisao && typeof divisao === "object" ? { ...divisao } : {};
+  demDivisaoSegmentosDigitada = {
+    valor: { ...divisaoSegmentosBruta(divisao, "valor") },
+    portas: { ...divisaoSegmentosBruta(divisao, "portas") },
+  };
   renderDemDivisaoSegmentos();
 }
 
-/** Partes iguais em % (a última fica com o resto: 34/33/33). */
+/** Partes iguais em % (a primeira fica com o resto: 34/33/33). */
 function divisaoIgual(segs) {
   const base = Math.floor(1000 / segs.length) / 10;
   const out = Object.fromEntries(segs.map((s) => [s, base]));
@@ -290,7 +300,7 @@ function divisaoIgual(segs) {
   return out;
 }
 
-function renderDemDivisaoSegmentos({ reequilibrar = false } = {}) {
+function renderDemDivisaoSegmentos() {
   const box = document.getElementById("demDivisaoSegmentos");
   const campos = document.getElementById("demDivisaoSegmentosCampos");
   const field = document.getElementById("fieldDemSegmentoB2c");
@@ -304,36 +314,52 @@ function renderDemDivisaoSegmentos({ reequilibrar = false } = {}) {
     syncDemDivisaoSoma();
     return;
   }
-  // Marcou ou desmarcou um segmento: se a divisão guardada não fecha 100% para estes, volta a partes iguais.
-  const atual = segs.map((s) => Number(demDivisaoSegmentosDigitada[s]));
-  const soma = atual.reduce((t, n) => t + (Number.isFinite(n) ? n : NaN), 0);
-  if (reequilibrar || !Number.isFinite(soma) || Math.abs(soma - 100) > 0.5) {
-    if (!Number.isFinite(soma) || Math.abs(soma - 100) > 0.5) Object.assign(demDivisaoSegmentosDigitada, divisaoIgual(segs));
-  }
-  campos.innerHTML = segs
-    .map(
-      (s) =>
-        `<label class="seg-b2c__div"><span>${escapeHtml(s)}</span>` +
-        `<input type="number" min="0" max="100" step="0.1" inputmode="decimal" data-div-seg="${escapeHtml(s)}" ` +
-        `value="${escapeHtml(String(demDivisaoSegmentosDigitada[s] ?? ""))}" aria-label="Parte do ${escapeHtml(s)} em %" />` +
-        `<span aria-hidden="true">%</span></label>`,
-    )
-    .join("");
+  campos.innerHTML = DIVISAO_SEGMENTOS_TIPOS.map((tipo) => {
+    // Se a divisão guardada não fecha 100% para os segmentos marcados agora, começa em partes iguais.
+    const guardada = demDivisaoSegmentosDigitada[tipo];
+    const soma = segs.reduce((t, s) => t + (Number.isFinite(Number(guardada[s])) ? Number(guardada[s]) : NaN), 0);
+    if (!Number.isFinite(soma) || Math.abs(soma - 100) > 0.5) Object.assign(guardada, divisaoIgual(segs));
+    return (
+      `<div class="seg-b2c__linha" data-div-linha="${tipo}">` +
+      `<span class="seg-b2c__linha-rot">${DIVISAO_ROTULOS[tipo]}</span>` +
+      segs
+        .map(
+          (s) =>
+            `<label class="seg-b2c__div"><span>${escapeHtml(s)}</span>` +
+            `<input type="number" min="0" max="100" step="0.1" inputmode="decimal" data-div-seg="${escapeHtml(s)}" data-div-tipo="${tipo}" ` +
+            `value="${escapeHtml(String(guardada[s] ?? ""))}" aria-label="${DIVISAO_ROTULOS[tipo]}: parte do ${escapeHtml(s)} em %" />` +
+            `<span aria-hidden="true">%</span><small class="seg-b2c__previa" data-previa-seg="${escapeHtml(s)}" data-previa-tipo="${tipo}"></small></label>`,
+        )
+        .join("") +
+      `<span class="seg-b2c__soma" data-soma-tipo="${tipo}" aria-live="polite"></span></div>`
+    );
+  }).join("");
   syncDemDivisaoSoma();
 }
 
+/** Total de cada linha (precisa somar 100%) e a prévia de quanto cada % representa. */
 function syncDemDivisaoSoma() {
-  const el = document.getElementById("demDivisaoSegmentosSoma");
-  if (!el) return;
-  const vals = Object.values(lerDivisaoSegmentosDoForm());
-  if (!vals.length) {
-    el.textContent = "";
-    return;
+  const div = lerDivisaoSegmentosDoForm();
+  let custo = null;
+  try {
+    custo = readCustoFromForm();
+  } catch (_) {}
+  const totalValor = custo ? Number(demandaValorFinal({ custo })) || 0 : 0;
+  const totalPortas = custo ? Number(demandaPortasNovas({ custo })) || 0 : 0;
+  for (const tipo of DIVISAO_SEGMENTOS_TIPOS) {
+    const el = document.querySelector(`#demDivisaoSegmentosCampos [data-soma-tipo="${tipo}"]`);
+    if (!el) continue;
+    const vals = Object.values(div[tipo]);
+    const soma = Math.round(vals.reduce((t, n) => t + (Number.isFinite(n) ? n : 0), 0) * 10) / 10;
+    const ok = Math.abs(soma - 100) <= 0.5;
+    el.textContent = ok ? "Total: 100%" : `Total: ${String(soma).replace(".", ",")}% — precisa somar 100%`;
+    el.classList.toggle("is-bad", !ok);
   }
-  const soma = Math.round(vals.reduce((t, n) => t + (Number.isFinite(n) ? n : 0), 0) * 10) / 10;
-  const ok = Math.abs(soma - 100) <= 0.5;
-  el.textContent = ok ? "Total: 100%" : `Total: ${String(soma).replace(".", ",")}% — precisa somar 100%`;
-  el.classList.toggle("is-bad", !ok);
+  document.querySelectorAll("#demDivisaoSegmentosCampos [data-previa-seg]").forEach((el) => {
+    const pct = Number(div[el.dataset.previaTipo]?.[el.dataset.previaSeg]) || 0;
+    if (el.dataset.previaTipo === "valor") el.textContent = totalValor > 0 ? `≈ ${formatBRL((totalValor * pct) / 100)}` : "";
+    else el.textContent = totalPortas > 0 ? `≈ ${Math.round((totalPortas * pct) / 100)} portas` : "";
+  });
 }
 
 function syncDemSegmentoB2cField() {

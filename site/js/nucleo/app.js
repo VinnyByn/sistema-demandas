@@ -463,12 +463,16 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     return;
   }
   if (segmentosB2c.length > 1) {
-    const soma = segmentosB2c.reduce((t, s) => t + (Number.isFinite(divisaoDigitada[s]) ? divisaoDigitada[s] : 0), 0);
-    if (Math.abs(soma - 100) > 0.5 || segmentosB2c.some((s) => !(divisaoDigitada[s] >= 0))) {
-      syncDemCamposPorTipo();
-      toast(`A divisão dos valores entre ${segmentosB2c.join(" e ")} precisa somar 100% (agora: ${String(Math.round(soma * 10) / 10).replace(".", ",")}%)`);
-      document.querySelector("#demDivisaoSegmentosCampos [data-div-seg]")?.focus();
-      return;
+    for (const tipo of DIVISAO_SEGMENTOS_TIPOS) {
+      const linha = divisaoDigitada[tipo] || {};
+      const soma = segmentosB2c.reduce((t, s) => t + (Number.isFinite(linha[s]) ? linha[s] : 0), 0);
+      if (Math.abs(soma - 100) > 0.5 || segmentosB2c.some((s) => !(linha[s] >= 0))) {
+        syncDemCamposPorTipo();
+        const nome = tipo === "portas" ? "das portas" : "do valor";
+        toast(`A divisão ${nome} entre ${segmentosB2c.join(" e ")} precisa somar 100% (agora: ${String(Math.round(soma * 10) / 10).replace(".", ",")}%)`);
+        document.querySelector(`#demDivisaoSegmentosCampos [data-div-tipo="${tipo}"]`)?.focus();
+        return;
+      }
     }
   }
   if (demandaEhTct({ tipo, segmentosB2c }) && !planejamentoTct) {

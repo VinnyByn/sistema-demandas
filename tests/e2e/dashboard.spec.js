@@ -235,11 +235,11 @@ test("dashboard B2C: TCT separado por planejamento do alívio, e o clique abre o
   await expect(page.locator("#modalDashGeoProjetosTitle")).toContainText("Não planejado");
 });
 
-test("dashboard B2C: projeto com TCR e TCT entra nos dois segmentos, com as portas divididas", async ({ app: { page } }) => {
+test("dashboard B2C: projeto com TCR e TCT entra nos dois segmentos, com valor e portas divididos cada um pela sua %", async ({ app: { page } }) => {
   await page.evaluate(() => {
     state.demandas = state.demandas.filter((d) => d.tipo !== "B2C");
     state.demandas.push({
-      id: "x1", titulo: "Expansão Centro", tipo: "B2C", segmentoB2c: "TCR", segmentosB2c: ["TCR", "TCT"], divisaoSegmentosB2c: { TCR: 60, TCT: 40 },
+      id: "x1", titulo: "Expansão Centro", tipo: "B2C", segmentoB2c: "TCR", segmentosB2c: ["TCR", "TCT"], divisaoSegmentosB2c: { valor: { TCR: 60, TCT: 40 }, portas: { TCR: 70, TCT: 30 } },
       planejamentoTct: "nao_planejado", status: "conclusao", responsavel: "Matheus", cidade: "Itajubá - IJA", descricao: "x",
       custo: { temLevantamento: true, valorProjeto: 1000, temPortas: true, qtdCasas: 200, qtdPortasAtual: 10, qtdNovasPortas: 100 },
     });
@@ -249,14 +249,15 @@ test("dashboard B2C: projeto com TCR e TCT entra nos dois segmentos, com as port
   await page.click('[data-tab="dashboard"]');
   const tabela = page.locator("#dashB2cSegmentos");
   const portas = (seg) => tabela.locator("tbody tr", { hasText: seg }).locator("td").nth(2);
-  await expect(portas("TCR")).toContainText("60");
-  await expect(portas("TCT")).toContainText("40");
+  // Portas seguem a divisão das portas (70/30), não a do valor (60/40).
+  await expect(portas("TCR")).toContainText("70");
+  await expect(portas("TCT")).toContainText("30");
   await expect(tabela.locator("tfoot td").first()).toHaveText("1"); // Total conta o projeto uma vez
   await expect(tabela).toContainText("envolvem mais de um segmento");
-  // Planejamento do TCT: só a parte TCT (40 portas).
-  await expect(page.locator("#dashB2cPlanejamentoTct tbody tr", { hasText: "Não planejado" }).locator("td").nth(2)).toContainText("40");
+  // Planejamento do TCT: só a parte TCT das portas (30).
+  await expect(page.locator("#dashB2cPlanejamentoTct tbody tr", { hasText: "Não planejado" }).locator("td").nth(2)).toContainText("30");
   // Clicar em TCR lista o projeto.
   await tabela.locator('th [data-b2c-seg="TCR"]').click();
   await expect(page.locator("#modalDashGeoProjetos tbody")).toContainText("Expansão Centro");
-  await expect(page.locator("#modalDashGeoProjetos tbody")).toContainText("TCR 60% + TCT 40%");
+  await expect(page.locator("#modalDashGeoProjetos tbody")).toContainText("TCR (valor 60% · portas 70%)");
 });

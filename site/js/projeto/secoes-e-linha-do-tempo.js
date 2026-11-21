@@ -160,11 +160,17 @@ function demSecaoLeituraHtml(key) {
       const extraTipo = tipo === "B2B" ? lvOptTxt("demProdutoB2b") : "";
       const segLeitura = { tipo, segmentosB2c: tipo === "B2C" ? lerSegmentosB2cDoForm() : [], divisaoSegmentosB2c: lerDivisaoSegmentosDoForm() };
       const segsLeitura = demandaSegmentosB2c(segLeitura);
-      const divLeitura = demandaDivisaoSegmentos(segLeitura);
+      const dvLeitura = demandaDivisaoSegmentos(segLeitura, "valor");
+      const dpLeitura = demandaDivisaoSegmentos(segLeitura, "portas");
       const segmentosHtml = segsLeitura
         .map((s) => {
-          const pct = segsLeitura.length > 1 ? ` ${String(Math.round(divLeitura[s] * 1000) / 10).replace(".", ",")}%` : "";
-          return `<span class="badge badge--segmento-b2c">${escapeHtml(s + pct)}</span>`;
+          let txt = s;
+          if (segsLeitura.length > 1) {
+            txt += Math.abs(dvLeitura[s] - dpLeitura[s]) < 0.0005
+              ? ` ${pctTexto(dvLeitura[s])}`
+              : ` · valor ${pctTexto(dvLeitura[s])} · portas ${pctTexto(dpLeitura[s])}`;
+          }
+          return `<span class="badge badge--segmento-b2c">${escapeHtml(txt)}</span>`;
         })
         .join("");
       const desc = lvVal("demDescricao");
