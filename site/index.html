@@ -992,7 +992,7 @@
               <legend>Dados do projeto</legend>
               <p class="muted small">Identificação, prazos e etapa na esteira, e os códigos do projeto em outros sistemas.</p>
               <h4 class="dados-sub">Identificação</h4>
-              <div class="form-grid">
+              <div class="form-grid form-grid--ident">
                 <label class="field">
                   <span class="field-label--required">Nome do projeto</span>
                   <input id="demTitulo" required maxlength="200" placeholder="Identificação da demanda" />
@@ -1009,30 +1009,38 @@
                     <option value="Migração">Migração</option>
                   </select>
                 </label>
-                <div class="field is-hidden seg-b2c" id="fieldDemSegmentoB2c" role="group" aria-labelledby="labelDemSegmentosB2c" hidden>
-                  <span class="field-label--required" id="labelDemSegmentosB2c">Segmento</span>
-                  <div class="seg-b2c__opcoes" id="demSegmentosB2c"></div>
-                  <div class="seg-b2c__divisao" id="demDivisaoSegmentos" hidden>
-                    <span class="seg-b2c__divisao-rot" id="demDivisaoSegmentosRot">Divisão entre os segmentos <small>(a metragem segue a do valor)</small></span>
-                    <div class="seg-b2c__divisao-campos" id="demDivisaoSegmentosCampos" role="group" aria-labelledby="demDivisaoSegmentosRot"></div>
-                  </div>
-                </div>
-                <label class="field is-hidden" id="fieldDemPlanejamentoTct" hidden>
-                  <span class="field-label--required" id="labelDemPlanejamentoTct">Planejamento do alívio</span>
-                  <select id="demPlanejamentoTct">
-                    <option value="">Selecione…</option>
-                  </select>
-                </label>
-                <label class="field is-hidden" id="fieldDemProdutoB2b" hidden>
-                  <span id="labelDemProduto">Produto</span>
-                  <select id="demProdutoB2b">
-                    <option value="">Selecione o produto…</option>
-                  </select>
-                </label>
                 <label class="field">
                   <span class="field-label--required">Data de chegada</span>
                   <input type="date" id="demDataChegada" required />
                 </label>
+              </div>
+              <!-- Detalhes que dependem do tipo (B2C: segmento, planejamento e divisão; B2B: produto). Some quando não há nenhum. -->
+              <div class="tipo-detalhes" id="demTipoDetalhes">
+                <div class="tipo-detalhes__linha">
+                  <div class="field is-hidden seg-b2c" id="fieldDemSegmentoB2c" role="group" aria-labelledby="labelDemSegmentosB2c" hidden>
+                    <span class="tipo-detalhes__rotulo"><span class="field-label--required" id="labelDemSegmentosB2c">Segmento</span><small class="tipo-detalhes__dica">pode marcar mais de um</small></span>
+                    <div class="seg-b2c__opcoes" id="demSegmentosB2c"></div>
+                  </div>
+                  <label class="field is-hidden" id="fieldDemPlanejamentoTct" hidden>
+                    <span class="field-label--required" id="labelDemPlanejamentoTct">Planejamento do alívio</span>
+                    <select id="demPlanejamentoTct">
+                      <option value="">Selecione…</option>
+                    </select>
+                  </label>
+                  <label class="field is-hidden" id="fieldDemProdutoB2b" hidden>
+                    <span id="labelDemProduto">Produto</span>
+                    <select id="demProdutoB2b">
+                      <option value="">Selecione o produto…</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="seg-divisao" id="demDivisaoSegmentos" hidden>
+                  <div class="seg-divisao__cab">
+                    <span class="seg-divisao__titulo" id="demDivisaoSegmentosRot">Divisão entre os segmentos</span>
+                    <small class="seg-divisao__dica">Cada linha soma 100%. A metragem de cabo segue a divisão do valor.</small>
+                  </div>
+                  <div class="seg-divisao__tabela" id="demDivisaoSegmentosCampos" role="group" aria-labelledby="demDivisaoSegmentosRot"></div>
+                </div>
               </div>
               <label class="field field--grow">
                 <span class="field-label--required">Descrição do projeto</span>
