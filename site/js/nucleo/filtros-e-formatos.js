@@ -120,7 +120,7 @@ function demandaMatchesEsteiraFilters(d, f) {
         d.osAniel,
         d.tipo,
         d.produtoB2b,
-        d.segmentoB2c,
+        ...demandaSegmentosB2c(d),
       ]
         .filter(Boolean)
         .join(" "),

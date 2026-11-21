@@ -228,25 +228,126 @@ function syncDemProdutoB2bField() {
   labelProduto?.classList.toggle("field-label--required", isB2b);
 }
 
+/* ---------- Segmento B2C: caixinhas (dá para marcar mais de um) e divisão dos valores ---------- */
+/** Divisão digitada por segmento (% ) — sobrevive a desmarcar e marcar de novo enquanto o formulário está aberto. */
+let demDivisaoSegmentosDigitada = {};
+
 function initDemSegmentoB2cSelect() {
-  const sel = document.getElementById("demSegmentoB2c");
-  if (!sel || sel.dataset.inited === "1") return;
-  sel.dataset.inited = "1";
-  sel.innerHTML =
-    '<option value="">Selecione o segmento…</option>' +
-    SEGMENTOS_B2C.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+  const box = document.getElementById("demSegmentosB2c");
+  if (!box || box.dataset.inited === "1") return;
+  box.dataset.inited = "1";
+  box.innerHTML = SEGMENTOS_B2C.map(
+    (s) =>
+      `<label class="seg-b2c__op"><input type="checkbox" value="${escapeHtml(s)}" data-seg-b2c />` +
+      `<span>${escapeHtml(s)}</span></label>`,
+  ).join("");
+  box.addEventListener("change", () => {
+    renderDemDivisaoSegmentos({ reequilibrar: true });
+    syncDemPlanejamentoTctField();
+  });
+  document.getElementById("demDivisaoSegmentosCampos")?.addEventListener("input", (e) => {
+    const inp = e.target.closest("[data-div-seg]");
+    if (!inp) return;
+    demDivisaoSegmentosDigitada[inp.dataset.divSeg] = Number(String(inp.value).replace(",", "."));
+    // Com dois segmentos, o outro completa os 100% sozinho.
+    const outros = [...document.querySelectorAll("#demDivisaoSegmentosCampos [data-div-seg]")].filter((x) => x !== inp);
+    const v = Number(String(inp.value).replace(",", "."));
+    if (outros.length === 1 && Number.isFinite(v) && v >= 0 && v <= 100) {
+      const resto = Math.round((100 - v) * 10) / 10;
+      outros[0].value = String(resto);
+      demDivisaoSegmentosDigitada[outros[0].dataset.divSeg] = resto;
+    }
+    syncDemDivisaoSoma();
+  });
+}
+
+/** Segmentos marcados, na ordem de SEGMENTOS_B2C. */
+function lerSegmentosB2cDoForm() {
+  return [...document.querySelectorAll("#demSegmentosB2c [data-seg-b2c]:checked")].map((i) => i.value);
+}
+
+function lerDivisaoSegmentosDoForm() {
+  const out = {};
+  document.querySelectorAll("#demDivisaoSegmentosCampos [data-div-seg]").forEach((i) => {
+    out[i.dataset.divSeg] = Number(String(i.value).replace(",", "."));
+  });
+  return out;
+}
+
+function definirSegmentosB2cNoForm(segs, divisao) {
+  initDemSegmentoB2cSelect();
+  const set = new Set(segs || []);
+  document.querySelectorAll("#demSegmentosB2c [data-seg-b2c]").forEach((i) => (i.checked = set.has(i.value)));
+  demDivisaoSegmentosDigitada = divisao && typeof divisao === "object" ? { ...divisao } : {};
+  renderDemDivisaoSegmentos();
+}
+
+/** Partes iguais em % (a última fica com o resto: 34/33/33). */
+function divisaoIgual(segs) {
+  const base = Math.floor(1000 / segs.length) / 10;
+  const out = Object.fromEntries(segs.map((s) => [s, base]));
+  out[segs[0]] = Math.round((100 - base * (segs.length - 1)) * 10) / 10;
+  return out;
+}
+
+function renderDemDivisaoSegmentos({ reequilibrar = false } = {}) {
+  const box = document.getElementById("demDivisaoSegmentos");
+  const campos = document.getElementById("demDivisaoSegmentosCampos");
+  const field = document.getElementById("fieldDemSegmentoB2c");
+  if (!box || !campos) return;
+  const segs = lerSegmentosB2cDoForm();
+  const multi = segs.length > 1;
+  box.hidden = !multi;
+  field?.classList.toggle("seg-b2c--multi", multi);
+  if (!multi) {
+    campos.innerHTML = "";
+    syncDemDivisaoSoma();
+    return;
+  }
+  // Marcou ou desmarcou um segmento: se a divisão guardada não fecha 100% para estes, volta a partes iguais.
+  const atual = segs.map((s) => Number(demDivisaoSegmentosDigitada[s]));
+  const soma = atual.reduce((t, n) => t + (Number.isFinite(n) ? n : NaN), 0);
+  if (reequilibrar || !Number.isFinite(soma) || Math.abs(soma - 100) > 0.5) {
+    if (!Number.isFinite(soma) || Math.abs(soma - 100) > 0.5) Object.assign(demDivisaoSegmentosDigitada, divisaoIgual(segs));
+  }
+  campos.innerHTML = segs
+    .map(
+      (s) =>
+        `<label class="seg-b2c__div"><span>${escapeHtml(s)}</span>` +
+        `<input type="number" min="0" max="100" step="0.1" inputmode="decimal" data-div-seg="${escapeHtml(s)}" ` +
+        `value="${escapeHtml(String(demDivisaoSegmentosDigitada[s] ?? ""))}" aria-label="Parte do ${escapeHtml(s)} em %" />` +
+        `<span aria-hidden="true">%</span></label>`,
+    )
+    .join("");
+  syncDemDivisaoSoma();
+}
+
+function syncDemDivisaoSoma() {
+  const el = document.getElementById("demDivisaoSegmentosSoma");
+  if (!el) return;
+  const vals = Object.values(lerDivisaoSegmentosDoForm());
+  if (!vals.length) {
+    el.textContent = "";
+    return;
+  }
+  const soma = Math.round(vals.reduce((t, n) => t + (Number.isFinite(n) ? n : 0), 0) * 10) / 10;
+  const ok = Math.abs(soma - 100) <= 0.5;
+  el.textContent = ok ? "Total: 100%" : `Total: ${String(soma).replace(".", ",")}% — precisa somar 100%`;
+  el.classList.toggle("is-bad", !ok);
 }
 
 function syncDemSegmentoB2cField() {
+  initDemSegmentoB2cSelect();
   const field = document.getElementById("fieldDemSegmentoB2c");
-  const sel = document.getElementById("demSegmentoB2c");
-  if (!field || !sel) return;
+  if (!field) return;
   const isB2c = normalizeTipo(document.getElementById("demTipo")?.value) === "B2C";
   field.hidden = !isB2c;
   field.classList.toggle("is-hidden", !isB2c);
-  sel.required = isB2c;
-  sel.disabled = !isB2c;
-  if (!isB2c) sel.value = "";
+  document.querySelectorAll("#demSegmentosB2c [data-seg-b2c]").forEach((i) => {
+    i.disabled = !isB2c;
+    if (!isB2c) i.checked = false;
+  });
+  if (!isB2c) renderDemDivisaoSegmentos();
 }
 
 function initDemPlanejamentoTctSelect() {
@@ -258,7 +359,6 @@ function initDemPlanejamentoTctSelect() {
     Object.entries(PLANEJAMENTO_TCT.opcoes).map(([v, l]) => `<option value="${escapeHtml(v)}">${escapeHtml(l)}</option>`).join("");
   const rotulo = document.getElementById("labelDemPlanejamentoTct");
   if (rotulo) rotulo.textContent = PLANEJAMENTO_TCT.rotulo;
-  document.getElementById("demSegmentoB2c")?.addEventListener("change", syncDemPlanejamentoTctField);
 }
 
 /** Só aparece (e é obrigatório) em projeto B2C do segmento TCT. */
@@ -267,10 +367,7 @@ function syncDemPlanejamentoTctField() {
   const field = document.getElementById("fieldDemPlanejamentoTct");
   const sel = document.getElementById("demPlanejamentoTct");
   if (!field || !sel) return;
-  const tct = demandaEhTct({
-    tipo: document.getElementById("demTipo")?.value,
-    segmentoB2c: document.getElementById("demSegmentoB2c")?.value,
-  });
+  const tct = demandaEhTct({ tipo: document.getElementById("demTipo")?.value, segmentosB2c: lerSegmentosB2cDoForm() });
   field.hidden = !tct;
   field.classList.toggle("is-hidden", !tct);
   sel.required = tct;

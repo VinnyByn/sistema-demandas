@@ -1154,6 +1154,12 @@ const HISTORICO_EDICAO_CAMPOS = [
   { campo: "tipo", label: "Tipo" },
   { campo: "produtoB2b", label: "Produto B2B", format: (v) => v || "—" },
   { campo: "segmentoB2c", label: "Segmento B2C", format: (v) => v || "—" },
+  { campo: "segmentosB2c", label: "Segmentos B2C", format: (v) => (Array.isArray(v) && v.length ? v.join(" + ") : "—") },
+  {
+    campo: "divisaoSegmentosB2c",
+    label: "Divisão entre segmentos",
+    format: (v) => (v && typeof v === "object" ? Object.entries(v).map(([s, p]) => `${s} ${p}%`).join(" · ") : "—"),
+  },
   { campo: "planejamentoTct", label: PLANEJAMENTO_TCT.rotulo, format: (v) => planejamentoTctLabel(v) || "—" },
   { campo: "cidade", label: "Cidade", format: (v) => v || "—" },
   {

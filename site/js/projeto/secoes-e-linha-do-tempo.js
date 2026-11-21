@@ -157,16 +157,23 @@ function demSecaoLeituraHtml(key) {
   switch (key) {
     case "chegada": {
       const tipo = normalizeTipo(lvVal("demTipo"));
-      const extraTipo = tipo === "B2B" ? lvOptTxt("demProdutoB2b") : tipo === "B2C" ? lvOptTxt("demSegmentoB2c") : "";
+      const extraTipo = tipo === "B2B" ? lvOptTxt("demProdutoB2b") : "";
+      const segLeitura = { tipo, segmentosB2c: tipo === "B2C" ? lerSegmentosB2cDoForm() : [], divisaoSegmentosB2c: lerDivisaoSegmentosDoForm() };
+      const segsLeitura = demandaSegmentosB2c(segLeitura);
+      const divLeitura = demandaDivisaoSegmentos(segLeitura);
+      const segmentosHtml = segsLeitura
+        .map((s) => {
+          const pct = segsLeitura.length > 1 ? ` ${String(Math.round(divLeitura[s] * 1000) / 10).replace(".", ",")}%` : "";
+          return `<span class="badge badge--segmento-b2c">${escapeHtml(s + pct)}</span>`;
+        })
+        .join("");
       const desc = lvVal("demDescricao");
       return (
         `<div class="seg-lv-hero"><p class="seg-lv-hero__titulo">${escapeHtml(lvVal("demTitulo")) || lvVazio("Sem nome")}</p>` +
         `<div class="seg-lv-hero__tags"><span class="badge ${tipoBadgeClass(tipo)}">${escapeHtml(tipo)}</span>` +
         (extraTipo ? `<span class="badge badge--segmento-b2c">${escapeHtml(extraTipo)}</span>` : "") +
-        planejamentoTctBadgeHtml(
-          demandaEhTct({ tipo, segmentoB2c: lvVal("demSegmentoB2c") }) ? lvVal("demPlanejamentoTct") : "",
-          { semValor: true },
-        ) +
+        segmentosHtml +
+        (demandaEhTct(segLeitura) ? planejamentoTctBadgeHtml(lvVal("demPlanejamentoTct"), { semValor: true }) : "") +
         `<span class="seg-lv-etapa">${escapeHtml(labelStatus(lvVal("demStatus"), editingLinhaEsteira))}</span>` +
         `</div></div>` +
         `<div class="seg-lv-texto">${desc ? escapeHtml(desc) : lvVazio("Sem descrição")}</div>` +
@@ -658,8 +665,7 @@ function openDemandaModal(id) {
   syncDemTipoSelect(d?.tipo || (editingLinhaEsteira === LINHA_ESTEIRA_B2B ? "B2B" : "B2C"));
   const selProduto = document.getElementById("demProdutoB2b");
   if (selProduto) selProduto.value = dm?.produtoB2b || "";
-  const selSegmento = document.getElementById("demSegmentoB2c");
-  if (selSegmento) selSegmento.value = dm?.segmentoB2c || "";
+  definirSegmentosB2cNoForm(dm ? demandaSegmentosB2c(dm) : [], dm?.divisaoSegmentosB2c);
   initDemPlanejamentoTctSelect();
   const selPlanejamento = document.getElementById("demPlanejamentoTct");
   if (selPlanejamento) selPlanejamento.value = dm?.planejamentoTct || "";

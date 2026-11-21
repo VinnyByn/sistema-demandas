@@ -618,6 +618,9 @@ const DemandasCsvImport = (function () {
       status,
       custo,
       segmentoB2c: rec.segmentoB2c || existing?.segmentoB2c || "",
+      // Planilha traz um segmento só: se ela informa, vale ele (e some a divisão); senão, fica o que o projeto já tinha.
+      segmentosB2c: rec.segmentoB2c ? [rec.segmentoB2c] : existing?.segmentosB2c || [],
+      divisaoSegmentosB2c: rec.segmentoB2c ? null : existing?.divisaoSegmentosB2c || null,
       produtoB2b: rec.produtoB2b || existing?.produtoB2b || "",
       setorSolicitanteB2b: rec.setorSolicitanteB2b || existing?.setorSolicitanteB2b || "",
       chamadoOcomon: String(rec.chamadoOcomon || existing?.chamadoOcomon || "").trim(),
@@ -968,7 +971,7 @@ const DemandasCsvImport = (function () {
       d.id || "",
       linhaEsteiraLabel(linha),
       statusLabelExport(d.status, linha),
-      d.segmentoB2c || "",
+      segmentosB2cTexto(d) || d.segmentoB2c || "",
       d.produtoB2b || "",
       d.setorSolicitanteB2b || "",
       formatDateBrExport(d.dataTermino),

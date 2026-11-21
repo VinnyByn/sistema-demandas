@@ -1154,9 +1154,9 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
       ? `<span class="badge badge--produto-b2b">${escapeHtml(dmCard.produtoB2b)}</span>`
       : "";
   const segmentoHtml =
-    (tipo === "B2C" && dmCard.segmentoB2c
-      ? `<span class="badge badge--segmento-b2c">${escapeHtml(dmCard.segmentoB2c)}</span>`
-      : "") + (demandaEhTct(dmCard) ? planejamentoTctBadgeHtml(dmCard.planejamentoTct) : "");
+    demandaSegmentosB2c(dmCard)
+      .map((s) => `<span class="badge badge--segmento-b2c"${demandaSegmentosB2c(dmCard).length > 1 ? ` title="${escapeHtml(segmentosB2cTexto(dmCard))}"` : ""}>${escapeHtml(s)}</span>`)
+      .join("") + (demandaEhTct(dmCard) ? planejamentoTctBadgeHtml(dmCard.planejamentoTct) : "");
   const prioHtml = readOnly
     ? ""
     : `<div class="card__prio" title="Ajuste fino na coluna (mesma data de chegada)">` +

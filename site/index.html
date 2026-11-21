@@ -1009,12 +1009,15 @@
                     <option value="Migração">Migração</option>
                   </select>
                 </label>
-                <label class="field is-hidden" id="fieldDemSegmentoB2c" hidden>
-                  <span>Segmento</span>
-                  <select id="demSegmentoB2c">
-                    <option value="">Selecione o segmento…</option>
-                  </select>
-                </label>
+                <div class="field is-hidden seg-b2c" id="fieldDemSegmentoB2c" role="group" aria-labelledby="labelDemSegmentosB2c" hidden>
+                  <span class="field-label--required" id="labelDemSegmentosB2c">Segmento</span>
+                  <div class="seg-b2c__opcoes" id="demSegmentosB2c"></div>
+                  <div class="seg-b2c__divisao" id="demDivisaoSegmentos" hidden>
+                    <span class="seg-b2c__divisao-rot" id="demDivisaoSegmentosRot">Divisão dos valores</span>
+                    <div class="seg-b2c__divisao-campos" id="demDivisaoSegmentosCampos" role="group" aria-labelledby="demDivisaoSegmentosRot"></div>
+                    <span class="seg-b2c__soma" id="demDivisaoSegmentosSoma" aria-live="polite"></span>
+                  </div>
+                </div>
                 <label class="field is-hidden" id="fieldDemPlanejamentoTct" hidden>
                   <span class="field-label--required" id="labelDemPlanejamentoTct">Planejamento do alívio</span>
                   <select id="demPlanejamentoTct">
