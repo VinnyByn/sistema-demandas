@@ -228,8 +228,8 @@ test("B2C com mais de um segmento (TCR + TCT): divisão dos valores em %, obriga
   await expect(page.locator('[data-div-seg="TCT"][data-div-tipo="portas"]')).toHaveValue("50"); // a outra linha não muda
   await digitar("TCR", "70", "portas");
   await expect(page.locator('[data-div-seg="TCT"][data-div-tipo="portas"]')).toHaveValue("30");
-  await expect(page.locator('[data-soma-tipo="valor"]')).toHaveText("Total: 100%");
-  await expect(page.locator('[data-soma-tipo="portas"]')).toHaveText("Total: 100%");
+  await expect(page.locator('[data-soma-tipo="valor"]')).toHaveText("✓ 100%");
+  await expect(page.locator('[data-soma-tipo="portas"]')).toHaveText("✓ 100%");
   // TCT marcado: o planejamento aparece e é obrigatório.
   expect(await page.locator("#fieldDemPlanejamentoTct").getAttribute("hidden")).toBeNull();
   await page.evaluate(() => (document.getElementById("demPlanejamentoTct").value = "planejado"));

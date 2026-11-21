@@ -8138,25 +8138,74 @@ html[data-theme="light"] .badge--plan-tct-nao { background: #ffedd5; color: #9a3
 .seg-b2c__op input:checked + span::before { content: "✓"; margin-right: 0.35rem; font-size: 0.8em; color: var(--accent); }
 .seg-b2c__op input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .seg-b2c__op input:disabled + span { opacity: 0.5; cursor: default; }
-.seg-b2c--multi { grid-column: 1 / -1; }
-.seg-b2c__divisao {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; margin-top: 0.45rem;
-  padding: 0.55rem 0.75rem; border: 1px dashed var(--border); border-radius: 12px; background: var(--surface2);
-}
-.seg-b2c__divisao[hidden] { display: none; }
-.seg-b2c .seg-b2c__divisao-rot { font-size: 0.8rem; font-weight: 700; color: var(--muted); }
-.seg-b2c__divisao-campos { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; }
-.seg-b2c__div { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; font-size: 0.86rem; }
-.seg-b2c__div input { width: 5rem; text-align: right; padding: 0.35rem 0.5rem; }
-.seg-b2c .seg-b2c__soma { margin-left: auto; font-size: 0.8rem; font-weight: 700; color: #4ade80; }
-.seg-b2c .seg-b2c__soma.is-bad { color: #f87171; }
-html[data-theme="light"] .seg-b2c .seg-b2c__soma { color: #15803d; }
-html[data-theme="light"] .seg-b2c .seg-b2c__soma.is-bad { color: #b91c1c; }
 html[data-visual="neon"] .seg-b2c__op input:checked + span { background: rgba(255, 60, 120, 0.18); border-color: #ff3c78; }
 html[data-visual="neon"] .seg-b2c__op input:checked + span::before { color: #ff6b9a; }
-.seg-b2c__divisao { flex-direction: column; align-items: stretch; }
-.seg-b2c .seg-b2c__divisao-rot small { font-weight: 500; }
-.seg-b2c__divisao-campos { flex-direction: column; gap: 0.45rem; }
-.seg-b2c__linha { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; }
-.seg-b2c .seg-b2c__linha-rot { min-width: 3.6rem; font-size: 0.8rem; font-weight: 700; color: var(--text); }
-.seg-b2c .seg-b2c__previa { font-size: 0.74rem; color: var(--muted); font-weight: 500; min-width: 5.5rem; }
+
+/* ========================================================================
+   Formulário do projeto — Identificação estável:
+   linha 1: Nome | Tipo | Data de chegada; linha 2: painel com o que depende do tipo
+   (B2C: segmento, planejamento do alívio e divisão; B2B: produto).
+   ======================================================================== */
+.form-grid--ident { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 760px) { .form-grid--ident { grid-template-columns: 1fr; } }
+.fieldset--chegada > .field--grow { margin-top: 0.85rem; }
+
+.tipo-detalhes {
+  margin-top: 0.85rem; padding: 0.85rem 0.95rem; display: grid; gap: 0.85rem;
+  border: 1px solid var(--border); border-radius: 14px;
+  background: color-mix(in srgb, var(--surface2) 70%, transparent);
+}
+/* Sem nenhum detalhe visível (ex.: SWAP, Backbone…), o painel some. */
+.tipo-detalhes:not(:has(.tipo-detalhes__linha > .field:not([hidden]))) { display: none; }
+.tipo-detalhes__linha { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem 1.25rem; }
+.tipo-detalhes__linha > .field { flex: 0 1 auto; }
+.tipo-detalhes__linha > #fieldDemPlanejamentoTct,
+.tipo-detalhes__linha > #fieldDemProdutoB2b { flex: 1 1 14rem; max-width: 22rem; }
+.tipo-detalhes .tipo-detalhes__dica { margin-left: 0.35rem; font-weight: 500; font-size: 0.74rem; color: var(--muted); }
+.tipo-detalhes__rotulo { display: inline-flex; align-items: baseline; flex-wrap: wrap; }
+
+/* Divisão entre os segmentos: tabela alinhada (uma coluna por segmento + total). */
+.seg-divisao { display: grid; gap: 0.55rem; padding-top: 0.75rem; border-top: 1px dashed var(--border); }
+.seg-divisao[hidden] { display: none; }
+.seg-divisao__cab { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.6rem; }
+.seg-divisao__titulo { font-size: 0.86rem; font-weight: 700; color: var(--text); }
+.seg-divisao__dica { font-size: 0.74rem; color: var(--muted); }
+.seg-divisao__tabela {
+  display: grid; align-items: center; gap: 0.45rem 0.9rem;
+  grid-template-columns: 4.2rem repeat(var(--n, 2), minmax(6.5rem, 9.5rem)) minmax(7rem, auto);
+  justify-content: start;
+}
+.seg-divisao__th { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.seg-divisao__th--total { text-align: left; }
+.seg-divisao__rot { font-size: 0.84rem; font-weight: 700; color: var(--text); }
+.seg-divisao__celula { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.seg-divisao__entrada {
+  display: flex; align-items: center; height: 2.3rem; padding: 0 0.6rem 0 0.15rem;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.seg-divisao__entrada:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18); }
+.seg-divisao__entrada input {
+  flex: 1; min-width: 0; height: 100%; padding: 0 0.35rem; border: 0; background: transparent; box-shadow: none;
+  text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; -moz-appearance: textfield;
+}
+.seg-divisao__entrada input:focus { outline: none; }
+.seg-divisao__entrada input::-webkit-outer-spin-button,
+.seg-divisao__entrada input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.seg-divisao__entrada > span { color: var(--muted); font-weight: 700; font-size: 0.86rem; }
+.seg-divisao__previa { font-size: 0.72rem; color: var(--muted); min-height: 1em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seg-divisao__soma {
+  justify-self: start; padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: 700; white-space: nowrap;
+  background: rgba(34, 197, 94, 0.14); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35);
+}
+.seg-divisao__soma.is-bad { background: rgba(239, 68, 68, 0.12); color: #f87171; border-color: rgba(239, 68, 68, 0.4); }
+/* As células com prévia são mais altas: rótulo e total alinham com a caixinha, não com a prévia. */
+.seg-divisao__rot, .seg-divisao__soma { align-self: start; margin-top: 0.5rem; }
+html[data-theme="light"] .seg-divisao__soma { background: #dcfce7; color: #15803d; border-color: #86efac; }
+html[data-theme="light"] .seg-divisao__soma.is-bad { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+html[data-visual="neon"] .seg-divisao__entrada:focus-within { border-color: #ff3c78; box-shadow: 0 0 0 3px rgba(255, 60, 120, 0.2); }
+@media (max-width: 760px) {
+  .seg-divisao__tabela { grid-template-columns: 3.6rem repeat(var(--n, 2), minmax(0, 1fr)); }
+  .seg-divisao__th--total { display: none; }
+  .seg-divisao__soma { grid-column: 2 / -1; margin-top: 0; }
+}

@@ -303,37 +303,40 @@ function divisaoIgual(segs) {
 function renderDemDivisaoSegmentos() {
   const box = document.getElementById("demDivisaoSegmentos");
   const campos = document.getElementById("demDivisaoSegmentosCampos");
-  const field = document.getElementById("fieldDemSegmentoB2c");
   if (!box || !campos) return;
   const segs = lerSegmentosB2cDoForm();
   const multi = segs.length > 1;
   box.hidden = !multi;
-  field?.classList.toggle("seg-b2c--multi", multi);
   if (!multi) {
     campos.innerHTML = "";
     syncDemDivisaoSoma();
     return;
   }
-  campos.innerHTML = DIVISAO_SEGMENTOS_TIPOS.map((tipo) => {
+  campos.style.setProperty("--n", String(segs.length));
+  const cabecalho =
+    `<span class="seg-divisao__th" aria-hidden="true"></span>` +
+    segs.map((s) => `<span class="seg-divisao__th"><span class="badge badge--segmento-b2c">${escapeHtml(s)}</span></span>`).join("") +
+    `<span class="seg-divisao__th seg-divisao__th--total">Total</span>`;
+  const linhas = DIVISAO_SEGMENTOS_TIPOS.map((tipo) => {
     // Se a divisão guardada não fecha 100% para os segmentos marcados agora, começa em partes iguais.
     const guardada = demDivisaoSegmentosDigitada[tipo];
     const soma = segs.reduce((t, s) => t + (Number.isFinite(Number(guardada[s])) ? Number(guardada[s]) : NaN), 0);
     if (!Number.isFinite(soma) || Math.abs(soma - 100) > 0.5) Object.assign(guardada, divisaoIgual(segs));
     return (
-      `<div class="seg-b2c__linha" data-div-linha="${tipo}">` +
-      `<span class="seg-b2c__linha-rot">${DIVISAO_ROTULOS[tipo]}</span>` +
+      `<span class="seg-divisao__rot">${DIVISAO_ROTULOS[tipo]}</span>` +
       segs
         .map(
           (s) =>
-            `<label class="seg-b2c__div"><span>${escapeHtml(s)}</span>` +
-            `<input type="number" min="0" max="100" step="0.1" inputmode="decimal" data-div-seg="${escapeHtml(s)}" data-div-tipo="${tipo}" ` +
-            `value="${escapeHtml(String(guardada[s] ?? ""))}" aria-label="${DIVISAO_ROTULOS[tipo]}: parte do ${escapeHtml(s)} em %" />` +
-            `<span aria-hidden="true">%</span><small class="seg-b2c__previa" data-previa-seg="${escapeHtml(s)}" data-previa-tipo="${tipo}"></small></label>`,
+            `<label class="seg-divisao__celula">` +
+            `<span class="seg-divisao__entrada"><input type="number" min="0" max="100" step="0.1" inputmode="decimal" data-div-seg="${escapeHtml(s)}" data-div-tipo="${tipo}" ` +
+            `value="${escapeHtml(String(guardada[s] ?? ""))}" aria-label="${DIVISAO_ROTULOS[tipo]}: parte do ${escapeHtml(s)} em %" /><span aria-hidden="true">%</span></span>` +
+            `<small class="seg-divisao__previa" data-previa-seg="${escapeHtml(s)}" data-previa-tipo="${tipo}"></small></label>`,
         )
         .join("") +
-      `<span class="seg-b2c__soma" data-soma-tipo="${tipo}" aria-live="polite"></span></div>`
+      `<span class="seg-divisao__soma" data-soma-tipo="${tipo}" aria-live="polite"></span>`
     );
   }).join("");
+  campos.innerHTML = cabecalho + linhas;
   syncDemDivisaoSoma();
 }
 
@@ -352,7 +355,10 @@ function syncDemDivisaoSoma() {
     const vals = Object.values(div[tipo]);
     const soma = Math.round(vals.reduce((t, n) => t + (Number.isFinite(n) ? n : 0), 0) * 10) / 10;
     const ok = Math.abs(soma - 100) <= 0.5;
-    el.textContent = ok ? "Total: 100%" : `Total: ${String(soma).replace(".", ",")}% — precisa somar 100%`;
+    const dif = Math.round((100 - soma) * 10) / 10;
+    el.textContent = ok
+      ? "✓ 100%"
+      : `${String(soma).replace(".", ",")}% · ${dif > 0 ? "faltam" : "sobram"} ${String(Math.abs(dif)).replace(".", ",")}%`;
     el.classList.toggle("is-bad", !ok);
   }
   document.querySelectorAll("#demDivisaoSegmentosCampos [data-previa-seg]").forEach((el) => {
