@@ -155,7 +155,7 @@ function listDemandasDashGeo(kind, key, slice, extra = {}) {
   if (kind === "segmento") {
     // B2C: segmento vazio = todos; `extra.geoNivel/geoNome` restringe a uma regional ou cidade.
     let list = filterDemandasModoDash(demandasB2cDashboardList());
-    if (alvo) list = list.filter((d) => segmentoB2cBucket(d) === alvo);
+    if (alvo) list = list.filter((d) => (alvo === B2C_SEGMENTO_SEM ? !demandaSegmentosB2c(d).length : demandaSegmentosB2c(d).includes(alvo)));
     if (extra.planejamentoTct) {
       list = list.filter((d) => demandaEhTct(d) && (normalizePlanejamentoTct(d.planejamentoTct) || "__none__") === extra.planejamentoTct);
     }
@@ -317,7 +317,7 @@ function renderDashGeoProjetosTable() {
     body +=
       "<tr>" +
       `<td><button type="button" class="dash-geo-link" data-dash-geo-open-demanda="${escapeHtml(dm.id)}">${escapeHtml(dm.titulo || "(Sem título)")}</button></td>` +
-      `<td>${escapeHtml(b2c ? segmentoB2cBucket(dm) : normalizeTipo(dm.tipo) || "—")}</td>` +
+      `<td>${escapeHtml(b2c ? segmentosB2cTexto(dm) || B2C_SEGMENTO_SEM : normalizeTipo(dm.tipo) || "—")}</td>` +
       `<td>${escapeHtml(labelStatus(dm.status, dm.linhaEsteira) || dm.status || "—")}</td>` +
       `<td>${escapeHtml(formatProjetistasDemanda(dm) || labelProjetista(dm.responsavel))}</td>` +
       `<td>${escapeHtml(formatCidadesDemanda(dm))}</td>` +

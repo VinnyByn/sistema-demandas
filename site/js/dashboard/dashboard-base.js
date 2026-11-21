@@ -1087,7 +1087,18 @@ function makeDashChartMetricBar(canvasId, labels, data, options = {}) {
 const B2C_SEGMENTO_SEM = "Sem segmento";
 
 function segmentoB2cBucket(d) {
-  return normalizeSegmentoB2c(d.segmentoB2c) || B2C_SEGMENTO_SEM;
+  return demandaSegmentosB2c(d)[0] || B2C_SEGMENTO_SEM;
+}
+
+/**
+ * Em quais segmentos o projeto entra e com que parte: [{ seg, fracao }].
+ * Projeto com TCR e TCT aparece nos dois (conta 1 projeto em cada); gastos, portas e metragem
+ * são divididos pela divisão informada (as frações somam 1).
+ */
+function segmentosB2cPartes(d) {
+  const div = demandaDivisaoSegmentos(d);
+  const partes = Object.entries(div).map(([seg, fracao]) => ({ seg, fracao }));
+  return partes.length ? partes : [{ seg: B2C_SEGMENTO_SEM, fracao: 1 }];
 }
 
 function buildSegmentoB2cMatrix(demandas, rowKeys, keyFn) {
@@ -1098,10 +1109,11 @@ function buildSegmentoB2cMatrix(demandas, rowKeys, keyFn) {
     ]),
   );
   demandas.forEach((d) => {
-    const seg = segmentoB2cBucket(d);
-    for (const key of [...new Set(resolveGeoKeys(d, keyFn))]) {
-      if (!matrix[key] || matrix[key][seg] === undefined) continue;
-      matrix[key][seg] += 1;
+    for (const { seg } of segmentosB2cPartes(d)) {
+      for (const key of [...new Set(resolveGeoKeys(d, keyFn))]) {
+        if (!matrix[key] || matrix[key][seg] === undefined) continue;
+        matrix[key][seg] += 1;
+      }
     }
   });
   return matrix;
@@ -1115,11 +1127,12 @@ function buildSegmentoB2cValueMatrix(demandas, rowKeys, keyFn, valueFn) {
     ]),
   );
   demandas.forEach((d) => {
-    const seg = segmentoB2cBucket(d);
     const val = numDash(valueFn(d));
-    for (const key of [...new Set(resolveGeoKeys(d, keyFn))]) {
-      if (!matrix[key] || matrix[key][seg] === undefined) continue;
-      matrix[key][seg] += val;
+    for (const { seg, fracao } of segmentosB2cPartes(d)) {
+      for (const key of [...new Set(resolveGeoKeys(d, keyFn))]) {
+        if (!matrix[key] || matrix[key][seg] === undefined) continue;
+        matrix[key][seg] += val * fracao;
+      }
     }
   });
   return matrix;
@@ -1330,13 +1343,17 @@ function buildB2cMetricasPorSegmento(list, { includeEmptyCore = true } = {}) {
     segmentos.map((s) => [s, { segmento: s, projetos: 0, investimento: 0, portas: 0, metragem: 0 }]),
   );
   list.forEach((d) => {
-    const seg = segmentoB2cBucket(d);
-    const row = rows[seg];
-    if (!row) return;
-    row.projetos += 1;
-    row.investimento += demandaValorDashPorModo(d, mode);
-    row.portas += demandaPortasDashPorModo(d, mode);
-    row.metragem += demandaMetragemDashPorModo(d, mode);
+    const valor = demandaValorDashPorModo(d, mode);
+    const portas = demandaPortasDashPorModo(d, mode);
+    const metragem = demandaMetragemDashPorModo(d, mode);
+    for (const { seg, fracao } of segmentosB2cPartes(d)) {
+      const row = rows[seg];
+      if (!row) continue;
+      row.projetos += 1;
+      row.investimento += valor * fracao;
+      row.portas += portas * fracao;
+      row.metragem += metragem * fracao;
+    }
   });
   return segmentos
     .map((s) => rows[s])
@@ -1351,7 +1368,8 @@ function pctShare(part, total) {
   return Math.round((Number(part) / total) * 1000) / 10;
 }
 
-function withB2cSegmentoPcts(rows) {
+/** `projetosUnicos`: projeto em mais de um segmento aparece em cada linha, mas o Total conta uma vez só. */
+function withB2cSegmentoPcts(rows, projetosUnicos = null) {
   const totais = rows.reduce(
     (acc, r) => {
       acc.projetos += r.projetos;
@@ -1362,9 +1380,11 @@ function withB2cSegmentoPcts(rows) {
     },
     { projetos: 0, investimento: 0, portas: 0, metragem: 0 },
   );
+  const somaProjetos = totais.projetos;
+  if (projetosUnicos != null) totais.projetos = projetosUnicos;
   const enriched = rows.map((r) => ({
     ...r,
-    pctProjetos: pctShare(r.projetos, totais.projetos),
+    pctProjetos: pctShare(r.projetos, somaProjetos),
     pctInvestimento: pctShare(r.investimento, totais.investimento),
     pctPortas: pctShare(r.portas, totais.portas),
     pctMetragem: pctShare(r.metragem, totais.metragem),

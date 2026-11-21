@@ -1056,7 +1056,8 @@ function renderDashB2cResumo(list, listModo) {
 function renderDashB2cSegmentos(listModo) {
   const el = document.getElementById("dashB2cSegmentos");
   if (!el) return;
-  const { rows, totais } = withB2cSegmentoPcts(buildB2cMetricasPorSegmento(listModo));
+  const { rows, totais } = withB2cSegmentoPcts(buildB2cMetricasPorSegmento(listModo), listModo.length);
+  const multiSeg = listModo.filter((d) => demandaSegmentosB2c(d).length > 1).length;
   if (!listModo.length) {
     el.innerHTML = `<p class="muted small">Nenhum B2C na base de indicadores selecionada no topo (${escapeHtml(labelValorDashModo())}).</p>`;
     return;
@@ -1105,7 +1106,10 @@ function renderDashB2cSegmentos(listModo) {
     `<td class="num">${abrir("", "metragem", "B2C com metragem", totais.metragem > 0 ? formatMetros(totais.metragem) : "—", !(totais.metragem > 0))}</td>` +
     `<td class="num">${totais.portas > 0 && totais.investimento > 0 ? formatBRL(totais.investimento / totais.portas) : "—"}</td></tr></tfoot>` +
     `</table></div>` +
-    `<p class="muted small dash-tipos__nota">Base: <strong>${escapeHtml(labelValorDashModo())}</strong> (escolhida no topo). A barra mostra a participação do segmento em cada coluna. Clique no segmento ou em qualquer número para ver os projetos.</p>`;
+    `<p class="muted small dash-tipos__nota">Base: <strong>${escapeHtml(labelValorDashModo())}</strong> (escolhida no topo). A barra mostra a participação do segmento em cada coluna. Clique no segmento ou em qualquer número para ver os projetos.</p>` +
+    (multiSeg
+      ? `<p class="muted small dash-tipos__nota">${multiSeg} projeto(s) envolvem mais de um segmento: contam em cada um (o Total conta uma vez só), e gastos, portas e metragem são divididos conforme a divisão informada no projeto.</p>`
+      : "");
   el.querySelectorAll("[data-b2c-seg]").forEach((btn) => {
     btn.addEventListener("click", () => openDashGeoProjetosLista("segmento", btn.dataset.b2cSeg, btn.dataset.b2cSlice || ""));
   });
@@ -1130,10 +1134,11 @@ function renderDashB2cPlanejamentoTct(listModo) {
   ].map((g) => ({ ...g, projetos: 0, gastos: 0, portas: 0, metragem: 0 }));
   for (const d of tct) {
     const g = grupos.find((x) => x.chave === (normalizePlanejamentoTct(d.planejamentoTct) || "__none__"));
+    const parte = demandaFracaoSegmento(d, "TCT"); // projeto com TCR e TCT: só a parte TCT entra aqui
     g.projetos += 1;
-    g.gastos += demandaValorDashPorModo(d, modo);
-    g.portas += demandaPortasDashPorModo(d, modo);
-    g.metragem += demandaMetragemDashPorModo(d, modo);
+    g.gastos += demandaValorDashPorModo(d, modo) * parte;
+    g.portas += demandaPortasDashPorModo(d, modo) * parte;
+    g.metragem += demandaMetragemDashPorModo(d, modo) * parte;
   }
   const total = grupos.reduce((t, g) => ({ projetos: t.projetos + g.projetos, gastos: t.gastos + g.gastos, portas: t.portas + g.portas, metragem: t.metragem + g.metragem }), { projetos: 0, gastos: 0, portas: 0, metragem: 0 });
   const visiveis = grupos.filter((g) => g.chave !== "__none__" || g.projetos);

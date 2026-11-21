@@ -385,8 +385,11 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
   const tipo = normalizeTipo(document.getElementById("demTipo").value);
   const linhaEsteira = inferLinhaEsteira({ tipo });
   const produtoB2b = tipo === "B2B" ? normalizeProdutoB2b(document.getElementById("demProdutoB2b")?.value) : "";
-  const segmentoB2c = tipo === "B2C" ? normalizeSegmentoB2c(document.getElementById("demSegmentoB2c")?.value) : "";
-  const planejamentoTct = demandaEhTct({ tipo, segmentoB2c })
+  const segmentosB2c = demandaSegmentosB2c({ tipo, segmentosB2c: tipo === "B2C" ? lerSegmentosB2cDoForm() : [] });
+  const segmentoB2c = segmentosB2c[0] || "";
+  const divisaoDigitada = lerDivisaoSegmentosDoForm();
+  const divisaoSegmentosB2c = normalizeDivisaoSegmentosB2c(segmentosB2c, divisaoDigitada);
+  const planejamentoTct = demandaEhTct({ tipo, segmentosB2c })
     ? normalizePlanejamentoTct(document.getElementById("demPlanejamentoTct")?.value)
     : "";
   let newStatus = mapStatusParaLinha(document.getElementById("demStatus").value, linhaEsteira);
@@ -415,6 +418,8 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     tipo,
     produtoB2b,
     segmentoB2c,
+    segmentosB2c,
+    divisaoSegmentosB2c,
     planejamentoTct,
     linhaEsteira,
     status: newStatus,
@@ -453,11 +458,20 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
   }
   if (tipo === "B2C" && !segmentoB2c) {
     syncDemCamposPorTipo();
-    toast("Selecione o segmento B2C (MDU, TCR ou TCT)");
-    document.getElementById("demSegmentoB2c")?.focus();
+    toast("Marque o segmento B2C (MDU, TCR ou TCT; pode marcar mais de um)");
+    document.querySelector("#demSegmentosB2c [data-seg-b2c]")?.focus();
     return;
   }
-  if (demandaEhTct({ tipo, segmentoB2c }) && !planejamentoTct) {
+  if (segmentosB2c.length > 1) {
+    const soma = segmentosB2c.reduce((t, s) => t + (Number.isFinite(divisaoDigitada[s]) ? divisaoDigitada[s] : 0), 0);
+    if (Math.abs(soma - 100) > 0.5 || segmentosB2c.some((s) => !(divisaoDigitada[s] >= 0))) {
+      syncDemCamposPorTipo();
+      toast(`A divisão dos valores entre ${segmentosB2c.join(" e ")} precisa somar 100% (agora: ${String(Math.round(soma * 10) / 10).replace(".", ",")}%)`);
+      document.querySelector("#demDivisaoSegmentosCampos [data-div-seg]")?.focus();
+      return;
+    }
+  }
+  if (demandaEhTct({ tipo, segmentosB2c }) && !planejamentoTct) {
     syncDemCamposPorTipo();
     toast(`Informe o ${PLANEJAMENTO_TCT.rotulo.toLowerCase()} (${Object.values(PLANEJAMENTO_TCT.opcoes).join(" ou ")})`);
     document.getElementById("demPlanejamentoTct")?.focus();

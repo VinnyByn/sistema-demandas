@@ -597,9 +597,59 @@ const PLANEJAMENTO_TCT = {
   opcoes: { planejado: "Planejado", nao_planejado: "Não planejado" },
 };
 
-/** O projeto é B2C do segmento TCT (o único que tem o campo de planejamento)? */
+/**
+ * Segmentos B2C do projeto. Uma expansão pode envolver mais de um (ex.: TCR e TCT):
+ * `segmentosB2c` guarda todos (na ordem de SEGMENTOS_B2C) e `segmentoB2c` continua sendo o primeiro,
+ * para o que só olha um segmento. Projeto antigo, sem a lista, usa o `segmentoB2c`.
+ */
+function demandaSegmentosB2c(d) {
+  if (normalizeTipo(d?.tipo) !== "B2C") return [];
+  const lista = Array.isArray(d?.segmentosB2c) && d.segmentosB2c.length ? d.segmentosB2c : [d?.segmentoB2c];
+  const set = new Set(lista.map(normalizeSegmentoB2c).filter(Boolean));
+  return SEGMENTOS_B2C.filter((s) => set.has(s));
+}
+
+/**
+ * Quanto de cada segmento é o projeto (frações que somam 1), para dividir gastos, portas e metragem.
+ * Com um segmento só, é tudo dele. Com vários, vale a divisão informada (em %); se faltar ou não somar
+ * 100%, divide em partes iguais.
+ */
+function demandaDivisaoSegmentos(d) {
+  const segs = demandaSegmentosB2c(d);
+  if (segs.length <= 1) return Object.fromEntries(segs.map((s) => [s, 1]));
+  const div = d?.divisaoSegmentosB2c && typeof d.divisaoSegmentosB2c === "object" ? d.divisaoSegmentosB2c : {};
+  const pcts = segs.map((s) => Number(div[s]));
+  const soma = pcts.reduce((t, n) => t + (Number.isFinite(n) && n >= 0 ? n : NaN), 0);
+  if (!Number.isFinite(soma) || Math.abs(soma - 100) > 0.5) return Object.fromEntries(segs.map((s) => [s, 1 / segs.length]));
+  return Object.fromEntries(segs.map((s, i) => [s, pcts[i] / soma]));
+}
+
+function demandaFracaoSegmento(d, seg) {
+  return demandaDivisaoSegmentos(d)[seg] || 0;
+}
+
+/** Divisão normalizada para guardar (% inteiros por segmento), só quando há mais de um segmento. */
+function normalizeDivisaoSegmentosB2c(segs, div) {
+  if (!Array.isArray(segs) || segs.length <= 1) return null;
+  const out = {};
+  for (const s of segs) {
+    const n = Number(div?.[s]);
+    out[s] = Number.isFinite(n) && n >= 0 ? Math.round(n * 10) / 10 : 0;
+  }
+  return out;
+}
+
+/** «TCR 60% + TCT 40%» (ou só «TCT»). */
+function segmentosB2cTexto(d, { comPct = true } = {}) {
+  const segs = demandaSegmentosB2c(d);
+  if (segs.length <= 1 || !comPct) return segs.join(" + ");
+  const div = demandaDivisaoSegmentos(d);
+  return segs.map((s) => `${s} ${String(Math.round(div[s] * 1000) / 10).replace(".", ",")}%`).join(" + ");
+}
+
+/** O projeto é B2C e envolve TCT (o único segmento que tem o campo de planejamento)? */
 function demandaEhTct(d) {
-  return normalizeTipo(d?.tipo) === "B2C" && normalizeSegmentoB2c(d?.segmentoB2c) === "TCT";
+  return demandaSegmentosB2c(d).includes("TCT");
 }
 
 function normalizePlanejamentoTct(v) {

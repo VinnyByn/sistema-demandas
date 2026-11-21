@@ -156,7 +156,13 @@ test("B2C TCT: planejamento do alívio aparece só no TCT, é obrigatório e vai
       el.value = v;
       el.dispatchEvent(new Event("change", { bubbles: true }));
     }, [id, valor]);
-  await escolher("demSegmentoB2c", "TCT");
+  // Segmento agora são caixinhas: marca só os pedidos.
+  const segmentos = (lista) =>
+    page.evaluate((l) => {
+      document.querySelectorAll("#demSegmentosB2c [data-seg-b2c]").forEach((i) => (i.checked = l.includes(i.value)));
+      document.getElementById("demSegmentosB2c").dispatchEvent(new Event("change", { bubbles: true }));
+    }, lista);
+  await segmentos(["TCT"]);
   expect(await campo.getAttribute("hidden"), "TCT mostra o campo").toBeNull();
   expect(await page.locator("#demPlanejamentoTct option").allTextContents()).toEqual(["Selecione…", "Planejado", "Não planejado"]);
 
@@ -182,10 +188,89 @@ test("B2C TCT: planejamento do alívio aparece só no TCT, é obrigatório e vai
   // Mudou para outro segmento: o campo some e o valor não fica guardado.
   await page.evaluate(() => openDemandaModal("p3"));
   expect(await page.inputValue("#demPlanejamentoTct")).toBe("nao_planejado");
-  await escolher("demSegmentoB2c", "MDU");
+  await segmentos(["MDU"]);
   expect(await campo.getAttribute("hidden")).not.toBeNull();
   await page.click("#btnSalvarDemanda");
   await expect(page.locator("#toast")).toContainText("Demanda salva");
   expect(await page.evaluate(() => state.demandas.find((d) => d.id === "p3").planejamentoTct)).toBe("");
   await expect(page.locator('.card[data-id="p3"] .badge--plan-tct')).toHaveCount(0);
+});
+
+test("B2C com mais de um segmento (TCR + TCT): divisão dos valores em %, obrigatória e somando 100%", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    state.demandas.find((d) => d.id === "p3").cidade = "Betim - BET";
+    openDemandaModal("p3");
+  });
+  const segmentos = (lista) =>
+    page.evaluate((l) => {
+      document.querySelectorAll("#demSegmentosB2c [data-seg-b2c]").forEach((i) => (i.checked = l.includes(i.value)));
+      document.getElementById("demSegmentosB2c").dispatchEvent(new Event("change", { bubbles: true }));
+    }, lista);
+  // O projeto abre em modo leitura (campos atrás de «Editar»): preenche como o formulário faria.
+  const digitar = (seg, valor) =>
+    page.evaluate(([s, v]) => {
+      const i = document.querySelector(`[data-div-seg="${s}"]`);
+      i.value = v;
+      i.dispatchEvent(new Event("input", { bubbles: true }));
+    }, [seg, valor]);
+  await expect(page.locator("#demSegmentosB2c [data-seg-b2c]:checked")).toHaveCount(1);
+  expect(await page.locator("#demDivisaoSegmentos").getAttribute("hidden"), "um segmento: sem divisão").not.toBeNull();
+
+  await segmentos(["TCR", "TCT"]);
+  expect(await page.locator("#demDivisaoSegmentos").getAttribute("hidden")).toBeNull();
+  // Começa em partes iguais; digitar num completa o outro.
+  expect(await page.locator("[data-div-seg]").evaluateAll((els) => els.map((e) => [e.dataset.divSeg, e.value]))).toEqual([["TCR", "50"], ["TCT", "50"]]);
+  await digitar("TCR", "60");
+  await expect(page.locator('[data-div-seg="TCT"]')).toHaveValue("40");
+  await expect(page.locator("#demDivisaoSegmentosSoma")).toHaveText("Total: 100%");
+  // TCT marcado: o planejamento aparece e é obrigatório.
+  expect(await page.locator("#fieldDemPlanejamentoTct").getAttribute("hidden")).toBeNull();
+  await page.evaluate(() => (document.getElementById("demPlanejamentoTct").value = "planejado"));
+
+  // Soma errada não salva.
+  await page.evaluate(() => {
+    const i = document.querySelector('[data-div-seg="TCT"]');
+    i.value = "10";
+    i.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.click("#btnSalvarDemanda");
+  await expect(page.locator("#toast")).toContainText("precisa somar 100%");
+  await digitar("TCR", "60");
+  await page.click("#btnSalvarDemanda");
+  await expect(page.locator("#toast")).toContainText("Demanda salva");
+
+  const salvo = await page.evaluate(() => {
+    const d = state.demandas.find((x) => x.id === "p3");
+    return { seg: d.segmentoB2c, segs: d.segmentosB2c, div: d.divisaoSegmentosB2c, plan: d.planejamentoTct };
+  });
+  expect(salvo).toEqual({ seg: "TCR", segs: ["TCR", "TCT"], div: { TCR: 60, TCT: 40 }, plan: "planejado" });
+  await expect(page.locator('.card[data-id="p3"] .badge--segmento-b2c')).toHaveText(["TCR", "TCT"]);
+
+  // Relatório: coluna mostra a divisão; filtro por TCR ou por TCT acha o projeto; agrupado divide os valores.
+  const rel = await page.evaluate(() => {
+    const d = migrateDemanda(state.demandas.find((x) => x.id === "p3"));
+    d.custo = { temLevantamento: true, valorProjeto: 1000, temPortas: true, qtdCasas: 200, qtdPortasAtual: 10, qtdNovasPortas: 100 };
+    const col = REL_COLUNAS.find((c) => c.key === "segmento").val(d);
+    const grupos = relResumoAgrupado([d], "segmento").map((l) => [l.chave, l.total, l.portas]);
+    return { col, grupos };
+  });
+  expect(rel.col).toBe("TCR 60% + TCT 40%");
+  expect(rel.grupos.sort()).toEqual([["TCR", 1, 60], ["TCT", 1, 40]]);
+
+  // Dashboard: conta nos dois segmentos (Total uma vez) e divide as portas.
+  const dash = await page.evaluate(() => {
+    const d = migrateDemanda(state.demandas.find((x) => x.id === "p3"));
+    return segmentosB2cPartes(d).map((p) => [p.seg, Math.round(p.fracao * 100)]);
+  });
+  expect(dash).toEqual([["TCR", 60], ["TCT", 40]]);
+
+  // Voltar para um segmento só apaga a divisão.
+  await page.evaluate(() => openDemandaModal("p3"));
+  await segmentos(["TCR"]);
+  await page.click("#btnSalvarDemanda");
+  await expect(page.locator("#toast")).toContainText("Demanda salva");
+  expect(await page.evaluate(() => {
+    const d = state.demandas.find((x) => x.id === "p3");
+    return [d.segmentosB2c, d.divisaoSegmentosB2c, d.planejamentoTct];
+  })).toEqual([["TCR"], null, ""]);
 });

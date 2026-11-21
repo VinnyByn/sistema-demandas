@@ -192,7 +192,7 @@ const REL_COLUNAS = [
   { key: "esteira", grupo: "Projeto", label: "Esteira", padrao: true, val: (d) => relEsteiraLabel(inferLinhaEsteira(d)) },
   { key: "tipo", grupo: "Projeto", label: "Tipo", padrao: true, val: (d) => normalizeTipo(d.tipo) || "" },
   { key: "produto", grupo: "Projeto", label: "Produto B2B", val: (d) => d.produtoB2b || "" },
-  { key: "segmento", grupo: "Projeto", label: "Segmento B2C", val: (d) => d.segmentoB2c || "" },
+  { key: "segmento", grupo: "Projeto", label: "Segmento B2C", val: (d) => segmentosB2cTexto(d) },
   { key: "planejamentoTct", grupo: "Projeto", label: `${PLANEJAMENTO_TCT.rotulo} (TCT)`, val: (d) => (demandaEhTct(d) ? planejamentoTctLabel(d.planejamentoTct) || "Não informado" : "") },
   { key: "etapa", grupo: "Projeto", label: "Etapa", padrao: true, val: relEtapaLabel },
   { key: "situacao", grupo: "Projeto", label: "Situação", padrao: true, val: relSituacaoLabel },
@@ -365,7 +365,10 @@ function relFiltrarDemandas(lista, f) {
     }
     if (has(f.tipos) && !f.tipos.includes(normalizeTipo(d.tipo))) return false;
     if (has(f.produtos) && !f.produtos.includes(d.produtoB2b || "__none__")) return false;
-    if (has(f.segmentos) && !f.segmentos.includes(d.segmentoB2c || "__none__")) return false;
+    if (has(f.segmentos)) {
+      const segs = demandaSegmentosB2c(d);
+      if (!(segs.length ? segs.some((s) => f.segmentos.includes(s)) : f.segmentos.includes("__none__"))) return false;
+    }
     // Só projetos TCT têm planejamento: escolher um valor deixa só os TCT com aquele valor.
     if (has(f.planejamentosTct) && !(demandaEhTct(d) && f.planejamentosTct.includes(normalizePlanejamentoTct(d.planejamentoTct) || "__none__"))) return false;
     if (has(f.etapas) && !f.etapas.includes(relEtapaChave(d))) return false;
@@ -428,8 +431,10 @@ function relChavesGrupo(d, agrupar) {
       return [relEsteiraLabel(inferLinhaEsteira(d))];
     case "produto":
       return [d.produtoB2b || "Sem produto"];
-    case "segmento":
-      return [d.segmentoB2c || "Sem segmento"];
+    case "segmento": {
+      const segs = demandaSegmentosB2c(d);
+      return segs.length ? segs : ["Sem segmento"];
+    }
     case "planejamentoTct":
       return [demandaEhTct(d) ? planejamentoTctLabel(d.planejamentoTct) || "TCT sem planejamento informado" : "Não é TCT"];
     case "solicitante":
@@ -455,15 +460,15 @@ function relMetricasVazias() {
   return { total: 0, andamento: 0, concluido: 0, pausado: 0, reprovado: 0, atrasado: 0, valor: 0, somaDias: 0, portas: 0, metragem: 0, realizado: 0 };
 }
 
-function relSomar(m, d) {
+function relSomar(m, d, peso = 1) {
   m.total++;
   m[relSituacao(d)]++;
   if (isAtrasoAtivo(d)) m.atrasado++;
-  m.valor += relValorFinal(d);
+  m.valor += relValorFinal(d) * peso;
   m.somaDias += demandaDiasAberto(d);
-  m.portas += demandaPortasNovas(d);
-  m.metragem += demandaMetragemLancamento(d);
-  m.realizado += relValorRealizado(d);
+  m.portas += demandaPortasNovas(d) * peso;
+  m.metragem += demandaMetragemLancamento(d) * peso;
+  m.realizado += relValorRealizado(d) * peso;
 }
 
 /** Resumo agrupado: [{ chave, rotulo, ...métricas }] ordenado por quantidade. */
@@ -472,7 +477,9 @@ function relResumoAgrupado(lista, agrupar) {
   for (const d of lista) {
     for (const chave of new Set(relChavesGrupo(d, agrupar))) {
       if (!mapa.has(chave)) mapa.set(chave, relMetricasVazias());
-      relSomar(mapa.get(chave), d);
+      // Por segmento, valores, portas e metragem seguem a divisão do projeto (TCR 60% / TCT 40%…).
+      const peso = agrupar === "segmento" && demandaSegmentosB2c(d).length > 1 ? demandaFracaoSegmento(d, chave) : 1;
+      relSomar(mapa.get(chave), d, peso);
     }
   }
   const linhas = [...mapa.entries()].map(([chave, m]) => ({ chave, rotulo: relRotuloGrupo(chave, agrupar), ...m }));
@@ -777,6 +784,9 @@ function relResumoTabelaHtml(linhas, agrupar, total) {
   return (
     `<h3 class="rel-sub">Resumo por ${escapeHtml(nome.toLowerCase())}</h3>` +
     (multi ? `<p class="muted small">Projeto com mais de uma ${agrupar === "projetista" ? "pessoa" : agrupar === "cidade" ? "cidade" : "regional"} conta em cada uma.</p>` : "") +
+    (agrupar === "segmento"
+      ? `<p class="muted small">Projeto com mais de um segmento conta em cada um; valor, portas e metragem são divididos conforme a divisão informada no projeto.</p>`
+      : "") +
     `<div class="rel-tabela-wrap" tabindex="0" role="region" aria-label="Resumo por ${escapeHtml(nome.toLowerCase())}"><table class="rel-tabela rel-tabela--resumo"><thead><tr><th scope="col">${escapeHtml(nome)}</th>` +
     `<th scope="col" class="num">Projetos</th><th scope="col" class="num">%</th><th scope="col" class="num">Em andamento</th>` +
     `<th scope="col" class="num">Concluídos</th><th scope="col" class="num">Em atraso</th><th scope="col" class="num">Pausados / reprov.</th>` +
@@ -831,7 +841,7 @@ function relFichaHtml(d) {
   };
   const geral = secao("Projeto", [
     item("Esteira", relEsteiraLabel(inferLinhaEsteira(d))),
-    item("Tipo", [normalizeTipo(d.tipo), d.produtoB2b, d.segmentoB2c].filter(Boolean).join(" · ")),
+    item("Tipo", [normalizeTipo(d.tipo), d.produtoB2b, segmentosB2cTexto(d)].filter(Boolean).join(" · ")),
     demandaEhTct(d) ? item(PLANEJAMENTO_TCT.rotulo, planejamentoTctLabel(d.planejamentoTct) || "Não informado") : "",
     item("Etapa", relEtapaLabel(d)),
     item("Situação", relSituacaoLabel(d)),
