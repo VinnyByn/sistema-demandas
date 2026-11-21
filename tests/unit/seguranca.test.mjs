@@ -62,6 +62,9 @@ test("catálogo: a chave pública não executa nem lê nada; o usuário logado s
     "demanda_excluir",
     "demanda_presenca",
     "demanda_salvar",
+    "email_preferencias_ler",
+    "email_preferencias_salvar",
+    "email_teste",
     "meta_salvar",
   ]);
 
@@ -436,7 +439,8 @@ test("código do app: nada escreve no console a não ser o registro seguro", () 
   const encontrados = [];
   for (const entrada of fs.readdirSync(site, { recursive: true })) {
     const arquivo = path.join(site, String(entrada));
-    if (!/\.js$/.test(arquivo) || path.basename(arquivo) === "log-seguro.js" || !fs.statSync(arquivo).isFile()) continue;
+    // vendor/ guarda bibliotecas de terceiros como vieram (Leaflet só avisa no console quando é mal usado).
+    if (!/\.js$/.test(arquivo) || path.basename(arquivo) === "log-seguro.js" || String(entrada).startsWith("vendor") || !fs.statSync(arquivo).isFile()) continue;
     if (/\bconsole\s*[.[]/.test(fs.readFileSync(arquivo, "utf8"))) encontrados.push(path.relative(site, arquivo));
   }
   assert.deepEqual(encontrados, []);
@@ -533,7 +537,11 @@ test("hospedagem: CSP bloqueia de verdade, sem script inline e sem CDN inteira; 
     assert.match(csp, /object-src 'none'/);
     assert.match(csp, /base-uri 'self'/);
     assert.match(csp, /form-action 'self'/);
-    assert.ok(!/img-src[^;]*https:/.test(csp), "imagem de qualquer site serviria para vazar dados");
+    // Imagem de qualquer site serviria para vazar dados: só o próprio site e o fundo do mapa (OpenStreetMap).
+    const img = csp.split(";").find((d) => d.trim().startsWith("img-src"));
+    for (const origem of img.trim().split(/\s+/).slice(1)) {
+      assert.ok(["'self'", "data:", "blob:", "https://tile.openstreetmap.org"].includes(origem), `imagem liberada de: ${origem}`);
+    }
   }
   const carregador = fs.readFileSync(path.join(RAIZ, "site/js/nucleo/carregar-sob-demanda.js"), "utf8");
   assert.match(carregador, /\[CHART_JS\]: "sha384-/);

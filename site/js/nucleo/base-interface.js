@@ -403,5 +403,7 @@ function switchMainTab(tab) {
   });
   if (tab === "dashboard") renderDashboard();
   if (tab === "esteira") renderBoard();
+  if (tab === "calendario") renderCalendario();
+  if (tab === "mapa") renderMapa();
   if (isMobileShell()) setMobileSidebarOpen(false);
 }
