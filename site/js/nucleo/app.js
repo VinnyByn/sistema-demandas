@@ -147,7 +147,6 @@ const panels = {
 };
 ligarCalendario();
 ligarMapa();
-ligarAvisosEmail();
 
 document.querySelectorAll(".tabs__btn[data-tab]").forEach((btn) => {
   if (btn.id === "btnTabEsteira") return;

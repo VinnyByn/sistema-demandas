@@ -8391,16 +8391,3 @@ html:not([data-theme="light"]) .mapa-tiles { filter: invert(1) hue-rotate(180deg
   .mapa-canvas { height: 60vh; min-height: 20rem; }
   .mapa-lado { max-height: none; min-height: 0; }
 }
-
-/* ---------- Minha conta → Avisos por e-mail ---------- */
-.avisos-email { display: flex; flex-direction: column; gap: 0.5rem; }
-.avisos-status {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; padding: 0.75rem 0.9rem;
-  border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px; background: var(--surface2); font-size: 0.84rem;
-}
-.avisos-status span { color: var(--muted); }
-.avisos-status .btn { margin-top: 0.35rem; }
-.avisos-status--pendente { border-left-color: var(--warn); }
-.avisos-status--ok { border-left-color: var(--accent2); }
-.avisos-status__erro { color: var(--danger); }
-.avisos-status__detalhe { font-size: 0.76rem; overflow-wrap: anywhere; }

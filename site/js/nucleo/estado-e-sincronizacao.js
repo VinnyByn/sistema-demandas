@@ -223,7 +223,6 @@ function refreshAllViews() {
   syncDemAsanaUi();
   syncComentariosServidorNoModal();
   notificarAvisosAsanaNovos();
-  if (typeof abrirProjetoDoLink === "function") abrirProjetoDoLink();
 }
 
 /** Agrupa atualizações da nuvem para não recriar a UI várias vezes seguidas. */

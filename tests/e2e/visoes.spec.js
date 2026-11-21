@@ -1,4 +1,4 @@
-// Calendário de prazos, mapa dos projetos, Minha conta → Avisos e o link dos e-mails (?abrir=).
+// Calendário de prazos e mapa dos projetos.
 const { test, expect } = require("./app");
 
 const dia = (n) => {
@@ -115,57 +115,4 @@ test("mapa: uma bolha por cidade, lista lateral, projeto em várias cidades e se
   await lado.locator('[data-mapa-abrir="k3"]').click();
   await expect(page.locator("#modalDemanda")).toBeVisible();
   await expect(page.locator("#demTitulo")).toHaveValue("Com atividade");
-});
-
-test("Minha conta → Avisos: sem nuvem, mostra as opções desligadas e explica", async ({ app: { page } }) => {
-  await page.click("#btnUserMenu");
-  await page.click('[data-user-modal="modalUserConta"]');
-  await page.click('[data-conta-pane="avisos"]');
-  await expect(page.locator("#contaPaneTitulo")).toHaveText("Avisos por e-mail");
-  const box = page.locator("#contaAvisosEmail");
-  await expect(box).toContainText("Disponível quando estiver conectado à nuvem");
-  await expect(box.locator("[data-aviso-email]")).toHaveCount(3);
-  await expect(box.locator("[data-aviso-email]").first()).toBeDisabled();
-});
-
-test("Minha conta → Avisos: lê e salva as escolhas pelo banco; o administrador pede e-mail de teste", async ({ app: { page } }) => {
-  await page.evaluate(() => {
-    window.__rpc = [];
-    const prefs = { mencao: true, atribuicao: false, prazos: true, envioConfigurado: true, enviados7d: 4, erros7d: 1, pendentes: 0, ultimoErro: "HTTP 401: chave inválida" };
-    DemandasConsulta.cliente = () => ({
-      rpc: (nome, args) => {
-        window.__rpc.push([nome, args || null]);
-        if (nome === "email_preferencias_salvar") Object.assign(prefs, args.p_campos);
-        return Promise.resolve({ data: nome === "email_preferencias_ler" ? { ...prefs } : null, error: null });
-      },
-    });
-  });
-  await page.click("#btnUserMenu");
-  await page.click('[data-user-modal="modalUserConta"]');
-  await page.click('[data-conta-pane="avisos"]');
-  const box = page.locator("#contaAvisosEmail");
-  await expect(box).toContainText("Envio ligado");
-  await expect(box).toContainText("4 enviados");
-  await expect(box).toContainText("1 com erro");
-  await expect(box).toContainText("chave inválida");
-  await expect(box.locator('[data-aviso-email="mencao"]')).toBeChecked();
-  await expect(box.locator('[data-aviso-email="atribuicao"]')).not.toBeChecked();
-
-  await box.locator('[data-aviso-email="prazos"] + .conta-switch__track').click();
-  await expect(box.locator('[data-aviso-email="prazos"]')).not.toBeChecked();
-  await box.locator("#btnAvisoEmailTeste").click();
-  await expect.poll(() => page.evaluate(() => window.__rpc.map((r) => r[0]))).toContain("email_teste");
-  const salvo = await page.evaluate(() => window.__rpc.find((r) => r[0] === "email_preferencias_salvar"));
-  expect(salvo).toEqual(["email_preferencias_salvar", { p_campos: { prazos: false } }]);
-});
-
-test("link do e-mail (?abrir=id) abre o projeto quando os dados chegam e sai da barra de endereço", async ({ app: { page } }) => {
-  await page.evaluate(() => {
-    history.replaceState(null, "", "/index.html?abrir=k2");
-    abrirDoLinkFeito = false;
-  });
-  await carregar(page);
-  await expect(page.locator("#modalDemanda")).toBeVisible();
-  await expect(page.locator("#demTitulo")).toHaveValue("Prazo hoje");
-  expect(await page.evaluate(() => location.search)).toBe("");
 });
