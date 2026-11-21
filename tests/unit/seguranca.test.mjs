@@ -62,9 +62,6 @@ test("catálogo: a chave pública não executa nem lê nada; o usuário logado s
     "demanda_excluir",
     "demanda_presenca",
     "demanda_salvar",
-    "email_preferencias_ler",
-    "email_preferencias_salvar",
-    "email_teste",
     "meta_salvar",
   ]);
 

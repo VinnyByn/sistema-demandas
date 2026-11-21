@@ -634,7 +634,7 @@ function syncTrocarSenhaForm() {
 }
 
 function showContaPane(pane) {
-  const titles = { perfil: "Perfil", seguranca: "Senha", avisos: "Avisos por e-mail" };
+  const titles = { perfil: "Perfil", seguranca: "Senha" };
   const next = titles[pane] ? pane : "perfil";
   document.querySelectorAll("[data-conta-pane]").forEach((btn) => {
     const on = btn.dataset.contaPane === next;
@@ -647,7 +647,6 @@ function showContaPane(pane) {
   });
   const title = document.getElementById("contaPaneTitulo");
   if (title) title.textContent = titles[next];
-  if (next === "avisos" && typeof carregarAvisosEmail === "function") void carregarAvisosEmail();
 }
 
 function initShellUi() {
