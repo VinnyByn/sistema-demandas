@@ -215,12 +215,15 @@ function refreshAllViews() {
   if (panels.esteira && !panels.esteira.hidden) renderBoard();
   updateEsteiraStatusLine();
   if (panels.dashboard && !panels.dashboard.hidden) renderDashboard();
+  if (panels.calendario && !panels.calendario.hidden) renderCalendario();
+  if (panels.mapa && !panels.mapa.hidden) renderMapa();
   if (usuariosModalAberto()) renderUsuariosPanel();
   applyRoleUi({ light: true });
   syncDemandaModalAlerts();
   syncDemAsanaUi();
   syncComentariosServidorNoModal();
   notificarAvisosAsanaNovos();
+  if (typeof abrirProjetoDoLink === "function") abrirProjetoDoLink();
 }
 
 /** Agrupa atualizações da nuvem para não recriar a UI várias vezes seguidas. */

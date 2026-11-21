@@ -142,7 +142,12 @@ let state = defaultState();
 const panels = {
   esteira: document.getElementById("panelEsteira"),
   dashboard: document.getElementById("panelDashboard"),
+  calendario: document.getElementById("panelCalendario"),
+  mapa: document.getElementById("panelMapa"),
 };
+ligarCalendario();
+ligarMapa();
+ligarAvisosEmail();
 
 document.querySelectorAll(".tabs__btn[data-tab]").forEach((btn) => {
   if (btn.id === "btnTabEsteira") return;

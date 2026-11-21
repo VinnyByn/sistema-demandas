@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 
 const PASTA_MIGRATIONS = fileURLToPath(new URL("../../../supabase/migrations/", import.meta.url));
-const TABELAS = "public.demandas, public.sistema_meta, public.sistema_backups, public.acessos_historico, public.asana_story_vinculos, public.asana_envios, public.asana_anexos, public.asana_webhooks";
+const TABELAS = "public.demandas, public.sistema_meta, public.sistema_backups, public.acessos_historico, public.asana_story_vinculos, public.asana_envios, public.asana_anexos, public.asana_webhooks, public.email_preferencias, public.email_eventos, public.email_saida";
 
 const O_QUE_O_SUPABASE_TRAZ = `
   create role anon nologin;

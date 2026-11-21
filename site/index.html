@@ -84,6 +84,20 @@
           <span class="sidebar__label">Dashboard</span>
         </button>
 
+        <button type="button" class="sidebar__item tabs__btn" data-tab="calendario" data-tip="Calendário de prazos" aria-label="Calendário de prazos">
+          <span class="sidebar__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4M16 3v4"/><path d="M8 14h2M14 14h2M8 17.5h2"/></svg>
+          </span>
+          <span class="sidebar__label">Calendário</span>
+        </button>
+
+        <button type="button" class="sidebar__item tabs__btn" data-tab="mapa" data-tip="Mapa dos projetos" aria-label="Mapa dos projetos">
+          <span class="sidebar__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>
+          </span>
+          <span class="sidebar__label">Mapa</span>
+        </button>
+
         <button type="button" class="sidebar__item" id="btnLixeiraArquivo" data-tip="Arquivo e lixeira" aria-label="Arquivo e lixeira">
           <span class="sidebar__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/></svg>
@@ -172,7 +186,7 @@
             </div>
             <button type="button" class="user-menu__item" role="menuitem" data-user-modal="modalUserConta">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 19.2a7 7 0 0 1 14 0"/></svg>
-              <span class="user-menu__item-txt">Minha conta<small>Perfil, aparência e senha</small></span>
+              <span class="user-menu__item-txt">Minha conta<small>Perfil, aparência, senha e avisos</small></span>
             </button>
             <button type="button" class="user-menu__item" role="menuitem" id="btnMenuUsuarios" hidden>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19a6 6 0 0 1 12 0"/><path d="M16 5.2a3 3 0 0 1 0 5.6"/><path d="M18 14.2a6 6 0 0 1 3 4.8"/></svg>
@@ -936,6 +950,86 @@
           </div>
         </section>
 
+      </section>
+
+      <section id="panelCalendario" class="panel" data-panel="calendario" hidden>
+        <div class="cal-topo">
+          <div class="cal-nav">
+            <button type="button" class="icon-btn" id="calAnterior" aria-label="Mês anterior">‹</button>
+            <h3 class="cal-nav__titulo" id="calTitulo" aria-live="polite">—</h3>
+            <button type="button" class="icon-btn" id="calProximo" aria-label="Próximo mês">›</button>
+            <button type="button" class="btn btn--ghost btn--sm" id="calHoje">Hoje</button>
+          </div>
+          <div class="dash-seg cal-modo" role="radiogroup" aria-label="Forma de ver">
+            <button type="button" role="radio" aria-checked="true" data-cal-modo="mes">Mês</button>
+            <button type="button" role="radio" aria-checked="false" data-cal-modo="lista">Lista</button>
+          </div>
+        </div>
+        <div class="cal-filtros">
+          <label class="field field--inline">
+            <span>Esteira</span>
+            <select id="calFiltroEsteira">
+              <option value="todas">Todas</option>
+              <option value="operacional">Projetos</option>
+              <option value="b2b">B2B</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Projetista</span>
+            <select id="calFiltroProjetista"><option value="">Todos os projetistas</option></select>
+          </label>
+          <div class="cal-checks" role="group" aria-label="O que mostrar">
+            <label class="cal-check cal-check--projeto"><input type="checkbox" id="calMostrarProjetos" checked /> <span>Prazos dos projetos</span></label>
+            <label class="cal-check cal-check--atividade"><input type="checkbox" id="calMostrarAtividades" checked /> <span>Atividades</span></label>
+            <label class="cal-check"><input type="checkbox" id="calMostrarConcluidos" /> <span>Mostrar concluídos</span></label>
+          </div>
+        </div>
+        <div class="cal-resumo" id="calResumo" aria-live="polite"></div>
+        <div class="cal-corpo cal-corpo--mes">
+          <div class="cal-grade" id="calGrade"></div>
+          <aside class="cal-dia-painel" id="calDia" aria-labelledby="calDiaTitulo">
+            <h4 id="calDiaTitulo">—</h4>
+            <div id="calDiaLista"></div>
+          </aside>
+        </div>
+        <div class="cal-corpo cal-corpo--lista" id="calAgenda"></div>
+      </section>
+
+      <section id="panelMapa" class="panel" data-panel="mapa" hidden>
+        <div class="cal-filtros mapa-filtros">
+          <label class="field field--inline">
+            <span>Esteira</span>
+            <select id="mapaFiltroEsteira">
+              <option value="todas">Todas</option>
+              <option value="operacional">Projetos</option>
+              <option value="b2b">B2B</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Situação</span>
+            <select id="mapaFiltroSituacao">
+              <option value="andamento">Em andamento</option>
+              <option value="concluidos">Concluídos</option>
+              <option value="todos">Todos</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <span>Tipo</span>
+            <select id="mapaFiltroTipo"><option value="">Todos os tipos</option></select>
+          </label>
+          <label class="field field--inline">
+            <span>Projetista</span>
+            <select id="mapaFiltroProjetista"><option value="">Todos os projetistas</option></select>
+          </label>
+        </div>
+        <div class="mapa-corpo">
+          <div class="mapa-area">
+            <div class="mapa-canvas" id="mapaCanvas" role="region" aria-label="Mapa com os projetos por cidade"></div>
+            <p class="mapa-aviso" id="mapaAviso" hidden></p>
+            <div class="mapa-legenda" id="mapaLegenda"></div>
+          </div>
+          <aside class="mapa-lado" id="mapaLado" aria-live="polite"></aside>
+        </div>
       </section>
     </main>
     </div>
@@ -1845,6 +1939,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11.2 12.8L20 4"/><path d="M16.5 7.5l2 2"/><path d="M14.5 9.5l2 2"/></svg>
             Senha
           </button>
+          <button type="button" class="conta-shell__link" data-conta-pane="avisos">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5L12 13l8.5-6.5"/></svg>
+            Avisos
+          </button>
         </nav>
         <button type="button" class="conta-shell__sair" data-sign-out>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 7V5a2 2 0 0 1 2-2h7v18h-7a2 2 0 0 1-2-2v-2"/><path d="M15 12H3m0 0l3-3m-3 3l3 3"/></svg>
@@ -1947,6 +2045,10 @@
               </label>
             </div>
           </div>
+        </div>
+        <div class="conta-shell__body" data-conta-panel="avisos" hidden>
+          <p class="muted small conta-lead">Escolha o que chega no seu e-mail. Os avisos de dentro do sistema (o sino) continuam iguais.</p>
+          <div class="conta-prefs avisos-email" id="contaAvisosEmail" aria-live="polite"></div>
         </div>
         <div class="conta-shell__body" data-conta-panel="seguranca" hidden>
           <p class="muted small conta-lead">A senha atual não aparece aqui. Troque com a senha de agora ou peça um link no e-mail.</p>
@@ -2075,9 +2177,12 @@
   <script src="js/dashboard/dashboard-base.js"></script>
   <script src="js/dashboard/cidades-e-projetistas.js"></script>
   <script src="js/dashboard/b2b-e-tempo.js"></script>
+  <script src="js/visoes/calendario.js"></script>
+  <script src="js/visoes/mapa.js"></script>
   <script src="js/importacao/exportar-e-importar.js"></script>
   <script src="js/relatorio/relatorio.js"></script>
   <script src="js/usuarios/usuarios-e-login.js"></script>
+  <script src="js/usuarios/avisos-email.js"></script>
   <script src="js/nucleo/app.js"></script>
 </body>
 </html>

@@ -841,6 +841,8 @@ function updateTopbarTitle(tab) {
   const current = tab || document.querySelector(".tabs__btn.is-active")?.dataset.tab || "esteira";
   if (current === "dashboard") el.textContent = "Dashboard";
   else if (current === "usuarios") el.textContent = "Usuários";
+  else if (current === "calendario") el.textContent = "Calendário de prazos";
+  else if (current === "mapa") el.textContent = "Mapa dos projetos";
   else el.textContent = activeEsteiraCanal === LINHA_ESTEIRA_B2B ? "Esteira B2B" : "Esteira Projetos";
 }
 
