@@ -1108,7 +1108,7 @@ function renderDashB2cSegmentos(listModo) {
     `</table></div>` +
     `<p class="muted small dash-tipos__nota">Base: <strong>${escapeHtml(labelValorDashModo())}</strong> (escolhida no topo). A barra mostra a participação do segmento em cada coluna. Clique no segmento ou em qualquer número para ver os projetos.</p>` +
     (multiSeg
-      ? `<p class="muted small dash-tipos__nota">${multiSeg} projeto(s) envolvem mais de um segmento: contam em cada um (o Total conta uma vez só), e gastos, portas e metragem são divididos conforme a divisão informada no projeto.</p>`
+      ? `<p class="muted small dash-tipos__nota">${multiSeg} projeto(s) envolvem mais de um segmento: contam em cada um (o Total conta uma vez só); gastos e metragem seguem a divisão do valor, e as portas, a divisão das portas, informadas no projeto.</p>`
       : "");
   el.querySelectorAll("[data-b2c-seg]").forEach((btn) => {
     btn.addEventListener("click", () => openDashGeoProjetosLista("segmento", btn.dataset.b2cSeg, btn.dataset.b2cSlice || ""));
@@ -1134,11 +1134,13 @@ function renderDashB2cPlanejamentoTct(listModo) {
   ].map((g) => ({ ...g, projetos: 0, gastos: 0, portas: 0, metragem: 0 }));
   for (const d of tct) {
     const g = grupos.find((x) => x.chave === (normalizePlanejamentoTct(d.planejamentoTct) || "__none__"));
-    const parte = demandaFracaoSegmento(d, "TCT"); // projeto com TCR e TCT: só a parte TCT entra aqui
+    // Projeto com TCR e TCT: só a parte TCT entra aqui (valor e metragem pela divisão do valor; portas pela das portas).
+    const parteValor = demandaFracaoSegmento(d, "TCT", "valor");
+    const partePortas = demandaFracaoSegmento(d, "TCT", "portas");
     g.projetos += 1;
-    g.gastos += demandaValorDashPorModo(d, modo) * parte;
-    g.portas += demandaPortasDashPorModo(d, modo) * parte;
-    g.metragem += demandaMetragemDashPorModo(d, modo) * parte;
+    g.gastos += demandaValorDashPorModo(d, modo) * parteValor;
+    g.portas += demandaPortasDashPorModo(d, modo) * partePortas;
+    g.metragem += demandaMetragemDashPorModo(d, modo) * parteValor;
   }
   const total = grupos.reduce((t, g) => ({ projetos: t.projetos + g.projetos, gastos: t.gastos + g.gastos, portas: t.portas + g.portas, metragem: t.metragem + g.metragem }), { projetos: 0, gastos: 0, portas: 0, metragem: 0 });
   const visiveis = grupos.filter((g) => g.chave !== "__none__" || g.projetos);

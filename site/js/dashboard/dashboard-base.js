@@ -1096,9 +1096,10 @@ function segmentoB2cBucket(d) {
  * são divididos pela divisão informada (as frações somam 1).
  */
 function segmentosB2cPartes(d) {
-  const div = demandaDivisaoSegmentos(d);
-  const partes = Object.entries(div).map(([seg, fracao]) => ({ seg, fracao }));
-  return partes.length ? partes : [{ seg: B2C_SEGMENTO_SEM, fracao: 1 }];
+  const dv = demandaDivisaoSegmentos(d, "valor");
+  const dp = demandaDivisaoSegmentos(d, "portas");
+  const partes = Object.keys(dv).map((seg) => ({ seg, fracao: dv[seg], fracPortas: dp[seg] }));
+  return partes.length ? partes : [{ seg: B2C_SEGMENTO_SEM, fracao: 1, fracPortas: 1 }];
 }
 
 function buildSegmentoB2cMatrix(demandas, rowKeys, keyFn) {
@@ -1119,7 +1120,8 @@ function buildSegmentoB2cMatrix(demandas, rowKeys, keyFn) {
   return matrix;
 }
 
-function buildSegmentoB2cValueMatrix(demandas, rowKeys, keyFn, valueFn) {
+/** `tipo`: "portas" divide pela divisão das portas; o resto (valor, metragem) pela do valor. */
+function buildSegmentoB2cValueMatrix(demandas, rowKeys, keyFn, valueFn, tipo = "valor") {
   const matrix = Object.fromEntries(
     rowKeys.map((k) => [
       k,
@@ -1128,10 +1130,10 @@ function buildSegmentoB2cValueMatrix(demandas, rowKeys, keyFn, valueFn) {
   );
   demandas.forEach((d) => {
     const val = numDash(valueFn(d));
-    for (const { seg, fracao } of segmentosB2cPartes(d)) {
+    for (const { seg, fracao, fracPortas } of segmentosB2cPartes(d)) {
       for (const key of [...new Set(resolveGeoKeys(d, keyFn))]) {
         if (!matrix[key] || matrix[key][seg] === undefined) continue;
-        matrix[key][seg] += val * fracao;
+        matrix[key][seg] += val * (tipo === "portas" ? fracPortas : fracao);
       }
     }
   });
@@ -1181,7 +1183,7 @@ function renderDashSegmentoB2cValorPorGrupo(
     .sort((a, b) => numDash(sortVal(b)) - numDash(sortVal(a)) || b.projetos - a.projetos)
     .slice(0, topN);
   const rowKeys = topRows.map((r) => r.cidade);
-  const matrix = buildSegmentoB2cValueMatrix(demandas, rowKeys, keyFn, valueFn);
+  const matrix = buildSegmentoB2cValueMatrix(demandas, rowKeys, keyFn, valueFn, tableOpts?.slice === "portas" ? "portas" : "valor");
   const segmentos = activeSegmentoB2cValueCols(matrix, rowKeys);
   const datasets = segmentos
     .map((seg) => ({
@@ -1346,12 +1348,12 @@ function buildB2cMetricasPorSegmento(list, { includeEmptyCore = true } = {}) {
     const valor = demandaValorDashPorModo(d, mode);
     const portas = demandaPortasDashPorModo(d, mode);
     const metragem = demandaMetragemDashPorModo(d, mode);
-    for (const { seg, fracao } of segmentosB2cPartes(d)) {
+    for (const { seg, fracao, fracPortas } of segmentosB2cPartes(d)) {
       const row = rows[seg];
       if (!row) continue;
       row.projetos += 1;
       row.investimento += valor * fracao;
-      row.portas += portas * fracao;
+      row.portas += portas * fracPortas;
       row.metragem += metragem * fracao;
     }
   });

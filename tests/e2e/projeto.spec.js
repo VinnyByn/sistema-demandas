@@ -207,35 +207,42 @@ test("B2C com mais de um segmento (TCR + TCT): divisão dos valores em %, obriga
       document.getElementById("demSegmentosB2c").dispatchEvent(new Event("change", { bubbles: true }));
     }, lista);
   // O projeto abre em modo leitura (campos atrás de «Editar»): preenche como o formulário faria.
-  const digitar = (seg, valor) =>
-    page.evaluate(([s, v]) => {
-      const i = document.querySelector(`[data-div-seg="${s}"]`);
+  const digitar = (seg, valor, tipo = "valor") =>
+    page.evaluate(([s, v, t]) => {
+      const i = document.querySelector(`[data-div-seg="${s}"][data-div-tipo="${t}"]`);
       i.value = v;
       i.dispatchEvent(new Event("input", { bubbles: true }));
-    }, [seg, valor]);
+    }, [seg, valor, tipo]);
   await expect(page.locator("#demSegmentosB2c [data-seg-b2c]:checked")).toHaveCount(1);
   expect(await page.locator("#demDivisaoSegmentos").getAttribute("hidden"), "um segmento: sem divisão").not.toBeNull();
 
   await segmentos(["TCR", "TCT"]);
   expect(await page.locator("#demDivisaoSegmentos").getAttribute("hidden")).toBeNull();
   // Começa em partes iguais; digitar num completa o outro.
-  expect(await page.locator("[data-div-seg]").evaluateAll((els) => els.map((e) => [e.dataset.divSeg, e.value]))).toEqual([["TCR", "50"], ["TCT", "50"]]);
+  // Duas linhas (valor e portas), começando em partes iguais; digitar num completa o outro da mesma linha.
+  expect(await page.locator("[data-div-seg]").evaluateAll((els) => els.map((e) => [e.dataset.divTipo, e.dataset.divSeg, e.value]))).toEqual([
+    ["valor", "TCR", "50"], ["valor", "TCT", "50"], ["portas", "TCR", "50"], ["portas", "TCT", "50"],
+  ]);
   await digitar("TCR", "60");
-  await expect(page.locator('[data-div-seg="TCT"]')).toHaveValue("40");
-  await expect(page.locator("#demDivisaoSegmentosSoma")).toHaveText("Total: 100%");
+  await expect(page.locator('[data-div-seg="TCT"][data-div-tipo="valor"]')).toHaveValue("40");
+  await expect(page.locator('[data-div-seg="TCT"][data-div-tipo="portas"]')).toHaveValue("50"); // a outra linha não muda
+  await digitar("TCR", "70", "portas");
+  await expect(page.locator('[data-div-seg="TCT"][data-div-tipo="portas"]')).toHaveValue("30");
+  await expect(page.locator('[data-soma-tipo="valor"]')).toHaveText("Total: 100%");
+  await expect(page.locator('[data-soma-tipo="portas"]')).toHaveText("Total: 100%");
   // TCT marcado: o planejamento aparece e é obrigatório.
   expect(await page.locator("#fieldDemPlanejamentoTct").getAttribute("hidden")).toBeNull();
   await page.evaluate(() => (document.getElementById("demPlanejamentoTct").value = "planejado"));
 
   // Soma errada não salva.
   await page.evaluate(() => {
-    const i = document.querySelector('[data-div-seg="TCT"]');
+    const i = document.querySelector('[data-div-seg="TCT"][data-div-tipo="portas"]');
     i.value = "10";
     i.dispatchEvent(new Event("change", { bubbles: true }));
   });
   await page.click("#btnSalvarDemanda");
-  await expect(page.locator("#toast")).toContainText("precisa somar 100%");
-  await digitar("TCR", "60");
+  await expect(page.locator("#toast")).toContainText("divisão das portas");
+  await digitar("TCR", "70", "portas");
   await page.click("#btnSalvarDemanda");
   await expect(page.locator("#toast")).toContainText("Demanda salva");
 
@@ -243,7 +250,7 @@ test("B2C com mais de um segmento (TCR + TCT): divisão dos valores em %, obriga
     const d = state.demandas.find((x) => x.id === "p3");
     return { seg: d.segmentoB2c, segs: d.segmentosB2c, div: d.divisaoSegmentosB2c, plan: d.planejamentoTct };
   });
-  expect(salvo).toEqual({ seg: "TCR", segs: ["TCR", "TCT"], div: { TCR: 60, TCT: 40 }, plan: "planejado" });
+  expect(salvo).toEqual({ seg: "TCR", segs: ["TCR", "TCT"], div: { valor: { TCR: 60, TCT: 40 }, portas: { TCR: 70, TCT: 30 } }, plan: "planejado" });
   await expect(page.locator('.card[data-id="p3"] .badge--segmento-b2c')).toHaveText(["TCR", "TCT"]);
 
   // Relatório: coluna mostra a divisão; filtro por TCR ou por TCT acha o projeto; agrupado divide os valores.
@@ -254,15 +261,23 @@ test("B2C com mais de um segmento (TCR + TCT): divisão dos valores em %, obriga
     const grupos = relResumoAgrupado([d], "segmento").map((l) => [l.chave, l.total, l.portas]);
     return { col, grupos };
   });
-  expect(rel.col).toBe("TCR 60% + TCT 40%");
-  expect(rel.grupos.sort()).toEqual([["TCR", 1, 60], ["TCT", 1, 40]]);
+  expect(rel.col).toBe("TCR (valor 60% · portas 70%) + TCT (valor 40% · portas 30%)");
+  expect(rel.grupos.sort()).toEqual([["TCR", 1, 70], ["TCT", 1, 30]]);
 
   // Dashboard: conta nos dois segmentos (Total uma vez) e divide as portas.
   const dash = await page.evaluate(() => {
     const d = migrateDemanda(state.demandas.find((x) => x.id === "p3"));
-    return segmentosB2cPartes(d).map((p) => [p.seg, Math.round(p.fracao * 100)]);
+    return segmentosB2cPartes(d).map((p) => [p.seg, Math.round(p.fracao * 100), Math.round(p.fracPortas * 100)]);
   });
-  expect(dash).toEqual([["TCR", 60], ["TCT", 40]]);
+  expect(dash).toEqual([["TCR", 60, 70], ["TCT", 40, 30]]);
+
+  // Projeto salvo antes (uma divisão só) continua valendo para valor e portas.
+  expect(
+    await page.evaluate(() => {
+      const antigo = { tipo: "B2C", segmentosB2c: ["TCR", "TCT"], divisaoSegmentosB2c: { TCR: 60, TCT: 40 } };
+      return [demandaFracaoSegmento(antigo, "TCR", "valor"), demandaFracaoSegmento(antigo, "TCR", "portas"), segmentosB2cTexto(antigo)];
+    }),
+  ).toEqual([0.6, 0.6, "TCR 60% + TCT 40%"]);
 
   // Voltar para um segmento só apaga a divisão.
   await page.evaluate(() => openDemandaModal("p3"));
