@@ -38,6 +38,10 @@
         "source": "/",
         "headers": [
           {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          },
+          {
             "key": "Content-Security-Policy",
             "value": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fonts.googleapis.com; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
           },
