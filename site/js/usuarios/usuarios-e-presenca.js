@@ -1095,7 +1095,7 @@ function closeDemandaModal() {
   modalDemanda?.close();
   demandaModalClosingFromApi = false;
   setDemandaModalScrollLock(false);
-  if (panels.esteira && !panels.esteira.hidden) renderBoard();
+  agendarRenderBoard();
   restorePageScroll(scrollSnap);
   restoreDashGeoListaIfNeeded();
 }

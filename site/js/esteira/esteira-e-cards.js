@@ -704,14 +704,16 @@ function preserveBoardScroll(boardEl) {
     const body = col.querySelector(".column__body");
     if (body) colScrolls.set(key, body.scrollTop || 0);
   });
+  // Só mexe na rolagem que não estava no começo: cada ajuste obriga o navegador a calcular o layout na hora.
   return function restore() {
-    boardEl.scrollLeft = scrollLeft;
-    boardEl.scrollTop = scrollTop;
+    if (scrollLeft) boardEl.scrollLeft = scrollLeft;
+    if (scrollTop) boardEl.scrollTop = scrollTop;
     boardEl.querySelectorAll(".column").forEach((col) => {
       const key = col.dataset.status || col.className || "";
-      if (!colScrolls.has(key)) return;
+      const top = colScrolls.get(key);
+      if (!top) return;
       const body = col.querySelector(".column__body");
-      if (body) body.scrollTop = colScrolls.get(key);
+      if (body) body.scrollTop = top;
     });
   };
 }
@@ -814,7 +816,22 @@ function renderBoardInto(boardEl, boardResponsavel, linha = activeEsteiraCanal) 
   restoreScroll();
 }
 
+/** Redesenha a esteira no próximo quadro, uma vez só (várias chamadas seguidas viram uma). */
+let renderBoardAgendado = 0;
+function agendarRenderBoard() {
+  if (renderBoardAgendado) return;
+  renderBoardAgendado = requestAnimationFrame(() => {
+    renderBoardAgendado = 0;
+    if (panels.esteira && !panels.esteira.hidden) renderBoard();
+  });
+}
+
 function renderBoard() {
+  // Um redesenho agendado ficaria repetido: este já mostra tudo.
+  if (renderBoardAgendado) {
+    cancelAnimationFrame(renderBoardAgendado);
+    renderBoardAgendado = 0;
+  }
   const linha = activeEsteiraCanal;
   esteiraModoColunas = readEsteiraModoColunas();
   updateEsteiraModoHints();

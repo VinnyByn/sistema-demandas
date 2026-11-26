@@ -588,8 +588,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
   if (savedId) releaseDemandaEditing(savedId);
   invalidateAlertaSnoozeIfStale(saved);
   saveState({ demanda: migrateDemanda(saved) });
-  closeDemandaModal();
-  renderBoard();
+  closeDemandaModal(); // redesenha a esteira (uma vez, no próximo quadro)
   oferecerDesfazer(existing ? "Demanda salva" : "Demanda criada", () =>
     restaurarFotos(fotosSalvar, existing ? "Alterações desfeitas" : "Criação desfeita — o projeto foi para a lixeira"),
   );

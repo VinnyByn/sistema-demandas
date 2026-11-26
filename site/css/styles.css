@@ -1276,7 +1276,7 @@ html[data-theme="light"] .seg-hint.is-ok { color: #15803d; }
 .sync-badge[data-status="empty"] { color: var(--muted); }
 .app-loader {
   position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
-  background: rgba(12, 17, 22, 0.82); backdrop-filter: blur(4px);
+  background: rgba(12, 17, 22, 0.9);
 }
 .app-loader[hidden] { display: none; }
 .app-loader__box { text-align: center; color: var(--muted); }
@@ -3386,19 +3386,17 @@ html.demanda-modal-open {
   }
   .comments-panel { min-height: 280px; max-height: 40vh; }
 }
+/* Sem desfoque (blur) atrás das janelas: com ele, cada letra digitada fazia o navegador redesenhar a tela inteira. */
 .modal::backdrop {
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(5, 8, 12, 0.62);
 }
 html[data-theme="light"] .modal::backdrop {
-  background: rgba(15, 23, 42, 0.28);
+  background: rgba(15, 23, 42, 0.42);
 }
 
 .confirm-dialog { max-width: min(440px, 94vw); }
 .confirm-dialog::backdrop {
   background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(3px);
 }
 .confirm-dialog__inner {
   padding: 1.25rem 1.35rem 1.15rem;
@@ -3489,7 +3487,6 @@ html[data-theme="light"] .modal::backdrop {
 .asana-envio-dialog { max-width: min(520px, 94vw); }
 .asana-envio-dialog::backdrop {
   background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(3px);
 }
 .asana-envio-dialog__inner {
   max-height: none;
@@ -6803,7 +6800,7 @@ button.kpi.kpi--link:hover .kpi__ver, button.kpi.kpi--link:focus-visible .kpi__v
   position: sticky; top: calc(var(--dash-nav-top, 0px) + 0.4rem); z-index: 15;
   display: flex; align-items: center; gap: 0.5rem; width: fit-content; max-width: 100%;
   margin: 0 0 1rem; padding: 0.3rem; border: 1px solid var(--border); border-radius: 14px;
-  background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(10px);
+  background: var(--surface);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
 }
 .dash-nav__itens {
@@ -6959,7 +6956,7 @@ html[data-visual="neon"] .column { background: rgba(22, 13, 42, 0.78); border-co
 html[data-visual="neon"] .card { background: var(--surface2); border-color: #45306f; }
 html[data-visual="neon"] .card:hover { border-color: var(--neon-ciano); box-shadow: 0 0 14px rgba(46, 230, 200, 0.25); }
 html[data-visual="neon"] .modal { background: var(--surface); box-shadow: 0 0 0 1px rgba(255, 60, 120, 0.25), 0 20px 60px rgba(0, 0, 0, 0.6); }
-html[data-visual="neon"] .modal::backdrop { background: rgba(11, 6, 22, 0.75); backdrop-filter: blur(3px); }
+html[data-visual="neon"] .modal::backdrop { background: rgba(11, 6, 22, 0.78); }
 
 /* Seletores, abas e a barra de atalhos com brilho magenta. */
 html[data-visual="neon"] .dash-seg button.is-active,
@@ -7703,7 +7700,7 @@ html:not([data-theme="light"]) .mapa-tiles { filter: invert(1) hue-rotate(180deg
 .mapa-legenda {
   position: absolute; left: 0.75rem; bottom: 0.75rem; z-index: 500; display: flex; flex-wrap: wrap; gap: 0.35rem 0.8rem;
   max-width: calc(100% - 9rem); padding: 0.45rem 0.7rem; border: 1px solid var(--border); border-radius: 10px;
-  background: color-mix(in srgb, var(--surface) 92%, transparent); font-size: 0.74rem; font-weight: 600; backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--surface) 96%, transparent); font-size: 0.74rem; font-weight: 600;
 }
 .mapa-legenda span { display: inline-flex; align-items: center; gap: 0.35rem; }
 .mapa-ponto { display: inline-block; flex: none; width: 0.7rem; height: 0.7rem; border-radius: 999px; background: var(--cor, var(--accent)); }
@@ -7861,3 +7858,6 @@ html:not([data-theme="light"]) .mapa-tiles { filter: invert(1) hue-rotate(180deg
 .bairros-conjunto__titulo { margin: 0 0 0.5rem; font-size: 0.82rem; font-weight: 700; }
 .bairros-conjunto__campos { display: grid; grid-template-columns: 10.5rem repeat(3, minmax(7.5rem, 1fr)); gap: 0.5rem; align-items: start; }
 @media (max-width: 760px) { .bairros-conjunto__campos { grid-template-columns: 1fr 1fr; } }
+
+/* Velocidade: cards fora da área visível da coluna não são desenhados até aparecerem (a esteira tem centenas). */
+.column__body > .card { content-visibility: auto; contain-intrinsic-size: auto 190px; }

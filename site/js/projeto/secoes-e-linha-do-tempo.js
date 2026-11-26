@@ -418,9 +418,13 @@ function renderDemSecaoLeitura(sec) {
   const box = fs?.querySelector(":scope > .seg-leitura");
   if (!box) return;
   const podeEditar = !isReadOnlyUser();
-  box.innerHTML =
+  const html =
     (podeEditar ? `<button type="button" class="seg-leitura__editar" data-ui-nav="1" data-lv-acao="1">✎ Editar</button>` : "") +
     demSecaoLeituraHtml(sec.key);
+  // Só troca quando muda: refazer o resumo a cada letra digitada obrigava a tela a se redesenhar inteira.
+  if (box.__html === html) return;
+  box.__html = html;
+  box.innerHTML = html;
 }
 
 function setDemSecaoModo(sec, modo) {
@@ -571,8 +575,9 @@ function syncDemSecoesResumo() {
     const alvo = fs?.querySelector(".seg-toggle__resumo");
     if (!alvo) continue;
     const r = demSecaoResumo(sec.key);
-    alvo.textContent = r.txt;
-    alvo.className = `seg-toggle__resumo dem-tom--${r.tom}`;
+    const cls = `seg-toggle__resumo dem-tom--${r.tom}`;
+    if (alvo.textContent !== r.txt) alvo.textContent = r.txt;
+    if (alvo.className !== cls) alvo.className = cls;
   }
 }
 
