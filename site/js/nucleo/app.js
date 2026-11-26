@@ -444,6 +444,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     checklist: normalizeChecklist(editingChecklist),
     liberacaoPorBairros: editingUsaBairros,
     bairros: lerBairrosDoForm(),
+    bairrosModo: editingUsaBairros ? editingBairrosModo : "",
     createdAt: existing?.createdAt || now,
     updatedAt: now,
   };
@@ -459,7 +460,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
       return;
     }
     if (!payload.bairros.length) {
-      toast("Adicione pelo menos um bairro, ou marque que o projeto é liberado de uma vez");
+      toast("Adicione pelo menos um bairro, ou desligue «Controlar por bairros»");
       document.getElementById("demUsaBairros")?.focus();
       return;
     }

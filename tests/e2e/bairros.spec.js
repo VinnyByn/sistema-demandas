@@ -18,9 +18,13 @@ test("bairros: liga no projeto, soma portas/CTOs/valor, libera aos poucos e avis
     openDemandaModal("p1");
   });
   await expect(page.locator("#demBairrosArea")).toBeHidden();
-  await page.selectOption("#demUsaBairros", "sim");
+  await page.locator("#demUsaBairros + .conta-switch__track").click();
   await expect(page.locator("#demBairrosArea")).toBeVisible();
   await expect(page.locator("#demBairrosLista .bairro")).toHaveCount(1);
+  // Começa em «todos juntos»; aqui cada bairro é liberado no seu tempo.
+  await expect(page.locator('[data-bairros-modo="junto"]')).toHaveAttribute("aria-checked", "true");
+  await page.click('[data-bairros-modo="separado"]');
+  await expect(page.locator("#demBairrosConjunto")).toBeHidden();
 
   // Sem nome não salva.
   await preencherBairro(page, 0, { portas: 120 });
@@ -46,10 +50,11 @@ test("bairros: liga no projeto, soma portas/CTOs/valor, libera aos poucos e avis
   await expect(page.locator("#toast")).toContainText("Demanda salva");
   const salvo = await page.evaluate(() => {
     const d = migrateDemanda(state.demandas.find((x) => x.id === "p1"));
-    return { usa: d.liberacaoPorBairros, bairros: d.bairros.map((b) => [b.nome, b.portas, b.ctos, b.valor, b.situacao]), portas: demandaPortasNovas(d) };
+    return { usa: d.liberacaoPorBairros, modo: d.bairrosModo, bairros: d.bairros.map((b) => [b.nome, b.portas, b.ctos, b.valor, b.situacao]), portas: demandaPortasNovas(d) };
   });
   expect(salvo).toEqual({
     usa: true,
+    modo: "separado",
     bairros: [
       ["Centro", 120, 8, 60000, "liberado"],
       ["Vila Nova", 80, 5, 40000, "pendente"],
@@ -64,7 +69,7 @@ test("bairros: liga no projeto, soma portas/CTOs/valor, libera aos poucos e avis
 
   // Histórico registra a liberação.
   const hist = await page.evaluate(() => state.demandas.find((x) => x.id === "p1").historicoEdicoes.at(-1).alteracoes.map((m) => `${m.label}: ${m.para}`));
-  expect(hist).toEqual(expect.arrayContaining(["Liberação por bairros: Sim", expect.stringMatching(/^Bairro Centro: Liberado em .* · 120 portas · 8 CTOs/)]));
+  expect(hist).toEqual(expect.arrayContaining(["Controle por bairros: Sim", expect.stringMatching(/^Bairro Centro: Liberado em .* · 120 portas · 8 CTOs/)]));
 
   // Liberar todos: avisa que todos foram liberados.
   await page.evaluate(() => openDemandaModal("p1"));
@@ -90,7 +95,7 @@ test("bairros: diferença com o levantamento de custo e desligar a liberação p
   await expect(page.locator("#demBairrosAvisos")).toContainText("A soma dos bairros (200 portas) é diferente do levantamento de custo (250)");
   await expect(page.locator("#demBairrosAvisos")).toContainText("valor final do levantamento");
 
-  await page.selectOption("#demUsaBairros", "nao"); // a confirmação («apagar os bairros») é aceita no teste
+  await page.locator("#demUsaBairros + .conta-switch__track").click(); // desliga; a confirmação («apagar os bairros») é aceita no teste
   await expect(page.locator("#demBairrosArea")).toBeHidden();
   await page.click("#btnSalvarDemanda");
   await expect(page.locator("#toast")).toContainText("Demanda salva");
@@ -144,4 +149,51 @@ test("bairros no dashboard, no calendário e no relatório (uma linha por bairro
   const csv = await page.evaluate(() => relGerarCsvBairros(relResultado()));
   expect(csv).toContain("Projeto;Cidade;Projetista(s);Bairro;Situação;Portas novas;CTOs;Valor (R$)");
   expect(csv).toContain("Troca de OLT;Anápolis;Vinicius;Centro;Liberado;100;6;50000,00");
+});
+
+test("bairros entregues todos juntos: uma situação e datas para o conjunto, bairro novo herda, calendário com um evento só", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    state.demandas.find((d) => d.id === "p2").cidade = "Betim - BET";
+    openDemandaModal("p2");
+  });
+  await page.locator("#demUsaBairros + .conta-switch__track").click();
+  await expect(page.locator("#demBairrosConjunto")).toBeVisible();
+  // Na lista, só os números de cada bairro (sem situação e datas por bairro).
+  await expect(page.locator("#demBairrosLista .bairro__linha--datas")).toHaveCount(0);
+  await expect(page.locator("#btnBairrosLiberarTodos")).toBeHidden();
+  await preencherBairro(page, 0, { nome: "Centro", portas: 60, ctos: 4 });
+
+  const previsao = await page.evaluate(() => addDaysISO(todayISODate(), 5));
+  await page.locator('#demBairrosConjunto [data-conj-campo="situacao"]').selectOption("execucao");
+  await page.locator('#demBairrosConjunto [data-conj-campo="previsao"]').fill(previsao);
+  await page.click("#btnBairroAdd");
+  await preencherBairro(page, 1, { nome: "Vila Nova", portas: 40, ctos: 3 });
+  await page.click("#btnSalvarDemanda");
+  await expect(page.locator("#toast")).toContainText("Demanda salva");
+  const salvo = await page.evaluate(() => {
+    const d = migrateDemanda(state.demandas.find((x) => x.id === "p2"));
+    return { modo: d.bairrosModo, bairros: d.bairros.map((b) => [b.nome, b.situacao, b.previsao]) };
+  });
+  expect(salvo).toEqual({
+    modo: "junto",
+    bairros: [
+      ["Centro", "execucao", previsao],
+      ["Vila Nova", "execucao", previsao], // o bairro novo herdou a situação e a previsão do conjunto
+    ],
+  });
+
+  // Calendário: um evento só, com os bairros somados.
+  await page.click('[data-tab="calendario"]');
+  await page.click('[data-cal-modo="lista"]');
+  await expect(page.locator("#calAgenda .cal-ev--bairro")).toHaveCount(1);
+  await expect(page.locator("#calAgenda .cal-ev--bairro")).toContainText("2 bairros (todos juntos) · Condomínio Reserva");
+  await expect(page.locator("#calAgenda .cal-ev--bairro")).toContainText("100 portas · 7 CTOs");
+
+  // Liberar o conjunto libera todos; passar para «separado» mantém o que já foi feito.
+  await page.evaluate(() => openDemandaModal("p2"));
+  await page.locator('#demBairrosConjunto [data-conj-campo="situacao"]').selectOption("liberado");
+  await expect(page.locator("#demBairrosAvisos")).toContainText("Todos os bairros foram liberados");
+  await page.click('[data-bairros-modo="separado"]');
+  await expect(page.locator('#demBairrosLista [data-bairro-campo="situacao"]')).toHaveCount(2);
+  await expect(page.locator('#demBairrosLista [data-bairro-campo="situacao"]').nth(1)).toHaveValue("liberado");
 });

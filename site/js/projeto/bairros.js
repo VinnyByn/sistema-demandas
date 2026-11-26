@@ -5,6 +5,8 @@
  */
 let editingUsaBairros = false;
 let editingBairros = [];
+/** "junto": os bairros são entregues todos de uma vez (uma situação e datas só); "separado": cada um no seu tempo. */
+let editingBairrosModo = "junto";
 
 function bairroNovo() {
   return { id: uid(), nome: "", portas: "", ctos: "", valor: "", situacao: "pendente", inicio: "", previsao: "", liberadoEm: "", liberadoPor: "", obs: "" };
@@ -13,8 +15,9 @@ function bairroNovo() {
 function iniciarBairrosNoForm(dm) {
   editingUsaBairros = demandaUsaBairros(dm);
   editingBairros = editingUsaBairros ? JSON.parse(JSON.stringify(normalizeBairros(dm?.bairros))) : [];
-  const sel = document.getElementById("demUsaBairros");
-  if (sel) sel.value = editingUsaBairros ? "sim" : "nao";
+  editingBairrosModo = editingUsaBairros ? normalizeBairrosModo(dm?.bairrosModo) : "junto";
+  const chave = document.getElementById("demUsaBairros");
+  if (chave) chave.checked = editingUsaBairros;
   renderBairrosForm();
 }
 
@@ -90,6 +93,59 @@ function renderBairrosResumo() {
   avisos.innerHTML = out.join("");
 }
 
+/* ---------- Entrega de todos juntos: uma situação e datas para o conjunto ---------- */
+function bairrosConjunto() {
+  const b = editingBairros[0] || {};
+  return { situacao: b.situacao || "pendente", inicio: b.inicio || "", previsao: b.previsao || "", liberadoEm: b.liberadoEm || "", liberadoPor: b.liberadoPor || "" };
+}
+
+/** Deixa todos os bairros com a situação e as datas do conjunto (a do primeiro bairro). */
+function igualarBairrosAoConjunto(c = bairrosConjunto()) {
+  for (const b of editingBairros) Object.assign(b, c);
+}
+
+function bairrosDivergem() {
+  const chave = (b) => [b.situacao, b.inicio, b.previsao, b.liberadoEm].join("|");
+  return new Set(editingBairros.map(chave)).size > 1;
+}
+
+function renderBairrosConjunto() {
+  const box = document.getElementById("demBairrosConjunto");
+  if (!box) return;
+  const junto = editingUsaBairros && editingBairrosModo === "junto";
+  box.hidden = !junto;
+  if (!junto) {
+    box.innerHTML = "";
+    return;
+  }
+  const c = bairrosConjunto();
+  const lib = c.situacao === "liberado";
+  const opcoes = BAIRRO_SITUACOES.map(([k, l]) => `<option value="${k}"${c.situacao === k ? " selected" : ""}>${l}</option>`).join("");
+  const campo = (rotulo, html, extra = "") => `<label class="bairro__campo${extra}"><span>${rotulo}</span>${html}</label>`;
+  box.className = `bairros-conjunto bairro--${c.situacao}`;
+  box.innerHTML =
+    `<p class="bairros-conjunto__titulo">Liberação de todos os bairros</p>` +
+    `<div class="bairros-conjunto__campos">` +
+    campo("Situação", `<select data-conj-campo="situacao">${opcoes}</select>`, " bairro__campo--situacao") +
+    campo("Início da execução", `<input type="date" data-conj-campo="inicio" value="${escapeHtml(c.inicio)}" />`) +
+    campo("Previsão de liberação", `<input type="date" data-conj-campo="previsao" value="${escapeHtml(c.previsao)}" />`) +
+    campo(
+      "Liberado em",
+      `<input type="date" data-conj-campo="liberadoEm" value="${escapeHtml(c.liberadoEm)}"${lib ? "" : " disabled"} />` +
+        (lib && c.liberadoPor ? `<small class="bairro__por">por ${escapeHtml(c.liberadoPor)}</small>` : ""),
+    ) +
+    `</div>`;
+  if (isReadOnlyUser()) box.querySelectorAll("input, select").forEach((el) => (el.disabled = true));
+}
+
+function syncBairrosModoUi() {
+  document.querySelectorAll("#demBairrosModo [data-bairros-modo]").forEach((b) => {
+    const on = b.dataset.bairrosModo === editingBairrosModo;
+    b.setAttribute("aria-checked", String(on));
+    b.classList.toggle("is-active", on);
+  });
+}
+
 function bairroLinhaHtml(b, i) {
   const id = escapeHtml(b.id);
   const lib = b.situacao === "liberado";
@@ -109,7 +165,9 @@ function bairroLinhaHtml(b, i) {
     campo("Valor (R$)", `<input type="text" inputmode="decimal" data-bairro-campo="valor" value="${bairroValorInput(b.valor)}" placeholder="0,00" autocomplete="off" />`, " bairro__campo--valor") +
     `<button type="button" class="bairro__remover" data-bairro-remover="${id}" title="Remover bairro" aria-label="Remover o bairro ${escapeHtml(b.nome || String(i + 1))}">×</button>` +
     `</div>` +
-    `<div class="bairro__linha bairro__linha--datas">` +
+    (editingBairrosModo === "junto"
+      ? ""
+      : `<div class="bairro__linha bairro__linha--datas">` +
     campo("Situação", `<select data-bairro-campo="situacao">${opcoes}</select>`, " bairro__campo--situacao") +
     campo("Início da execução", `<input type="date" data-bairro-campo="inicio" value="${escapeHtml(b.inicio)}" />`) +
     campo("Previsão de liberação", `<input type="date" data-bairro-campo="previsao" value="${escapeHtml(b.previsao)}" />`) +
@@ -118,7 +176,7 @@ function bairroLinhaHtml(b, i) {
       `<input type="date" data-bairro-campo="liberadoEm" value="${escapeHtml(b.liberadoEm)}"${lib ? "" : " disabled"} />` +
         (lib && b.liberadoPor ? `<small class="bairro__por">por ${escapeHtml(b.liberadoPor)}</small>` : ""),
     ) +
-    `</div>` +
+    `</div>`) +
     `</div>`
   );
 }
@@ -131,7 +189,9 @@ function renderBairrosForm() {
   const dl = document.getElementById("demBairrosSugestoes");
   if (dl && editingUsaBairros) dl.innerHTML = bairrosSugestoes().map((n) => `<option value="${escapeHtml(n)}"></option>`).join("");
   const btnTodos = document.getElementById("btnBairrosLiberarTodos");
-  if (btnTodos) btnTodos.hidden = !editingBairros.some((b) => b.situacao !== "liberado");
+  if (btnTodos) btnTodos.hidden = editingBairrosModo === "junto" || !editingBairros.some((b) => b.situacao !== "liberado");
+  syncBairrosModoUi();
+  renderBairrosConjunto();
   renderBairrosResumo();
   if (isReadOnlyUser()) lista?.querySelectorAll("input, select, button").forEach((el) => (el.disabled = true));
 }
@@ -156,34 +216,76 @@ function avisarSeTodosLiberados(antes) {
 }
 
 function ligarBairrosForm() {
-  const sel = document.getElementById("demUsaBairros");
-  if (!sel || sel.dataset.ligado) return;
-  sel.dataset.ligado = "1";
-  sel.addEventListener("change", async () => {
-    const usar = sel.value === "sim";
+  const chave = document.getElementById("demUsaBairros");
+  if (!chave || chave.dataset.ligado) return;
+  chave.dataset.ligado = "1";
+  chave.addEventListener("change", async () => {
+    const usar = chave.checked;
     if (!usar && editingBairros.some((b) => b.nome.trim())) {
       const ok = await confirmDialog({
-        title: "Deixar de liberar por bairros?",
+        title: "Deixar de controlar por bairros?",
         message: "Os bairros deste projeto serão apagados quando você salvar.",
         confirmText: "Apagar os bairros",
         cancelText: "Manter",
         variant: "warn",
       });
       if (!ok) {
-        sel.value = "sim";
+        chave.checked = true;
         return;
       }
     }
     editingUsaBairros = usar;
-    if (usar && !editingBairros.length) editingBairros = [bairroNovo()];
+    if (usar && !editingBairros.length) {
+      editingBairros = [bairroNovo()];
+      editingBairrosModo = "junto";
+    }
     if (!usar) editingBairros = [];
     renderBairrosForm();
     if (usar) document.querySelector('#demBairrosLista [data-bairro-campo="nome"]')?.focus();
     agendarSyncDemNavegacao();
   });
 
+  document.getElementById("demBairrosModo")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-bairros-modo]");
+    if (!btn || isReadOnlyUser() || btn.dataset.bairrosModo === editingBairrosModo) return;
+    if (btn.dataset.bairrosModo === "junto" && bairrosDivergem()) {
+      const ok = await confirmDialog({
+        title: "Entregar todos juntos?",
+        message: "Os bairros estão em situações ou datas diferentes. Todos vão ficar com a situação e as datas do primeiro bairro.",
+        confirmText: "Igualar todos",
+        cancelText: "Cancelar",
+      });
+      if (!ok) return;
+    }
+    editingBairrosModo = btn.dataset.bairrosModo;
+    if (editingBairrosModo === "junto") igualarBairrosAoConjunto();
+    renderBairrosForm();
+    agendarSyncDemNavegacao();
+  });
+
+  const conjunto = document.getElementById("demBairrosConjunto");
+  conjunto?.addEventListener("change", (e) => {
+    const el = e.target.closest("[data-conj-campo]");
+    if (!el) return;
+    const antes = bairrosResumo(editingBairros).todosLiberados;
+    const c = bairrosConjunto();
+    if (el.dataset.conjCampo === "situacao") {
+      const ref = { ...c };
+      definirSituacaoBairro(ref, el.value);
+      igualarBairrosAoConjunto(ref);
+      renderBairrosForm();
+      document.querySelector('#demBairrosConjunto [data-conj-campo="situacao"]')?.focus();
+      avisarSeTodosLiberados(antes);
+    } else {
+      igualarBairrosAoConjunto({ ...c, [el.dataset.conjCampo]: el.value });
+      renderBairrosResumo();
+    }
+    agendarSyncDemNavegacao();
+  });
+
   document.getElementById("btnBairroAdd")?.addEventListener("click", () => {
-    editingBairros.push(bairroNovo());
+    // Na entrega de todos juntos, o bairro novo já entra com a situação e as datas do conjunto.
+    editingBairros.push(editingBairrosModo === "junto" && editingBairros.length ? { ...bairroNovo(), ...bairrosConjunto() } : bairroNovo());
     renderBairrosForm();
     const campos = document.querySelectorAll('#demBairrosLista [data-bairro-campo="nome"]');
     campos[campos.length - 1]?.focus();

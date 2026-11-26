@@ -1372,6 +1372,11 @@ function normalizeBairros(list) {
   return list.map(normalizeBairro).filter(Boolean);
 }
 
+/** Como os bairros são entregues: "junto" (todos de uma vez) ou "separado" (cada um no seu tempo). */
+function normalizeBairrosModo(v) {
+  return v === "junto" ? "junto" : "separado";
+}
+
 function demandaUsaBairros(d) {
   return d?.liberacaoPorBairros === true;
 }
@@ -1421,11 +1426,14 @@ function bairrosResumo(lista) {
 function demandaBairrosResumo(d) {
   if (!demandaUsaBairros(d)) return null;
   const r = bairrosResumo(d.bairros);
-  return r.n ? r : null;
+  if (!r.n) return null;
+  r.modo = normalizeBairrosModo(d.bairrosModo);
+  return r;
 }
 
 function bairrosSituacaoTexto(r) {
   if (!r) return "";
+  if (r.modo === "junto") return r.todosLiberados ? "Liberado (todos juntos)" : r.emExecucao ? "Em execução (todos juntos)" : "Pendente (todos juntos)";
   if (r.todosLiberados) return "Liberado total";
   if (r.parcial) return "Liberação parcial";
   return r.emExecucao ? "Em execução" : "Nenhum bairro liberado";

@@ -1036,6 +1036,7 @@ function demFormSnapshot() {
     campos,
     checklist: normalizeChecklist(editingChecklist),
     bairros: typeof editingUsaBairros !== "undefined" && editingUsaBairros ? normalizeBairros(editingBairros) : [],
+    bairrosModo: typeof editingUsaBairros !== "undefined" && editingUsaBairros ? editingBairrosModo : "",
     cidades: editingCidadesExtra,
     projetistas: editingProjetistasExtra,
     cabos: editingLancamentoCabos,
@@ -1206,7 +1207,11 @@ function diffBairrosHistorico(prev, next) {
   const usaA = prev?.liberacaoPorBairros === true;
   const usaB = next?.liberacaoPorBairros === true;
   if (usaA !== usaB) {
-    out.push({ campo: "liberacaoPorBairros", label: "Liberação por bairros", de: usaA ? "Sim" : "Não", para: usaB ? "Sim" : "Não" });
+    out.push({ campo: "liberacaoPorBairros", label: "Controle por bairros", de: usaA ? "Sim" : "Não", para: usaB ? "Sim" : "Não" });
+  }
+  const modoTxt = (m) => (m === "junto" ? "Todos juntos" : "Cada bairro separado");
+  if (usaA && usaB && normalizeBairrosModo(prev?.bairrosModo) !== normalizeBairrosModo(next?.bairrosModo)) {
+    out.push({ campo: "bairrosModo", label: "Entrega dos bairros", de: modoTxt(normalizeBairrosModo(prev?.bairrosModo)), para: modoTxt(normalizeBairrosModo(next?.bairrosModo)) });
   }
   const a = usaA ? normalizeBairros(prev?.bairros) : [];
   const b = usaB ? normalizeBairros(next?.bairros) : [];

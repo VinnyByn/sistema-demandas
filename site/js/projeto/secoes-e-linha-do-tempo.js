@@ -542,9 +542,12 @@ function demSecaoResumo(key) {
       return refs.length ? { txt: refs.join(" · "), tom: "ok" } : { txt: "Nenhuma", tom: "neutro" };
     }
     case "bairros": {
-      if (!editingUsaBairros) return { txt: "Liberado de uma vez", tom: "neutro" };
+      if (!editingUsaBairros) return { txt: "Sem controle por bairros", tom: "neutro" };
       const r = bairrosResumo(editingBairros);
       if (!r.n) return { txt: "Nenhum bairro", tom: "alerta" };
+      if (editingBairrosModo === "junto") {
+        return { txt: `${r.n} bairro(s) · ${BAIRRO_SITUACAO_LABEL[bairrosConjunto().situacao].toLowerCase()} (todos juntos)`, tom: r.todosLiberados ? "ok" : "alerta" };
+      }
       return { txt: `${r.liberados}/${r.n} liberados · ${r.pct}%`, tom: r.todosLiberados ? "ok" : "alerta" };
     }
     case "checklist": {

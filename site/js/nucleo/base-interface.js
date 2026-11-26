@@ -124,6 +124,7 @@ function migrateDemanda(d) {
   // Liberação por bairros (opcional): só guarda a lista quando o projeto usa.
   base.liberacaoPorBairros = d.liberacaoPorBairros === true;
   base.bairros = base.liberacaoPorBairros ? normalizeBairros(d.bairros) : [];
+  base.bairrosModo = base.liberacaoPorBairros ? normalizeBairrosModo(d.bairrosModo) : "";
   // Lixeira / arquivo: excluído vai para a lixeira (recuperável); arquivado sai da esteira.
   if (d.excluidoEm) {
     base.excluidoEm = String(d.excluidoEm);

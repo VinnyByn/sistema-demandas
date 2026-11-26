@@ -76,7 +76,13 @@ function calEventos(f = calFiltros()) {
 
     // Bairros: a previsão de liberação dos que faltam; com «concluídos», também o dia em que cada um foi liberado.
     if (f.bairros && daPessoa && demandaUsaBairros(d)) {
-      for (const b of d.bairros || []) {
+      const rb = demandaBairrosResumo(d);
+      // Entrega de todos juntos: um evento só, com os bairros somados.
+      const lista =
+        rb?.modo === "junto"
+          ? [{ ...d.bairros[0], nome: `${rb.n} bairro${rb.n > 1 ? "s" : ""} (todos juntos)`, portas: rb.portas, ctos: rb.ctos }]
+          : d.bairros || [];
+      for (const b of lista) {
         const liberado = b.situacao === "liberado";
         const data = liberado ? b.liberadoEm : b.previsao;
         if (!data || (liberado && !f.concluidos)) continue;

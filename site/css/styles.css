@@ -8477,3 +8477,21 @@ html:not([data-theme="light"]) .mapa-tiles { filter: invert(1) hue-rotate(180deg
 .cal-ev--bairro.is-atrasado, .cal-item.cal-ev--bairro.is-atrasado { --cal-cor: var(--danger); }
 .cal-ev--bairro.is-concluido, .cal-item.cal-ev--bairro.is-concluido { --cal-cor: var(--accent2); }
 .dash-bairros-vazio { margin: 0.25rem 0 0.5rem; font-size: 0.88rem; }
+
+/* ---------- Bairros: chave, forma de entrega e liberação do conjunto ---------- */
+.bairros-chave { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.7rem 0.85rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface2); }
+.bairros-chave__txt { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.bairros-chave__rot { font-weight: 700; }
+.bairros-modo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; }
+.bairros-modo__rot { color: var(--muted); font-size: 0.82rem; font-weight: 600; }
+.bairros-modo .dash-seg button[aria-checked="true"] { background: var(--accent); color: #fff; }
+.bairros-conjunto {
+  --bairro-cor: rgba(148, 163, 184, 0.6);
+  padding: 0.7rem 0.85rem; border: 1px solid var(--border); border-left: 4px solid var(--bairro-cor); border-radius: 12px; background: var(--surface);
+}
+.bairros-conjunto[hidden] { display: none; }
+.bairros-conjunto.bairro--execucao { --bairro-cor: var(--accent); }
+.bairros-conjunto.bairro--liberado { --bairro-cor: var(--accent2); }
+.bairros-conjunto__titulo { margin: 0 0 0.5rem; font-size: 0.82rem; font-weight: 700; }
+.bairros-conjunto__campos { display: grid; grid-template-columns: 10.5rem repeat(3, minmax(7.5rem, 1fr)); gap: 0.5rem; align-items: start; }
+@media (max-width: 760px) { .bairros-conjunto__campos { grid-template-columns: 1fr 1fr; } }

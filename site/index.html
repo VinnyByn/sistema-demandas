@@ -1418,15 +1418,26 @@
 
 
         <fieldset class="fieldset fieldset--segment fieldset--bairros" id="fieldsetBairros">
-          <legend>Liberação por bairros</legend>
-          <label class="field bairros-usa">
-            <span>Este projeto é liberado por bairros?</span>
-            <select id="demUsaBairros">
-              <option value="nao">Não, o projeto é liberado de uma vez</option>
-              <option value="sim">Sim, cada bairro é liberado separado</option>
-            </select>
-          </label>
+          <legend>Bairros</legend>
+          <div class="bairros-chave">
+            <div class="bairros-chave__txt">
+              <span class="bairros-chave__rot" id="demUsaBairrosRot">Controlar por bairros</span>
+              <span class="muted small">Cadastre os bairros com portas novas, CTOs e valor, e acompanhe a liberação de cada um ou de todos juntos.</span>
+            </div>
+            <label class="conta-switch">
+              <input type="checkbox" id="demUsaBairros" aria-labelledby="demUsaBairrosRot" />
+              <span class="conta-switch__track" aria-hidden="true"></span>
+            </label>
+          </div>
           <div class="bairros" id="demBairrosArea" hidden>
+            <div class="bairros-modo">
+              <span class="bairros-modo__rot" id="demBairrosModoRot">Como os bairros são entregues?</span>
+              <div class="dash-seg" role="radiogroup" aria-labelledby="demBairrosModoRot" id="demBairrosModo">
+                <button type="button" role="radio" aria-checked="true" data-bairros-modo="junto">Todos juntos</button>
+                <button type="button" role="radio" aria-checked="false" data-bairros-modo="separado">Cada bairro separado</button>
+              </div>
+            </div>
+            <div class="bairros-conjunto" id="demBairrosConjunto" hidden></div>
             <div class="bairros-resumo" id="demBairrosResumo" aria-live="polite"></div>
             <div class="bairros-avisos" id="demBairrosAvisos" aria-live="polite"></div>
             <div class="bairros-lista" id="demBairrosLista"></div>
