@@ -1088,10 +1088,6 @@ function makeDashChartMetricBar(canvasId, labels, data, options = {}) {
 
 const B2C_SEGMENTO_SEM = "Sem segmento";
 
-function segmentoB2cBucket(d) {
-  return demandaSegmentosB2c(d)[0] || B2C_SEGMENTO_SEM;
-}
-
 /**
  * Em quais segmentos o projeto entra e com que parte: [{ seg, fracao }].
  * Projeto com TCR e TCT aparece nos dois (conta 1 projeto em cada); gastos, portas e metragem
