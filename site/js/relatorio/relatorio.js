@@ -171,6 +171,12 @@ function relDadosDoProjeto(d) {
   if (c.temLancamento) out.push("lancamento");
   if (relExecucao(d)) out.push("execucao");
   if (relValorRealizado(d)) out.push("realizado");
+  const rb = demandaBairrosResumo(d);
+  if (rb) {
+    out.push("bairros");
+    if (rb.parcial) out.push("bairros_parcial");
+    if (rb.todosLiberados) out.push("bairros_total");
+  }
   return out;
 }
 
@@ -181,6 +187,9 @@ const REL_DADOS = [
   ["lancamento", "Com lançamento de cabo"],
   ["execucao", "Com execução definida"],
   ["realizado", "Com valor realizado"],
+  ["bairros", "Liberado por bairros"],
+  ["bairros_parcial", "Bairros: liberação parcial"],
+  ["bairros_total", "Bairros: todos liberados"],
 ];
 
 /**
@@ -223,6 +232,14 @@ const REL_COLUNAS = [
   { key: "valorPorPorta", grupo: "Portas", label: "Valor por porta nova (R$)", num: (d) => relNumOuZero(relCusto(d).valorPorPortaNova), moeda: true, semSoma: true },
   { key: "metragem", grupo: "Lançamento de cabo", label: "Metragem total (m)", num: (d) => demandaMetragemLancamento(d), casas: 2 },
   { key: "cabos", longo: true, grupo: "Lançamento de cabo", label: "Cabos (tipo e metragem)", val: relCabosTexto },
+  { key: "bairrosLiberacao", grupo: "Bairros", label: "Liberação", val: (d) => bairrosSituacaoTexto(demandaBairrosResumo(d)) },
+  { key: "bairrosLiberados", grupo: "Bairros", label: "Bairros liberados", val: (d) => relBairrosFracao(d) },
+  { key: "bairrosNomes", longo: true, grupo: "Bairros", label: "Bairros", val: relBairrosNomes },
+  { key: "portasLiberadas", grupo: "Bairros", label: "Portas liberadas", num: (d) => demandaBairrosResumo(d)?.portasLib || 0 },
+  { key: "ctos", grupo: "Bairros", label: "CTOs", num: (d) => demandaBairrosResumo(d)?.ctos || 0 },
+  { key: "ctosLiberadas", grupo: "Bairros", label: "CTOs liberadas", num: (d) => demandaBairrosResumo(d)?.ctosLib || 0 },
+  { key: "valorBairros", grupo: "Bairros", label: "Valor dos bairros (R$)", num: (d) => demandaBairrosResumo(d)?.valor || 0, moeda: true },
+  { key: "valorLiberado", grupo: "Bairros", label: "Valor liberado (R$)", num: (d) => demandaBairrosResumo(d)?.valorLib || 0, moeda: true },
   { key: "statusAtual", longo: true, grupo: "Outros", label: "Situação atual (texto)", val: (d) => d.statusAtual || "" },
   { key: "ocomon", grupo: "Outros", label: "Chamado Ocomon", val: (d) => d.chamadoOcomon || "" },
   { key: "aniel", grupo: "Outros", label: "OS Aniel", val: (d) => d.osAniel || "" },
@@ -245,6 +262,7 @@ const REL_COLUNAS_ATALHOS = {
     "valorProjeto", "valor5", "valorFinal", "valorRealizado", "execucao", "custoRegional", "custoTerceirizada",
     "casas", "portasAtual", "portas", "penetracaoAtual", "novaPenetracao", "valorPorPorta", "metragem", "cabos",
   ],
+  bairros: ["titulo", "cidades", "projetistas", "etapa", "bairrosLiberacao", "bairrosLiberados", "portas", "portasLiberadas", "ctos", "ctosLiberadas", "valorBairros", "valorLiberado"],
   todas: REL_COLUNAS.map((c) => c.key),
 };
 
@@ -295,7 +313,7 @@ function relCarregarFiltros() {
       const validas = new Set(REL_COLUNAS.map((c) => c.key));
       base.colunas = base.colunas.filter((k) => validas.has(k));
       if (!base.colunas.length) base.colunas = [...REL_COLUNAS_PADRAO];
-      if (!["tabela", "fichas"].includes(base.vista)) base.vista = "tabela";
+      if (!["tabela", "fichas", "bairros"].includes(base.vista)) base.vista = "tabela";
     }
   } catch {
     /* sem armazenamento: começa do padrão */
@@ -901,6 +919,27 @@ function relFichaHtml(d) {
         item("Total", `${relNumero(c.lancamento.totalMetragem || 0, 2)} m`) +
         `</dl></section>`
       : "";
+  const rb = demandaBairrosResumo(d);
+  const bairros = rb
+    ? `<section class="rel-ficha__secao rel-ficha__secao--bairros"><h4>Bairros · ${escapeHtml(bairrosSituacaoTexto(rb))}</h4><dl>` +
+      normalizeBairros(d.bairros)
+        .map((b) =>
+          item(
+            b.nome,
+            [
+              BAIRRO_SITUACAO_LABEL[b.situacao] + (b.liberadoEm ? ` em ${relDataBr(b.liberadoEm)}` : b.previsao ? ` · previsão ${relDataBr(b.previsao)}` : ""),
+              b.portas !== "" ? `${relNumero(b.portas)} portas` : "",
+              b.ctos !== "" ? `${relNumero(b.ctos)} CTOs` : "",
+              b.valor !== "" ? relMoeda(b.valor) : "",
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          ),
+        )
+        .join("") +
+      item("Total liberado", `${rb.liberados}/${rb.n} bairros · ${relNumero(rb.portasLib)} de ${relNumero(rb.portas)} portas · ${relNumero(rb.ctosLib)} de ${relNumero(rb.ctos)} CTOs`) +
+      `</dl></section>`
+    : "";
   const texto = [
     d.statusAtual ? `<p><strong>Situação atual:</strong> ${escapeHtml(d.statusAtual)}</p>` : "",
     relResumoDescricao(d) ? `<p><strong>Resumo:</strong> ${escapeHtml(relResumoDescricao(d))}</p>` : "",
@@ -909,10 +948,96 @@ function relFichaHtml(d) {
   return (
     `<article class="rel-ficha" data-rel-id="${escapeHtml(d.id)}" tabindex="0" aria-label="${escapeHtml(d.titulo || "Projeto")}">` +
     `<header class="rel-ficha__cab"><h3>${escapeHtml(d.titulo || "Sem título")}</h3><span class="rel-ficha__etapa">${escapeHtml(relEtapaLabel(d))}</span></header>` +
-    `<div class="rel-ficha__grade">${geral}${datas}${custo}${portas}${lancamento}</div>` +
+    `<div class="rel-ficha__grade">${geral}${datas}${custo}${portas}${lancamento}${bairros}</div>` +
     (texto ? `<div class="rel-ficha__texto">${texto}</div>` : "") +
     `</article>`
   );
+}
+
+/* ---------- Bairros ---------- */
+function relBairrosFracao(d) {
+  const r = demandaBairrosResumo(d);
+  return r ? `${r.liberados}/${r.n}` : "";
+}
+
+function relBairrosNomes(d) {
+  if (!demandaBairrosResumo(d)) return "";
+  return normalizeBairros(d.bairros)
+    .map((b) => `${b.nome}${b.situacao === "liberado" ? " ✓" : b.situacao === "execucao" ? " (em execução)" : ""}`)
+    .join(" · ");
+}
+
+/** Uma linha por bairro (só projetos liberados por bairros). */
+function relLinhasBairros(lista) {
+  const linhas = [];
+  for (const d of lista) {
+    if (!demandaBairrosResumo(d)) continue;
+    for (const b of normalizeBairros(d.bairros)) linhas.push({ d, b });
+  }
+  return linhas;
+}
+
+const REL_BAIRROS_COLUNAS = [
+  { label: "Projeto", val: ({ d }) => d.titulo || "" },
+  { label: "Cidade", val: ({ d }) => demandaCidadesLabels(d).join(" · ") },
+  { label: "Projetista(s)", val: ({ d }) => formatProjetistasDemanda(d) || "Não atribuído" },
+  { label: "Bairro", val: ({ b }) => b.nome },
+  { label: "Situação", val: ({ b }) => BAIRRO_SITUACAO_LABEL[b.situacao] },
+  { label: "Portas novas", num: ({ b }) => Number(b.portas) || 0 },
+  { label: "CTOs", num: ({ b }) => Number(b.ctos) || 0 },
+  { label: "Valor (R$)", num: ({ b }) => Number(b.valor) || 0, moeda: true },
+  { label: "Início da execução", val: ({ b }) => relDataBr(b.inicio) },
+  { label: "Previsão de liberação", val: ({ b }) => relDataBr(b.previsao) },
+  { label: "Liberado em", val: ({ b }) => relDataBr(b.liberadoEm) },
+  { label: "Liberado por", val: ({ b }) => b.liberadoPor },
+];
+
+function relBairrosTabelaHtml(lista, limite = Infinity) {
+  const linhas = relLinhasBairros(lista);
+  if (!linhas.length) return `<p class="rel-vazio">Nenhum projeto liberado por bairros com esses filtros.</p>`;
+  const cel = (c, l) => {
+    if (!c.num) return `<td>${escapeHtml(String(c.val(l) ?? ""))}</td>`;
+    const n = c.num(l);
+    return `<td class="num">${n ? (c.moeda ? relMoeda(n) : relNumero(n)) : ""}</td>`;
+  };
+  const somas = REL_BAIRROS_COLUNAS.map((c, i) => {
+    if (i === 0) return "<td><strong>Total</strong></td>";
+    if (!c.num) return "<td></td>";
+    const s = linhas.reduce((t, l) => t + c.num(l), 0);
+    return `<td class="num">${c.moeda ? relMoeda(s) : relNumero(s)}</td>`;
+  });
+  return (
+    `<div class="rel-tabela-wrap" tabindex="0" role="region" aria-label="Bairros dos projetos"><table class="rel-tabela rel-tabela--detalhe">` +
+    `<thead><tr>${REL_BAIRROS_COLUNAS.map((c) => `<th scope="col"${c.num ? ' class="num"' : ""}>${escapeHtml(c.label)}</th>`).join("")}</tr></thead>` +
+    `<tbody>${linhas
+      .slice(0, limite)
+      .map((l) => `<tr data-rel-id="${escapeHtml(l.d.id)}">${REL_BAIRROS_COLUNAS.map((c) => cel(c, l)).join("")}</tr>`)
+      .join("")}</tbody>` +
+    `<tfoot><tr>${somas.join("")}</tr></tfoot></table></div>`
+  );
+}
+
+function relGerarCsvBairros(lista, f = relFiltros) {
+  const linhas = [[`Relatório de bairros — gerado em ${relDataHoraBr(new Date().toISOString())}`]];
+  const filtros = relDescricaoFiltros(f);
+  linhas.push([filtros.length ? `Filtros: ${filtros.join(" · ")}` : "Filtros: nenhum (todos os projetos ativos)"], []);
+  linhas.push(REL_BAIRROS_COLUNAS.map((c) => c.label));
+  for (const l of relLinhasBairros(lista)) {
+    linhas.push(
+      REL_BAIRROS_COLUNAS.map((c) => {
+        if (!c.num) return String(c.val(l) ?? "");
+        const n = c.num(l);
+        return n ? String(c.moeda ? n.toFixed(2) : Math.round(n)).replace(".", ",") : "";
+      }),
+    );
+  }
+  return "\ufeff" + linhas.map((l) => l.map(relEscaparCsv).join(";")).join("\r\n");
+}
+
+function relDetalheHtml(lista, colunas, limite = Infinity) {
+  if (relFiltros.vista === "fichas") return relFichasHtml(lista, limite);
+  if (relFiltros.vista === "bairros") return relBairrosTabelaHtml(lista, limite);
+  return relDetalheTabelaHtml(lista, colunas, limite);
 }
 
 function relFichasHtml(lista, limite = Infinity) {
@@ -947,7 +1072,7 @@ function relRender() {
       det.innerHTML =
         `<h3 class="rel-sub">Projetos <span class="muted">(${relNumero(lista.length)})</span></h3>` +
         aviso +
-        (relFiltros.vista === "fichas" ? relFichasHtml(lista, REL_PREVIA_LIMITE) : relDetalheTabelaHtml(lista, colunas, REL_PREVIA_LIMITE));
+        relDetalheHtml(lista, colunas, REL_PREVIA_LIMITE);
       // Tabela mais larga que a janela: avisa que dá para rolar de lado.
       const wrap = det.querySelector(".rel-tabela-wrap");
       if (wrap && wrap.scrollWidth > wrap.clientWidth + 4) {
@@ -960,7 +1085,7 @@ function relRender() {
   }
   ["btnRelCsv", "btnRelImprimir"].forEach((id) => {
     const b = document.getElementById(id);
-    if (b) b.disabled = !lista.length || (!colunas.length && !(id === "btnRelImprimir" && relFiltros.vista === "fichas"));
+    if (b) b.disabled = !lista.length || (!colunas.length && relFiltros.vista === "tabela");
   });
 }
 
@@ -1006,6 +1131,16 @@ function relNomeArquivo(ext) {
 function relExportarCsv() {
   const lista = relResultado();
   const colunas = relColunasAtivas();
+  if (relFiltros.vista === "bairros") {
+    const n = relLinhasBairros(lista).length;
+    if (!n) {
+      toast("Nenhum bairro para exportar com esses filtros");
+      return;
+    }
+    downloadBlob(new Blob([relGerarCsvBairros(lista)], { type: "text/csv;charset=utf-8" }), `relatorio-bairros-${todayISODate()}.csv`);
+    toast(`${n} bairro(s) no relatório (Excel / CSV)`);
+    return;
+  }
   if (!lista.length || !colunas.length) {
     toast("Nada para exportar com esses filtros");
     return;
@@ -1029,7 +1164,7 @@ function relHtmlImpressao(lista, colunas) {
     `<div class="rel-kpis">${relKpisHtml(totais)}</div>` +
     relResumoTabelaHtml(relResumoAgrupado(lista, relFiltros.agrupar), relFiltros.agrupar, lista.length) +
     `<h3 class="rel-sub">Projetos (${relNumero(lista.length)})</h3>` +
-    (relFiltros.vista === "fichas" ? relFichasHtml(lista) : relDetalheTabelaHtml(lista, colunas))
+    relDetalheHtml(lista, colunas)
   );
 }
 
@@ -1037,7 +1172,7 @@ function relHtmlImpressao(lista, colunas) {
 function relPrepararImpressao() {
   const lista = relResultado();
   const colunas = relColunasAtivas();
-  if (!lista.length || (!colunas.length && relFiltros.vista !== "fichas")) return false;
+  if (!lista.length || (!colunas.length && relFiltros.vista === "tabela")) return false;
   let area = document.getElementById("relatorioImpressao");
   if (!area) {
     area = document.createElement("div");

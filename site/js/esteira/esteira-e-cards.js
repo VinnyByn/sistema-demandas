@@ -1298,6 +1298,7 @@ function renderCard(d, { canMoveUp = false, canMoveDown = false } = {}) {
       ${cidadeHtml}
     </div>
     ${checklistHtml}
+    ${cardBairrosHtml(dmCard)}
     ${detalhesHtml}
     <div class="card__foot">
       <div class="card__stats">${stats.join("")}</div>

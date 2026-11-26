@@ -8391,3 +8391,89 @@ html:not([data-theme="light"]) .mapa-tiles { filter: invert(1) hue-rotate(180deg
   .mapa-canvas { height: 60vh; min-height: 20rem; }
   .mapa-lado { max-height: none; min-height: 0; }
 }
+
+/* ---------- Liberação por bairros (formulário do projeto) ---------- */
+.bairros { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.4rem; }
+.bairros[hidden] { display: none; }
+.bairros-resumo { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.7rem 0.85rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface2); }
+.bairros-resumo__barra { height: 8px; border-radius: 99px; background: rgba(148, 163, 184, 0.25); overflow: hidden; }
+.bairros-resumo__barra span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent2), #4ade80); transition: width 0.25s; }
+.bairros-resumo__nums { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 1.1rem; font-size: 0.82rem; color: var(--muted); }
+.bairros-resumo__nums b { color: var(--text); font-variant-numeric: tabular-nums; }
+.bairros-resumo__pct { margin-left: auto; font-size: 1rem; font-weight: 800; color: var(--accent2); }
+.bairros-avisos:empty { display: none; }
+.bairros-avisos { display: flex; flex-direction: column; gap: 0.4rem; }
+.bairros-aviso { margin: 0; padding: 0.5rem 0.75rem; border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--border)); border-radius: 10px; background: color-mix(in srgb, var(--warn) 8%, transparent); font-size: 0.82rem; }
+.bairros-aviso--ok { border-color: color-mix(in srgb, var(--accent2) 55%, var(--border)); background: color-mix(in srgb, var(--accent2) 10%, transparent); }
+.bairros-lista { display: flex; flex-direction: column; gap: 0.55rem; }
+.bairro {
+  --bairro-cor: rgba(148, 163, 184, 0.6);
+  display: flex; flex-direction: column; gap: 0.5rem; padding: 0.65rem 0.75rem 0.7rem;
+  border: 1px solid var(--border); border-left: 4px solid var(--bairro-cor); border-radius: 12px; background: var(--surface);
+}
+.bairro--execucao { --bairro-cor: var(--accent); }
+.bairro--liberado { --bairro-cor: var(--accent2); }
+.bairro__linha { display: grid; grid-template-columns: 1.6rem minmax(9rem, 1fr) 6.2rem 5rem 8.5rem 2rem; gap: 0.5rem; align-items: end; }
+.bairro__linha--datas { grid-template-columns: 1.6rem 10.5rem repeat(3, minmax(7.5rem, 1fr)); align-items: start; }
+.bairro__linha--datas::before { content: ""; }
+.bairro__n {
+  align-self: center; display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem;
+  border-radius: 999px; background: color-mix(in srgb, var(--bairro-cor) 22%, transparent); color: var(--text); font-size: 0.75rem; font-weight: 800;
+}
+.bairro__campo { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.bairro__campo > span { color: var(--muted); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+.bairro__campo input, .bairro__campo select { width: 100%; min-width: 0; }
+.bairro__campo--num input, .bairro__campo--valor input { text-align: right; font-variant-numeric: tabular-nums; }
+.bairro__campo input:disabled { opacity: 0.45; }
+.bairro--liberado .bairro__campo--situacao select { border-color: color-mix(in srgb, var(--accent2) 60%, var(--border)); color: var(--accent2); font-weight: 700; }
+.bairro--execucao .bairro__campo--situacao select { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); color: var(--accent); font-weight: 700; }
+.bairro__remover {
+  align-self: end; width: 2rem; height: 2.25rem; border: 1px solid var(--border); border-radius: 9px; background: transparent;
+  color: var(--muted); font-size: 1.1rem; line-height: 1; cursor: pointer;
+}
+.bairro__remover:hover { border-color: var(--danger); color: var(--danger); }
+.bairro__por { color: var(--muted); font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bairros-acoes { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; }
+@media (max-width: 760px) {
+  .bairro__linha { grid-template-columns: 1.6rem 1fr 1fr 2rem; }
+  .bairro__campo--nome { grid-column: 2 / 4; }
+  .bairro__linha .bairro__remover { grid-column: 4; grid-row: 1; }
+  .bairro__campo--num, .bairro__campo--valor { grid-column: span 1; }
+  .bairro__linha--datas { grid-template-columns: 1fr 1fr; }
+  .bairro__linha--datas::before { display: none; }
+}
+
+/* ---------- Bairros no card da esteira ---------- */
+.card__bairros { display: flex; flex-direction: column; gap: 0.3rem; }
+.card__bairros .card__ck-titulo svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.card__bairros-bar { display: flex; gap: 2px; height: 6px; }
+.card__bairro-seg { flex: 1; min-width: 3px; border-radius: 99px; background: rgba(148, 163, 184, 0.3); }
+.card__bairro-seg.is-execucao { background: var(--accent); }
+.card__bairro-seg.is-liberado { background: #22c55e; }
+.card__bairros-txt { margin: 0; font-size: 0.74rem; font-weight: 600; color: var(--muted); }
+.card__bairros-txt.is-completo { color: #22c55e; }
+
+/* ---------- Dashboard → Liberação por bairros ---------- */
+.dash-bairros-barra { display: inline-block; flex: 1 1 auto; min-width: 4rem; height: 7px; border-radius: 99px; background: rgba(148, 163, 184, 0.22); overflow: hidden; vertical-align: middle; }
+.dash-bairros-barra > span { display: block; height: 100%; border-radius: inherit; }
+.dash-bairros-cel { display: flex; align-items: center; gap: 0.55rem; min-width: 11rem; }
+.dash-bairros-cel b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dash-bairros-mes tr.is-vazio td { color: var(--muted); }
+.dash-table td.num, .dash-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.dash-bairros-proj { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: 0.6rem; }
+.dash-bairros-proj__item {
+  display: flex; flex-direction: column; gap: 0.4rem; width: 100%; padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface2); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.dash-bairros-proj__item:hover { border-color: var(--accent2); }
+.dash-bairros-proj__item .dash-bairros-barra { width: 100%; }
+.dash-bairros-proj__topo { display: flex; justify-content: space-between; gap: 0.6rem; }
+.dash-bairros-proj__topo strong { overflow-wrap: anywhere; }
+.dash-bairros-proj__topo span { color: var(--accent2); font-weight: 800; }
+.dash-bairros-proj__sub { color: var(--muted); font-size: 0.78rem; }
+.cal-check--bairro { --cal-cor: #a855f7; }
+.cal-ev--bairro, .cal-item.cal-ev--bairro { --cal-cor: #a855f7; }
+.cal-ev--bairro .cal-ev__ponto { border-radius: 2px 2px 0 0; }
+.cal-ev--bairro.is-atrasado, .cal-item.cal-ev--bairro.is-atrasado { --cal-cor: var(--danger); }
+.cal-ev--bairro.is-concluido, .cal-item.cal-ev--bairro.is-concluido { --cal-cor: var(--accent2); }
+.dash-bairros-vazio { margin: 0.25rem 0 0.5rem; font-size: 0.88rem; }

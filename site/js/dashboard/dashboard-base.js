@@ -164,6 +164,7 @@ const DASH_NAV_ROTULOS = {
   cidades: "Regionais",
   "indicadores-b2c": "B2C",
   "indicadores-b2b": "B2B",
+  bairros: "Bairros",
 };
 
 /** Resumo curto (contagem) que aparece ao lado do nome do bloco na barra de navegação. */
@@ -378,6 +379,7 @@ function initDashBlocks() {
         id === "tempo" ||
         id === "indicadores-b2c" ||
         id === "indicadores-b2b" ||
+        id === "bairros" ||
         id === "projetistas"
       ) {
         if (nowVisible && panels.dashboard && !panels.dashboard.hidden) renderDashboard();
@@ -1399,6 +1401,9 @@ function formatPctShare(pct) {
 }
 
 function demandaPortasNovas(d) {
+  // Projeto liberado por bairros: a soma das portas dos bairros é o número oficial.
+  const bairros = typeof demandaBairrosResumo === "function" ? demandaBairrosResumo(d) : null;
+  if (bairros && bairros.portas > 0) return bairros.portas;
   const c = normalizeCusto(d.custo);
   if (!c.temPortas) return 0;
   return numDash(c.qtdNovasPortas);

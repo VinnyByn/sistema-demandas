@@ -121,6 +121,9 @@ function migrateDemanda(d) {
     updatedAt: d.updatedAt || new Date().toISOString(),
   };
   base.anexos = normalizeAnexos(d.anexos);
+  // Liberação por bairros (opcional): só guarda a lista quando o projeto usa.
+  base.liberacaoPorBairros = d.liberacaoPorBairros === true;
+  base.bairros = base.liberacaoPorBairros ? normalizeBairros(d.bairros) : [];
   // Lixeira / arquivo: excluído vai para a lixeira (recuperável); arquivado sai da esteira.
   if (d.excluidoEm) {
     base.excluidoEm = String(d.excluidoEm);

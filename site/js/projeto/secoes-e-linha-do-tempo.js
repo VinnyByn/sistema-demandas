@@ -27,6 +27,11 @@ const DEM_SECOES = [
   },
 
   {
+    key: "bairros",
+    sel: "#fieldsetBairros",
+    icone: '<path d="M2 14V7l3-2 3 2v7"/><path d="M8 14V5l3-2.5L14 5v9"/><path d="M1.5 14h13"/>',
+  },
+  {
     key: "checklist",
     sel: ".fieldset--checklist",
     icone: '<rect x="2" y="2" width="12" height="12" rx="2.5"/><path d="M5 8.2l2 2 4-4.2"/>',
@@ -536,6 +541,12 @@ function demSecaoResumo(key) {
       if (!document.getElementById("demAsanaLink")?.hidden) refs.push("Asana");
       return refs.length ? { txt: refs.join(" · "), tom: "ok" } : { txt: "Nenhuma", tom: "neutro" };
     }
+    case "bairros": {
+      if (!editingUsaBairros) return { txt: "Liberado de uma vez", tom: "neutro" };
+      const r = bairrosResumo(editingBairros);
+      if (!r.n) return { txt: "Nenhum bairro", tom: "alerta" };
+      return { txt: `${r.liberados}/${r.n} liberados · ${r.pct}%`, tom: r.todosLiberados ? "ok" : "alerta" };
+    }
     case "checklist": {
       const n = editingChecklist.length;
       if (!n) return { txt: "Sem atividades", tom: "neutro" };
@@ -721,6 +732,7 @@ function openDemandaModal(id) {
   if (descEl) descEl.value = "";
   if (whoEl) whoEl.value = "";
   renderChecklistEditor();
+  iniciarBairrosNoForm(dm);
   const comentarioNovo = document.getElementById("demComentarioNovo");
   if (comentarioNovo) comentarioNovo.value = "";
   renderComentariosList();

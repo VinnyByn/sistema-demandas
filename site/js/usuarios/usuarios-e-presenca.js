@@ -1035,6 +1035,7 @@ function demFormSnapshot() {
   return JSON.stringify({
     campos,
     checklist: normalizeChecklist(editingChecklist),
+    bairros: typeof editingUsaBairros !== "undefined" && editingUsaBairros ? normalizeBairros(editingBairros) : [],
     cidades: editingCidadesExtra,
     projetistas: editingProjetistasExtra,
     cabos: editingLancamentoCabos,
@@ -1199,6 +1200,40 @@ const HISTORICO_EDICAO_CAMPOS = [
   },
 ];
 
+/** Histórico da liberação por bairros: liga/desliga, bairro novo ou removido e cada mudança de situação ou número. */
+function diffBairrosHistorico(prev, next) {
+  const out = [];
+  const usaA = prev?.liberacaoPorBairros === true;
+  const usaB = next?.liberacaoPorBairros === true;
+  if (usaA !== usaB) {
+    out.push({ campo: "liberacaoPorBairros", label: "Liberação por bairros", de: usaA ? "Sim" : "Não", para: usaB ? "Sim" : "Não" });
+  }
+  const a = usaA ? normalizeBairros(prev?.bairros) : [];
+  const b = usaB ? normalizeBairros(next?.bairros) : [];
+  const resumo = (x) => {
+    const partes = [BAIRRO_SITUACAO_LABEL[x.situacao]];
+    if (x.situacao === "liberado" && x.liberadoEm) partes[0] += ` em ${formatDataCurta(x.liberadoEm)}`;
+    if (x.portas !== "") partes.push(`${x.portas} portas`);
+    if (x.ctos !== "") partes.push(`${x.ctos} CTOs`);
+    if (x.valor !== "") partes.push(formatBRL(x.valor));
+    return partes.join(" · ");
+  };
+  const porId = new Map(a.map((x) => [x.id, x]));
+  for (const x of b) {
+    const antes = porId.get(x.id);
+    porId.delete(x.id);
+    const label = `Bairro ${x.nome || "sem nome"}`;
+    if (!antes) {
+      out.push({ campo: "bairros", label, de: "—", para: resumo(x) });
+      continue;
+    }
+    const mudou = ["nome", "portas", "ctos", "valor", "situacao", "liberadoEm", "previsao", "inicio"].some((k) => String(antes[k]) !== String(x[k]));
+    if (mudou) out.push({ campo: "bairros", label, de: `${antes.nome !== x.nome ? `${antes.nome}: ` : ""}${resumo(antes)}`, para: resumo(x) });
+  }
+  for (const x of porId.values()) out.push({ campo: "bairros", label: `Bairro ${x.nome || "sem nome"}`, de: resumo(x), para: "removido" });
+  return out;
+}
+
 function shortText(v) {
   const s = String(v ?? "").trim();
   if (!s) return "—";
@@ -1353,6 +1388,7 @@ function diffEditTracked(prev, next) {
       para: `${histNext.length} fase(s)`,
     });
   }
+  out.push(...diffBairrosHistorico(prev, next));
   const custoPrev = JSON.stringify(prev?.custo || null);
   const custoNext = JSON.stringify(next?.custo || null);
   if (custoPrev !== custoNext) {

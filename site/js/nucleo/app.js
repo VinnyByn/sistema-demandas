@@ -147,6 +147,7 @@ const panels = {
 };
 ligarCalendario();
 ligarMapa();
+ligarBairrosForm();
 
 document.querySelectorAll(".tabs__btn[data-tab]").forEach((btn) => {
   if (btn.id === "btnTabEsteira") return;
@@ -441,12 +442,27 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     chamadoOcomon: (document.getElementById("demChamadoOcomon")?.value || "").trim(),
     osAniel: (document.getElementById("demOsAniel")?.value || "").trim(),
     checklist: normalizeChecklist(editingChecklist),
+    liberacaoPorBairros: editingUsaBairros,
+    bairros: lerBairrosDoForm(),
     createdAt: existing?.createdAt || now,
     updatedAt: now,
   };
   if (!payload.titulo) {
     toast("Informe o nome do projeto");
     return;
+  }
+  if (payload.liberacaoPorBairros) {
+    const semNome = payload.bairros.findIndex((b) => !b.nome);
+    if (semNome >= 0) {
+      toast(`Dê um nome ao bairro ${semNome + 1} (ou remova a linha)`);
+      document.querySelectorAll('#demBairrosLista [data-bairro-campo="nome"]')[semNome]?.focus();
+      return;
+    }
+    if (!payload.bairros.length) {
+      toast("Adicione pelo menos um bairro, ou marque que o projeto é liberado de uma vez");
+      document.getElementById("demUsaBairros")?.focus();
+      return;
+    }
   }
   if (tipo === "B2B" && !produtoB2b) {
     syncDemCamposPorTipo();
