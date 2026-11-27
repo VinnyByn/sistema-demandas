@@ -153,7 +153,9 @@ function calcNormalizeResponsavel(s, linha) {
     if (slug.includes(projetistaSlug(p))) return p;
   }
   if (slug === "joao") return "João";
-  return "";
+  // Nome que não está na lista atual (saiu da equipe, conta removida, nome mudou): fica como está.
+  // Antes virava «Não atribuído» e, na próxima gravação do projeto, o projetista se perdia.
+  return s;
 }
 
 function labelProjetista(v) {

@@ -7861,3 +7861,30 @@ html:not([data-theme="light"]) .mapa-tiles { filter: invert(1) hue-rotate(180deg
 
 /* Velocidade: cards fora da área visível da coluna não são desenhados até aparecerem (a esteira tem centenas). */
 .column__body > .card { content-visibility: auto; contain-intrinsic-size: auto 190px; }
+
+/* ---------- Projeto aberto: nome no topo e barra de atalhos para as seções ---------- */
+#modalDemandaTitle {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#modalDemanda .modal__head > h2#modalDemandaTitle { flex: 1 1 auto; margin-right: 1rem; }
+#modalDemandaTitle[data-modo="editar"]::before {
+  content: "Projeto"; display: block; margin-bottom: 0.1rem;
+  color: var(--muted); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+}
+#modalDemandaTitle[data-modo="editar"][data-somente-leitura="1"]::before { content: "Projeto · somente leitura"; }
+.dem-atalhos {
+  position: sticky; top: -1rem; z-index: 5; display: flex; gap: 0.3rem; overflow-x: auto; scrollbar-width: none;
+  margin: -1rem -1rem 0.9rem; padding: 0.55rem 1rem; border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.dem-atalhos::-webkit-scrollbar { display: none; }
+.dem-atalho {
+  display: inline-flex; align-items: center; gap: 0.4rem; flex: none; padding: 0.32rem 0.7rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface2);
+  color: var(--muted); font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.dem-atalho:hover { color: var(--text); border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.dem-atalho.is-atual { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--surface2)); }
+.dem-atalho[hidden] { display: none; }
+.dem-atalho__ponto { width: 7px; height: 7px; border-radius: 999px; background: var(--tom, var(--muted)); }
+#btnExcluirDemanda.btn--danger-ghost { background: transparent; }
+html[data-theme="light"] .btn--danger-ghost { color: #b91c1c; border-color: rgba(185, 28, 28, 0.4); }

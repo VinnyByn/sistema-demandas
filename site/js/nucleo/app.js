@@ -418,7 +418,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
       : parseCustoMoney(existing?.valorProjetoRealizado),
     solicitante: readSolicitanteFromForm(),
     setorSolicitanteB2b: readSetorSolicitanteB2bFromForm(),
-    responsavel: normalizeResponsavel(document.getElementById("demResponsavel").value),
+    responsavel: normalizeResponsavel(document.getElementById("demResponsavel").value.trim()),
     projetistasExtra: readProjetistasExtraFromForm(),
     tipo,
     produtoB2b,

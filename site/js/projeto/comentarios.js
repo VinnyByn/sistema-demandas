@@ -516,9 +516,7 @@ function setDemandaFormReadOnly(readOnly) {
   if (btnSalvar) btnSalvar.hidden = !!readOnly;
   if (btnExcluir) btnExcluir.hidden = !!readOnly;
   const title = document.getElementById("modalDemandaTitle");
-  if (title && readOnly && title.textContent === "Editar demanda") {
-    title.textContent = "Visualizar demanda";
-  }
+  if (title) title.dataset.somenteLeitura = readOnly ? "1" : "";
   // O laço acima reabilita todos os botões; o envio de comentário só vale com texto.
   syncComentarioCompose();
 }

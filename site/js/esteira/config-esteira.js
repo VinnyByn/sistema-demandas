@@ -1133,6 +1133,27 @@ function fillDemResponsavelSelect(_linha = editingLinhaEsteira) {
   fillDemExtraProjetistaSelect();
 }
 
+/**
+ * Coloca o projetista do projeto no formulário. Se ele não está mais na lista (saiu da equipe, conta desabilitada,
+ * nome mudou), entra como opção extra: sem isso, o projeto aparecia como «Não atribuído» e, ao salvar qualquer
+ * outra coisa, perdia o projetista sem ninguém perceber.
+ */
+function definirResponsavelNoForm(nome) {
+  const sel = document.getElementById("demResponsavel");
+  if (!sel) return;
+  sel.querySelectorAll("option[data-fora-da-lista]").forEach((o) => o.remove());
+  const valor = String(nome || "").trim();
+  if (valor && ![...sel.options].some((o) => o.value === valor)) {
+    const opt = document.createElement("option");
+    opt.value = valor;
+    opt.textContent = `${valor} (fora da lista atual)`;
+    opt.dataset.foraDaLista = "1";
+    sel.appendChild(opt);
+  }
+  sel.value = valor;
+  fillDemExtraProjetistaSelect();
+}
+
 function readProjetistasExtraFromForm() {
   return normalizeProjetistasExtra(editingProjetistasExtra, document.getElementById("demResponsavel")?.value || "");
 }
