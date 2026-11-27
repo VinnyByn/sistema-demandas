@@ -281,8 +281,24 @@ test("minha conta: cartões de tema, resumo que leva à esteira e força da senh
   expect(await ativo()).toEqual(["claro"]);
   await page.locator('#contaTemas [data-tema="claro"] .conta-tema__alvo').click();
   expect(await page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
+  // Preto total: variação do escuro, guardada para a próxima vez.
+  await page.locator('#contaTemas [data-tema="preto"] .conta-tema__alvo').click();
+  expect(await ativo()).toEqual(["preto"]);
+  expect(
+    await page.evaluate(() => [
+      document.documentElement.getAttribute("data-theme"),
+      document.documentElement.getAttribute("data-escuro"),
+      localStorage.getItem("demandas-escuro"),
+      getComputedStyle(document.body).backgroundColor,
+    ]),
+  ).toEqual(["dark", "preto", "preto", "rgb(0, 0, 0)"]);
+  // Escolher o claro desliga o preto total; voltar ao escuro normal também.
+  await page.locator('#contaTemas [data-tema="claro"] .conta-tema__alvo').click();
+  expect(await page.evaluate(() => [document.documentElement.getAttribute("data-escuro"), localStorage.getItem("demandas-escuro")])).toEqual([null, null]);
+  await page.locator('#contaTemas [data-tema="preto"] .conta-tema__alvo').click();
   await page.locator('#contaTemas [data-tema="escuro"] .conta-tema__alvo').click();
   expect(await page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
+  expect(await page.evaluate(() => document.documentElement.getAttribute("data-escuro"))).toBeNull();
   expect(await ativo()).toEqual(["escuro"]);
 
   // Resumo: os números batem com a esteira e o clique mostra esses projetos lá.

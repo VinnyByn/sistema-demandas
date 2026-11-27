@@ -972,6 +972,7 @@ function renderDashboard() {
   if (isDashBlockVisible("tempo")) renderDashTempoTable();
   if (isDashBlockVisible("indicadores-b2c")) renderDashIndicadoresB2c();
   if (isDashBlockVisible("indicadores-b2b")) renderDashIndicadoresB2b();
+  if (isDashBlockVisible("bairros")) renderDashBairros();
   renderDashBlocosResumo(todas, g);
   syncDashNavContagens();
 }
@@ -1006,6 +1007,8 @@ function renderDashBlocosResumo(todas, g) {
   set("indicadores-b2c", `${b2c.length} projeto(s) · ${formatBRLCompact(valorDe(b2c))}`);
   const b2b = demandasB2bDashboardList();
   set("indicadores-b2b", `${b2b.length} projeto(s) · ${formatBRLCompact(valorDe(b2b))}`);
+  const comBairros = demandasDashboardList().filter((d) => demandaBairrosResumo(d));
+  set("bairros", comBairros.length ? `${comBairros.length} projeto(s) · ${comBairros.filter((d) => demandaBairrosResumo(d).parcial).length} parcial(is)` : "nenhum projeto");
 }
 
 /** Estado do gráfico "Onde está o B2C". */

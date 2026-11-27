@@ -9,7 +9,7 @@ async function abrirDashboard(page) {
 test("dashboard: navegação no topo abre o bloco recolhido, e a explicação fica em «Como ler»", async ({ app: { page } }) => {
   await abrirDashboard(page);
   const nav = page.locator("#dashNav [data-dash-ir]");
-  await expect(nav).toHaveText([/^Geral\d*$/, /^Tempo\d*$/, /^Projetistas\d*$/, /^Regionais\d*$/, /^B2C\d*$/, /^B2B\d*$/]);
+  await expect(nav).toHaveText([/^Geral\d*$/, /^Tempo\d*$/, /^Projetistas\d*$/, /^Regionais\d*$/, /^B2C\d*$/, /^Bairros\d*$/, /^B2B\d*$/]);
   await expect(page.locator('#dashNav [data-dash-ir="projetistas"] .dash-nav__n')).toHaveText("2");
 
   // Durante a rolagem do clique a marcação fica no destino (não passa pelos blocos do caminho).

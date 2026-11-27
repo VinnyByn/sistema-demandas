@@ -27,6 +27,11 @@ const DEM_SECOES = [
   },
 
   {
+    key: "bairros",
+    sel: "#fieldsetBairros",
+    icone: '<path d="M2 14V7l3-2 3 2v7"/><path d="M8 14V5l3-2.5L14 5v9"/><path d="M1.5 14h13"/>',
+  },
+  {
     key: "checklist",
     sel: ".fieldset--checklist",
     icone: '<rect x="2" y="2" width="12" height="12" rx="2.5"/><path d="M5 8.2l2 2 4-4.2"/>',
@@ -38,6 +43,8 @@ const DEM_SECOES = [
   },
 ];
 const DEM_SECOES_COLAPSADAS_KEY = "demandas.secoesColapsadas";
+/** Nome curto de cada seção na barra de atalhos do topo do formulário. */
+const DEM_SECOES_ATALHO = { chegada: "Dados", atribuicao: "Atribuição", atraso: "Atraso", custo: "Custo", bairros: "Bairros", checklist: "Tarefas", timeline: "Tempo" };
 let demNavSyncRaf = 0;
 
 function demSecaoEl(sec) {
@@ -413,9 +420,13 @@ function renderDemSecaoLeitura(sec) {
   const box = fs?.querySelector(":scope > .seg-leitura");
   if (!box) return;
   const podeEditar = !isReadOnlyUser();
-  box.innerHTML =
+  const html =
     (podeEditar ? `<button type="button" class="seg-leitura__editar" data-ui-nav="1" data-lv-acao="1">✎ Editar</button>` : "") +
     demSecaoLeituraHtml(sec.key);
+  // Só troca quando muda: refazer o resumo a cada letra digitada obrigava a tela a se redesenhar inteira.
+  if (box.__html === html) return;
+  box.__html = html;
+  box.innerHTML = html;
 }
 
 function setDemSecaoModo(sec, modo) {
@@ -536,6 +547,15 @@ function demSecaoResumo(key) {
       if (!document.getElementById("demAsanaLink")?.hidden) refs.push("Asana");
       return refs.length ? { txt: refs.join(" · "), tom: "ok" } : { txt: "Nenhuma", tom: "neutro" };
     }
+    case "bairros": {
+      if (!editingUsaBairros) return { txt: "Sem controle por bairros", tom: "neutro" };
+      const r = bairrosResumo(editingBairros);
+      if (!r.n) return { txt: "Nenhum bairro", tom: "alerta" };
+      if (editingBairrosModo === "junto") {
+        return { txt: `${r.n} bairro(s) · ${BAIRRO_SITUACAO_LABEL[bairrosConjunto().situacao].toLowerCase()} (todos juntos)`, tom: r.todosLiberados ? "ok" : "alerta" };
+      }
+      return { txt: `${r.liberados}/${r.n} liberados · ${r.pct}%`, tom: r.todosLiberados ? "ok" : "alerta" };
+    }
     case "checklist": {
       const n = editingChecklist.length;
       if (!n) return { txt: "Sem atividades", tom: "neutro" };
@@ -557,14 +577,95 @@ function syncDemSecoesResumo() {
     const alvo = fs?.querySelector(".seg-toggle__resumo");
     if (!alvo) continue;
     const r = demSecaoResumo(sec.key);
-    alvo.textContent = r.txt;
-    alvo.className = `seg-toggle__resumo dem-tom--${r.tom}`;
+    const cls = `seg-toggle__resumo dem-tom--${r.tom}`;
+    if (alvo.textContent !== r.txt) alvo.textContent = r.txt;
+    if (alvo.className !== cls) alvo.className = cls;
   }
+}
+
+/* ---------- Barra de atalhos: pula direto para uma seção sem rolar o formulário inteiro ---------- */
+function demFormColEl() {
+  return document.getElementById("demFormCol");
+}
+
+function initDemAtalhos() {
+  const col = demFormColEl();
+  if (!col || document.getElementById("demAtalhos")) return;
+  const nav = document.createElement("nav");
+  nav.className = "dem-atalhos";
+  nav.id = "demAtalhos";
+  nav.setAttribute("aria-label", "Ir para uma seção do projeto");
+  nav.innerHTML = DEM_SECOES.map(
+    (sec) =>
+      `<button type="button" class="dem-atalho" data-ui-nav="1" data-dem-ir="${sec.key}">` +
+      `<span class="dem-atalho__ponto" aria-hidden="true"></span>${escapeHtml(DEM_SECOES_ATALHO[sec.key] || sec.key)}</button>`,
+  ).join("");
+  col.prepend(nav);
+  nav.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-dem-ir]");
+    const sec = DEM_SECOES.find((s) => s.key === btn?.dataset.demIr);
+    const fs = sec && demSecaoEl(sec);
+    if (!fs) return;
+    setSecaoColapsada(sec, false);
+    const alvo = fs.getBoundingClientRect().top - col.getBoundingClientRect().top + col.scrollTop - nav.offsetHeight - 8;
+    col.scrollTo({ top: Math.max(0, alvo), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    marcarDemAtalho(sec.key);
+    fs.querySelector(".seg-toggle")?.focus({ preventScroll: true });
+  });
+  let raf = 0;
+  col.addEventListener("scroll", () => {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      marcarDemAtalho(demSecaoNoTopo());
+    });
+  });
+}
+
+/** Seção cujo título já passou logo abaixo da barra (a que a pessoa está lendo). */
+function demSecaoNoTopo() {
+  const col = demFormColEl();
+  const nav = document.getElementById("demAtalhos");
+  if (!col || !nav) return "";
+  const limite = nav.getBoundingClientRect().bottom + 24;
+  let atual = "";
+  for (const sec of DEM_SECOES) {
+    const fs = demSecaoEl(sec);
+    if (!fs || fs.hidden || fs.offsetParent === null) continue;
+    if (fs.getBoundingClientRect().top <= limite) atual = sec.key;
+  }
+  return atual || DEM_SECOES.find((s) => demSecaoEl(s) && !demSecaoEl(s).hidden)?.key || "";
+}
+
+function marcarDemAtalho(key) {
+  document.querySelectorAll("#demAtalhos [data-dem-ir]").forEach((b) => {
+    const on = b.dataset.demIr === key;
+    b.classList.toggle("is-atual", on);
+    if (on) b.setAttribute("aria-current", "true");
+    else b.removeAttribute("aria-current");
+  });
+}
+
+/** Esconde atalhos de seções ocultas (ex.: atraso) e pinta o ponto com o tom do resumo da seção. */
+function syncDemAtalhos() {
+  document.querySelectorAll("#demAtalhos [data-dem-ir]").forEach((b) => {
+    const sec = DEM_SECOES.find((s) => s.key === b.dataset.demIr);
+    const fs = sec && demSecaoEl(sec);
+    const oculto = !fs || fs.hidden;
+    if (b.hidden !== oculto) b.hidden = oculto;
+    if (oculto) return;
+    const r = demSecaoResumo(sec.key);
+    const tom = `dem-atalho dem-tom--${r.tom}${b.classList.contains("is-atual") ? " is-atual" : ""}`;
+    if (b.className !== tom) b.className = tom;
+    const dica = r.txt ? `${DEM_SECOES_ATALHO[sec.key]}: ${r.txt}` : DEM_SECOES_ATALHO[sec.key];
+    if (b.title !== dica) b.title = dica;
+  });
 }
 
 function syncDemNavegacao() {
   demNavSyncRaf = 0;
   syncDemSecoesResumo();
+  syncDemAtalhos();
   // Seções em modo leitura acompanham mudanças feitas em outras partes (ex.: etapa movida pelo checklist).
   for (const sec of DEM_SECOES) {
     if (DEM_SECOES_LEITURA.includes(sec.key) && demSecaoEl(sec)?.classList.contains("is-leitura")) renderDemSecaoLeitura(sec);
@@ -615,6 +716,7 @@ function initDemNavegacao() {
     true,
   );
   initDemSecoesLeitura();
+  initDemAtalhos();
 }
 
 function openDemandaModal(id) {
@@ -639,11 +741,15 @@ function openDemandaModal(id) {
   fillDemResponsavelSelect(editingLinhaEsteira);
   fillStatusSelect(editingLinhaEsteira);
   const cfg = getEsteiraConfig(editingLinhaEsteira);
-  document.getElementById("modalDemandaTitle").textContent = d
-    ? "Editar demanda"
+  // Projeto aberto: o nome dele no topo (continua visível ao rolar o formulário).
+  const tituloModal = document.getElementById("modalDemandaTitle");
+  tituloModal.dataset.modo = d ? "editar" : "novo";
+  tituloModal.textContent = d
+    ? d.titulo || "Projeto sem nome"
     : editingLinhaEsteira === LINHA_ESTEIRA_B2B
       ? "Registrar demanda B2B"
       : "Registrar chegada da demanda";
+  tituloModal.title = d ? d.titulo || "" : "";
   document.getElementById("demId").value = d?.id || "";
   const btnExcluirDem = document.getElementById("btnExcluirDemanda");
   if (btnExcluirDem) btnExcluirDem.textContent = d?.id ? "🗑 Excluir" : "Descartar rascunho";
@@ -665,7 +771,7 @@ function openDemandaModal(id) {
     const sol = dm?.solicitante || "";
     selSolB2b.value = SOLICITANTES_B2B_COMERCIAL.includes(sol) ? sol : "";
   }
-  document.getElementById("demResponsavel").value = normalizeResponsavel(d?.responsavel);
+  definirResponsavelNoForm(normalizeResponsavel(d?.responsavel) || String(d?.responsavel || "").trim());
   editingProjetistasExtra = normalizeProjetistasExtra(dm?.projetistasExtra || d?.projetistasExtra, d?.responsavel || "");
   renderProjetistasExtraList();
   syncDemTipoSelect(d?.tipo || (editingLinhaEsteira === LINHA_ESTEIRA_B2B ? "B2B" : "B2C"));
@@ -721,6 +827,7 @@ function openDemandaModal(id) {
   if (descEl) descEl.value = "";
   if (whoEl) whoEl.value = "";
   renderChecklistEditor();
+  iniciarBairrosNoForm(dm);
   const comentarioNovo = document.getElementById("demComentarioNovo");
   if (comentarioNovo) comentarioNovo.value = "";
   renderComentariosList();
@@ -761,6 +868,7 @@ function openDemandaModal(id) {
   modalDemanda.showModal();
   marcarDemandaLimpa();
   document.getElementById("demFormCol")?.scrollTo({ top: 0 });
+  marcarDemAtalho(DEM_SECOES[0].key);
   restorePageScroll(scrollSnap);
   requestAnimationFrame(() => syncDemNavegacao());
   requestAnimationFrame(() => syncDemandaModalAlerts());

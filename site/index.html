@@ -750,6 +750,16 @@
             </div>
           </div>
         </section>
+        <section class="dash-block" data-dash-block="bairros">
+          <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockBairros">
+            <span>Liberação por bairros</span>
+            <span class="dash-block__chevron" aria-hidden="true"></span>
+          </button>
+          <div class="dash-block__body" id="dashBlockBairros">
+            <p class="muted small dash-block__hint">Projetos marcados como <strong>liberados por bairros</strong> (as duas esteiras). Portas, CTOs e valor contam no mês em que cada bairro foi liberado.</p>
+            <div id="dashBairros"></div>
+          </div>
+        </section>
         <section class="dash-block" data-dash-block="indicadores-b2b">
           <button type="button" class="dash-block__toggle" aria-expanded="true" aria-controls="dashBlockIndicadoresB2b">
             <span>Indicadores B2B</span>
@@ -981,6 +991,7 @@
           <div class="cal-checks" role="group" aria-label="O que mostrar">
             <label class="cal-check cal-check--projeto"><input type="checkbox" id="calMostrarProjetos" checked /> <span>Prazos dos projetos</span></label>
             <label class="cal-check cal-check--atividade"><input type="checkbox" id="calMostrarAtividades" checked /> <span>Atividades</span></label>
+            <label class="cal-check cal-check--bairro"><input type="checkbox" id="calMostrarBairros" checked /> <span>Liberação de bairros</span></label>
             <label class="cal-check"><input type="checkbox" id="calMostrarConcluidos" /> <span>Mostrar concluídos</span></label>
           </div>
         </div>
@@ -1406,6 +1417,38 @@
         </fieldset>
 
 
+        <fieldset class="fieldset fieldset--segment fieldset--bairros" id="fieldsetBairros">
+          <legend>Bairros</legend>
+          <div class="bairros-chave">
+            <div class="bairros-chave__txt">
+              <span class="bairros-chave__rot" id="demUsaBairrosRot">Controlar por bairros</span>
+              <span class="muted small">Cadastre os bairros com portas novas, CTOs e valor, e acompanhe a liberação de cada um ou de todos juntos.</span>
+            </div>
+            <label class="conta-switch">
+              <input type="checkbox" id="demUsaBairros" aria-labelledby="demUsaBairrosRot" />
+              <span class="conta-switch__track" aria-hidden="true"></span>
+            </label>
+          </div>
+          <div class="bairros" id="demBairrosArea" hidden>
+            <div class="bairros-modo">
+              <span class="bairros-modo__rot" id="demBairrosModoRot">Como os bairros são entregues?</span>
+              <div class="dash-seg" role="radiogroup" aria-labelledby="demBairrosModoRot" id="demBairrosModo">
+                <button type="button" role="radio" aria-checked="true" data-bairros-modo="junto">Todos juntos</button>
+                <button type="button" role="radio" aria-checked="false" data-bairros-modo="separado">Cada bairro separado</button>
+              </div>
+            </div>
+            <div class="bairros-conjunto" id="demBairrosConjunto" hidden></div>
+            <div class="bairros-resumo" id="demBairrosResumo" aria-live="polite"></div>
+            <div class="bairros-avisos" id="demBairrosAvisos" aria-live="polite"></div>
+            <div class="bairros-lista" id="demBairrosLista"></div>
+            <div class="bairros-acoes">
+              <button type="button" class="btn btn--ghost btn--sm" id="btnBairroAdd">+ Adicionar bairro</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnBairrosLiberarTodos">✓ Liberar todos</button>
+            </div>
+            <datalist id="demBairrosSugestoes"></datalist>
+          </div>
+        </fieldset>
+
         <fieldset class="fieldset fieldset--segment fieldset--checklist">
           <legend>Checklist das tarefas do projeto</legend>
           <p class="muted small">Mude o <strong>status</strong> de cada atividade no seletor ao lado dela, filtre por situação e use <strong>↑</strong> <strong>↓</strong> para mudar a ordem — vale na lista e no cronograma.</p>
@@ -1529,7 +1572,7 @@
         </div>
       </form>
       <div class="modal__foot">
-        <button type="button" class="btn btn--danger" id="btnExcluirDemanda">Excluir</button>
+        <button type="button" class="btn btn--danger-ghost" id="btnExcluirDemanda">Excluir</button>
         <span class="modal__foot-aviso" id="demSujoAviso" hidden role="status">● Alterações não salvas</span>
         <button type="button" class="btn btn--fechar btn--ghost" id="btnFecharDemanda" title="Fechar (Esc)">Fechar</button>
         <button type="button" class="btn btn--primary" id="btnSalvarDemanda" title="Salvar (Ctrl+S)">✓ Salvar</button>
@@ -1725,13 +1768,14 @@
               <div class="dash-seg" role="radiogroup" aria-label="Mostrar projetos em" id="relVistaSeg">
                 <button type="button" role="radio" data-vista="tabela">Tabela</button>
                 <button type="button" role="radio" data-vista="fichas" title="Ficha completa de cada projeto: custo, portas, cabos e datas">Fichas com detalhes</button>
+                <button type="button" role="radio" data-vista="bairros" title="Uma linha por bairro: portas, CTOs, valor, situação e datas">Por bairro</button>
               </div>
             </div>
           </div>
           <details class="rel-multi rel-multi--colunas">
             <summary><span class="rel-multi__rotulo">Colunas</span><span class="rel-multi__valor" id="relColunasResumo"></span></summary>
             <div class="rel-multi__painel">
-              <div class="rel-multi__acoes"><button type="button" class="btn btn--ghost btn--sm" data-rel-atalho="padrao">Padrão</button><button type="button" class="btn btn--ghost btn--sm" data-rel-atalho="custo">Custo e portas</button><button type="button" class="btn btn--ghost btn--sm" data-rel-atalho="todas">Todas</button></div>
+              <div class="rel-multi__acoes"><button type="button" class="btn btn--ghost btn--sm" data-rel-atalho="padrao">Padrão</button><button type="button" class="btn btn--ghost btn--sm" data-rel-atalho="custo">Custo e portas</button><button type="button" class="btn btn--ghost btn--sm" data-rel-atalho="bairros">Bairros</button><button type="button" class="btn btn--ghost btn--sm" data-rel-atalho="todas">Todas</button></div>
               <div class="rel-multi__lista rel-multi__lista--colunas" id="relColunasLista"></div>
             </div>
           </details>
@@ -1995,6 +2039,15 @@
                 <span class="conta-tema__desc">Padrão, descansa a vista</span>
               </label>
             </div>
+            <div class="conta-row conta-tema" data-tema="preto">
+              <label class="conta-tema__alvo">
+                <input type="checkbox" id="temaPretoToggle" aria-label="Tema preto total" />
+                <span class="conta-switch__track conta-tema__marca" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7"/></svg></span>
+                <span class="conta-tema__amostra conta-tema__amostra--preto" aria-hidden="true"><i></i><i></i><i></i><b></b></span>
+                <span class="conta-tema__nome">Preto total</span>
+                <span class="conta-tema__desc">Fundo preto, máximo contraste</span>
+              </label>
+            </div>
             <div class="conta-row conta-tema" data-tema="claro">
               <label class="conta-tema__alvo">
                 <input type="checkbox" id="themeToggle" aria-label="Tema claro" />
@@ -2160,6 +2213,7 @@
   <script src="js/projeto/asana.js"></script>
   <script src="js/projeto/modal-projeto.js"></script>
   <script src="js/projeto/checklist.js"></script>
+  <script src="js/projeto/bairros.js"></script>
   <script src="js/projeto/comentarios.js"></script>
   <script src="js/projeto/secoes-e-linha-do-tempo.js"></script>
   <script src="js/projeto/custo-e-pdf.js"></script>
@@ -2169,6 +2223,7 @@
   <script src="js/dashboard/dashboard-base.js"></script>
   <script src="js/dashboard/cidades-e-projetistas.js"></script>
   <script src="js/dashboard/b2b-e-tempo.js"></script>
+  <script src="js/dashboard/bairros-dash.js"></script>
   <script src="js/visoes/calendario.js"></script>
   <script src="js/visoes/mapa.js"></script>
   <script src="js/importacao/exportar-e-importar.js"></script>

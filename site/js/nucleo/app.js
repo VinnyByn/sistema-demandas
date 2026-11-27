@@ -147,6 +147,7 @@ const panels = {
 };
 ligarCalendario();
 ligarMapa();
+ligarBairrosForm();
 
 document.querySelectorAll(".tabs__btn[data-tab]").forEach((btn) => {
   if (btn.id === "btnTabEsteira") return;
@@ -417,7 +418,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
       : parseCustoMoney(existing?.valorProjetoRealizado),
     solicitante: readSolicitanteFromForm(),
     setorSolicitanteB2b: readSetorSolicitanteB2bFromForm(),
-    responsavel: normalizeResponsavel(document.getElementById("demResponsavel").value),
+    responsavel: normalizeResponsavel(document.getElementById("demResponsavel").value.trim()),
     projetistasExtra: readProjetistasExtraFromForm(),
     tipo,
     produtoB2b,
@@ -441,12 +442,28 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
     chamadoOcomon: (document.getElementById("demChamadoOcomon")?.value || "").trim(),
     osAniel: (document.getElementById("demOsAniel")?.value || "").trim(),
     checklist: normalizeChecklist(editingChecklist),
+    liberacaoPorBairros: editingUsaBairros,
+    bairros: lerBairrosDoForm(),
+    bairrosModo: editingUsaBairros ? editingBairrosModo : "",
     createdAt: existing?.createdAt || now,
     updatedAt: now,
   };
   if (!payload.titulo) {
     toast("Informe o nome do projeto");
     return;
+  }
+  if (payload.liberacaoPorBairros) {
+    const semNome = payload.bairros.findIndex((b) => !b.nome);
+    if (semNome >= 0) {
+      toast(`Dê um nome ao bairro ${semNome + 1} (ou remova a linha)`);
+      document.querySelectorAll('#demBairrosLista [data-bairro-campo="nome"]')[semNome]?.focus();
+      return;
+    }
+    if (!payload.bairros.length) {
+      toast("Adicione pelo menos um bairro, ou desligue «Controlar por bairros»");
+      document.getElementById("demUsaBairros")?.focus();
+      return;
+    }
   }
   if (tipo === "B2B" && !produtoB2b) {
     syncDemCamposPorTipo();
@@ -571,8 +588,7 @@ document.getElementById("btnSalvarDemanda")?.addEventListener("click", async () 
   if (savedId) releaseDemandaEditing(savedId);
   invalidateAlertaSnoozeIfStale(saved);
   saveState({ demanda: migrateDemanda(saved) });
-  closeDemandaModal();
-  renderBoard();
+  closeDemandaModal(); // redesenha a esteira (uma vez, no próximo quadro)
   oferecerDesfazer(existing ? "Demanda salva" : "Demanda criada", () =>
     restaurarFotos(fotosSalvar, existing ? "Alterações desfeitas" : "Criação desfeita — o projeto foi para a lixeira"),
   );

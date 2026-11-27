@@ -1133,6 +1133,27 @@ function fillDemResponsavelSelect(_linha = editingLinhaEsteira) {
   fillDemExtraProjetistaSelect();
 }
 
+/**
+ * Coloca o projetista do projeto no formulário. Se ele não está mais na lista (saiu da equipe, conta desabilitada,
+ * nome mudou), entra como opção extra: sem isso, o projeto aparecia como «Não atribuído» e, ao salvar qualquer
+ * outra coisa, perdia o projetista sem ninguém perceber.
+ */
+function definirResponsavelNoForm(nome) {
+  const sel = document.getElementById("demResponsavel");
+  if (!sel) return;
+  sel.querySelectorAll("option[data-fora-da-lista]").forEach((o) => o.remove());
+  const valor = String(nome || "").trim();
+  if (valor && ![...sel.options].some((o) => o.value === valor)) {
+    const opt = document.createElement("option");
+    opt.value = valor;
+    opt.textContent = `${valor} (fora da lista atual)`;
+    opt.dataset.foraDaLista = "1";
+    sel.appendChild(opt);
+  }
+  sel.value = valor;
+  fillDemExtraProjetistaSelect();
+}
+
 function readProjetistasExtraFromForm() {
   return normalizeProjetistasExtra(editingProjetistasExtra, document.getElementById("demResponsavel")?.value || "");
 }
@@ -1326,4 +1347,115 @@ function initEsteiraFilters() {
     inpBusca.focus();
     inpBusca.select();
   });
+}
+
+/* ---------- Liberação por bairros ---------- */
+/**
+ * Projeto liberado aos poucos: cada bairro tem portas novas, CTOs, valor e a própria situação.
+ * Quando o projeto usa bairros, a soma das portas dos bairros é o número oficial de portas novas.
+ */
+const BAIRRO_SITUACOES = [
+  ["pendente", "Pendente"],
+  ["execucao", "Em execução"],
+  ["liberado", "Liberado"],
+];
+const BAIRRO_SITUACAO_LABEL = Object.fromEntries(BAIRRO_SITUACOES);
+
+function bairroInt(v) {
+  if (v === "" || v == null) return "";
+  const n = Math.round(Number(String(v).replace(/\./g, "").replace(",", ".")));
+  return Number.isFinite(n) && n >= 0 ? n : "";
+}
+
+function normalizeBairro(b) {
+  if (!b || typeof b !== "object") return null;
+  const nome = String(b.nome || "").trim();
+  const situacao = BAIRRO_SITUACAO_LABEL[b.situacao] ? b.situacao : "pendente";
+  const valor = typeof parseCustoMoney === "function" ? parseCustoMoney(b.valor) : Number(b.valor) || "";
+  const out = {
+    id: String(b.id || uid()),
+    nome,
+    portas: bairroInt(b.portas),
+    ctos: bairroInt(b.ctos),
+    valor: valor === "" || valor == null || !Number.isFinite(Number(valor)) ? "" : Number(valor),
+    situacao,
+    inicio: isoDatePart(b.inicio || "") || "",
+    previsao: isoDatePart(b.previsao || "") || "",
+    liberadoEm: situacao === "liberado" ? isoDatePart(b.liberadoEm || "") || "" : "",
+    liberadoPor: situacao === "liberado" ? String(b.liberadoPor || "").trim() : "",
+    obs: String(b.obs || "").trim(),
+  };
+  return out;
+}
+
+function normalizeBairros(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map(normalizeBairro).filter(Boolean);
+}
+
+/** Como os bairros são entregues: "junto" (todos de uma vez) ou "separado" (cada um no seu tempo). */
+function normalizeBairrosModo(v) {
+  return v === "junto" ? "junto" : "separado";
+}
+
+function demandaUsaBairros(d) {
+  return d?.liberacaoPorBairros === true;
+}
+
+/** Totais de uma lista de bairros (portas e % de avanço pelas portas; sem portas, pela quantidade). */
+function bairrosResumo(lista) {
+  const bairros = normalizeBairros(lista);
+  const num = (v) => (v === "" || v == null ? 0 : Number(v) || 0);
+  const r = {
+    n: bairros.length,
+    liberados: 0,
+    emExecucao: 0,
+    portas: 0,
+    portasLib: 0,
+    ctos: 0,
+    ctosLib: 0,
+    valor: 0,
+    valorLib: 0,
+    temValor: false,
+    ultimaLiberacao: "",
+    proximaPrevisao: "",
+  };
+  for (const b of bairros) {
+    const lib = b.situacao === "liberado";
+    r.portas += num(b.portas);
+    r.ctos += num(b.ctos);
+    r.valor += num(b.valor);
+    if (b.valor !== "") r.temValor = true;
+    if (lib) {
+      r.liberados += 1;
+      r.portasLib += num(b.portas);
+      r.ctosLib += num(b.ctos);
+      r.valorLib += num(b.valor);
+      if (b.liberadoEm > r.ultimaLiberacao) r.ultimaLiberacao = b.liberadoEm;
+    } else {
+      if (b.situacao === "execucao") r.emExecucao += 1;
+      if (b.previsao && (!r.proximaPrevisao || b.previsao < r.proximaPrevisao)) r.proximaPrevisao = b.previsao;
+    }
+  }
+  r.todosLiberados = r.n > 0 && r.liberados === r.n;
+  r.parcial = r.liberados > 0 && !r.todosLiberados;
+  r.pct = r.portas > 0 ? Math.round((r.portasLib / r.portas) * 100) : r.n ? Math.round((r.liberados / r.n) * 100) : 0;
+  return r;
+}
+
+/** Resumo dos bairros do projeto, ou null se ele não usa (ou ainda não tem) bairros. */
+function demandaBairrosResumo(d) {
+  if (!demandaUsaBairros(d)) return null;
+  const r = bairrosResumo(d.bairros);
+  if (!r.n) return null;
+  r.modo = normalizeBairrosModo(d.bairrosModo);
+  return r;
+}
+
+function bairrosSituacaoTexto(r) {
+  if (!r) return "";
+  if (r.modo === "junto") return r.todosLiberados ? "Liberado (todos juntos)" : r.emExecucao ? "Em execução (todos juntos)" : "Pendente (todos juntos)";
+  if (r.todosLiberados) return "Liberado total";
+  if (r.parcial) return "Liberação parcial";
+  return r.emExecucao ? "Em execução" : "Nenhum bairro liberado";
 }

@@ -164,6 +164,7 @@ const DASH_NAV_ROTULOS = {
   cidades: "Regionais",
   "indicadores-b2c": "B2C",
   "indicadores-b2b": "B2B",
+  bairros: "Bairros",
 };
 
 /** Resumo curto (contagem) que aparece ao lado do nome do bloco na barra de navegação. */
@@ -378,6 +379,7 @@ function initDashBlocks() {
         id === "tempo" ||
         id === "indicadores-b2c" ||
         id === "indicadores-b2b" ||
+        id === "bairros" ||
         id === "projetistas"
       ) {
         if (nowVisible && panels.dashboard && !panels.dashboard.hidden) renderDashboard();
@@ -1086,10 +1088,6 @@ function makeDashChartMetricBar(canvasId, labels, data, options = {}) {
 
 const B2C_SEGMENTO_SEM = "Sem segmento";
 
-function segmentoB2cBucket(d) {
-  return demandaSegmentosB2c(d)[0] || B2C_SEGMENTO_SEM;
-}
-
 /**
  * Em quais segmentos o projeto entra e com que parte: [{ seg, fracao }].
  * Projeto com TCR e TCT aparece nos dois (conta 1 projeto em cada); gastos, portas e metragem
@@ -1399,6 +1397,9 @@ function formatPctShare(pct) {
 }
 
 function demandaPortasNovas(d) {
+  // Projeto liberado por bairros: a soma das portas dos bairros é o número oficial.
+  const bairros = typeof demandaBairrosResumo === "function" ? demandaBairrosResumo(d) : null;
+  if (bairros && bairros.portas > 0) return bairros.portas;
   const c = normalizeCusto(d.custo);
   if (!c.temPortas) return 0;
   return numDash(c.qtdNovasPortas);

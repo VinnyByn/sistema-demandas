@@ -289,3 +289,42 @@ test("B2C com mais de um segmento (TCR + TCT): divisão dos valores em %, obriga
     return [d.segmentosB2c, d.divisaoSegmentosB2c, d.planejamentoTct];
   })).toEqual([["TCR"], null, ""]);
 });
+
+test("projetista fora da lista atual (saiu da equipe) continua no projeto ao abrir e salvar", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    const d = state.demandas.find((x) => x.id === "p3");
+    d.responsavel = "Joana";
+    d.projetistasExtra = ["Rodrigo"];
+    d.cidade = "Betim - BET";
+    delete d.__isMigrated;
+    renderBoard();
+  });
+  await expect(page.locator('.card[data-id="p3"] .card__pessoa')).toContainText("Joana");
+  await page.evaluate(() => openDemandaModal("p3"));
+  await expect(page.locator("#demResponsavel")).toHaveValue("Joana");
+  await expect(page.locator("#demResponsavel option:checked")).toHaveText("Joana (fora da lista atual)");
+  await page.click("#btnSalvarDemanda");
+  await expect(page.locator("#toast")).toContainText("Demanda salva");
+  const d = await page.evaluate(() => migrateDemanda(state.demandas.find((x) => x.id === "p3")));
+  expect([d.responsavel, d.projetistasExtra]).toEqual(["Joana", ["Rodrigo"]]);
+});
+
+test("projeto aberto: nome no topo e barra de atalhos que leva a cada seção", async ({ app: { page } }) => {
+  await page.evaluate(() => openDemandaModal("p3"));
+  await expect(page.locator("#modalDemandaTitle")).toHaveText("Hospital Central");
+  const atalhos = page.locator("#demAtalhos [data-dem-ir]:not([hidden])");
+  await expect(atalhos).toHaveText(["Dados", "Atribuição", "Custo", "Bairros", "Tarefas", "Tempo"]); // sem atraso: «Atraso» fica escondido
+  await expect(page.locator('#demAtalhos [data-dem-ir="chegada"]')).toHaveClass(/is-atual/);
+  await page.click('#demAtalhos [data-dem-ir="checklist"]');
+  await expect(page.locator('#demAtalhos [data-dem-ir="checklist"]')).toHaveClass(/is-atual/);
+  // A seção ficou logo abaixo da barra, visível.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const barra = document.getElementById("demAtalhos").getBoundingClientRect().bottom;
+        const sec = document.querySelector(".fieldset--checklist").getBoundingClientRect().top;
+        return sec >= barra - 2 && sec - barra < 40;
+      }),
+    )
+    .toBe(true);
+});

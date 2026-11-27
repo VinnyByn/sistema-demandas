@@ -32,10 +32,20 @@ const DemandasCopiaLocal = (function () {
   }
 
   function salvar(dados) {
+    const chave = chaveDaCopia();
+    if (!chave) return;
     try {
-      const chave = chaveDaCopia();
-      if (chave) localStorage.setItem(chave, JSON.stringify(dados));
+      localStorage.setItem(chave, JSON.stringify(dados));
     } catch (erro) {
+      // Não coube (o navegador guarda uns 5 MB): com a nuvem, a cópia antiga só ocupa o espaço das alterações feitas
+      // sem conexão, que importam mais. Sem nuvem (uso local), a cópia é a única fonte e fica como está.
+      if (chave !== CHAVE_DA_COPIA) {
+        try {
+          localStorage.removeItem(chave);
+        } catch {
+          /* nada a fazer */
+        }
+      }
       DemandasLog.aviso("Cópia local", erro);
     }
   }

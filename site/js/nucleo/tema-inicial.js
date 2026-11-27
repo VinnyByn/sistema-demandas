@@ -7,6 +7,8 @@
   try {
     var t = localStorage.getItem("demandas-theme");
     if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    // Variação «Preto total» do tema escuro.
+    if (t !== "light" && localStorage.getItem("demandas-escuro") === "preto") document.documentElement.setAttribute("data-escuro", "preto");
     if (localStorage.getItem("demandas-visual") === "neon") {
       document.documentElement.setAttribute("data-visual", "neon");
       document.documentElement.setAttribute("data-theme", "dark");

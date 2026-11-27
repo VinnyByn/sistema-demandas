@@ -204,10 +204,6 @@ const ASANA_ANEXOS_MAX_TOTAL = 25 * 1024 * 1024;
 const ASANA_ANEXOS_MAX_QTD = 10;
 let asanaEnvioArquivos = [];
 
-function formatTamanhoArquivo(b) {
-  return b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
-}
-
 /** Junta arquivos à lista, recusando os grandes demais. Devolve a lista nova. */
 function juntarArquivosAsana(lista, novos) {
   const out = [...lista];

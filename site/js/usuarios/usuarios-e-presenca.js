@@ -204,8 +204,24 @@ function chartInk() {
     : { tick: "#94a3b8", label: "#cbd5e1", grid: "rgba(148, 163, 184, 0.12)" };
 }
 
+/** «Preto total»: variação do tema escuro com fundo preto puro (cada pessoa escolhe a sua). */
+function isEscuroPreto() {
+  return document.documentElement.getAttribute("data-escuro") === "preto";
+}
+
+function aplicarEscuroPreto(ligado) {
+  const raiz = document.documentElement;
+  if (ligado) raiz.setAttribute("data-escuro", "preto");
+  else raiz.removeAttribute("data-escuro");
+  try {
+    if (ligado) localStorage.setItem("demandas-escuro", "preto");
+    else localStorage.removeItem("demandas-escuro");
+  } catch (_) {}
+}
+
 function applyTheme(theme) {
   const t = theme === "light" ? "light" : "dark";
+  if (t === "light" && isEscuroPreto()) aplicarEscuroPreto(false);
   if (t === "light" && document.documentElement.getAttribute("data-visual") === "neon") {
     document.documentElement.removeAttribute("data-visual");
     trocarLogoTema(false);
@@ -231,12 +247,12 @@ function applyTheme(theme) {
   if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
 }
 
-/** Cartões de tema da conta (Escuro / Claro / Neon): marca o que está na tela. */
+/** Cartões de tema da conta (Escuro / Preto total / Claro / Miami): marca o que está na tela. */
 function syncTemaCards() {
   const neon = isVisualNeon();
   const claro = !neon && currentTheme() === "light";
-  const atual = neon ? "neon" : claro ? "claro" : "escuro";
-  const ids = { escuro: "temaEscuroToggle", claro: "themeToggle", neon: "neonToggle" };
+  const atual = neon ? "neon" : claro ? "claro" : isEscuroPreto() ? "preto" : "escuro";
+  const ids = { escuro: "temaEscuroToggle", preto: "temaPretoToggle", claro: "themeToggle", neon: "neonToggle" };
   document.querySelectorAll("#contaTemas [data-tema]").forEach((card) => {
     const on = card.dataset.tema === atual;
     card.classList.toggle("is-active", on);
@@ -249,10 +265,22 @@ function syncTemaCards() {
 function escolherTema(tema) {
   if (tema === "neon") {
     if (!temaNeonPermitido()) return syncTemaCards();
+    if (isEscuroPreto()) aplicarEscuroPreto(false);
     if (!isVisualNeon()) applyVisualNeon(true);
   } else {
     if (isVisualNeon()) applyVisualNeon(false);
+    const preto = tema === "preto";
+    if (preto !== isEscuroPreto()) {
+      const raiz = document.documentElement;
+      raiz.classList.add("trocando-tema");
+      aplicarEscuroPreto(preto);
+      requestAnimationFrame(() => requestAnimationFrame(() => raiz.classList.remove("trocando-tema")));
+    }
     if (currentTheme() !== (tema === "claro" ? "light" : "dark")) applyTheme(tema === "claro" ? "light" : "dark");
+    else {
+      const dash = document.getElementById("panelDashboard");
+      if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
+    }
   }
   syncTemaCards();
 }
@@ -1035,6 +1063,8 @@ function demFormSnapshot() {
   return JSON.stringify({
     campos,
     checklist: normalizeChecklist(editingChecklist),
+    bairros: typeof editingUsaBairros !== "undefined" && editingUsaBairros ? normalizeBairros(editingBairros) : [],
+    bairrosModo: typeof editingUsaBairros !== "undefined" && editingUsaBairros ? editingBairrosModo : "",
     cidades: editingCidadesExtra,
     projetistas: editingProjetistasExtra,
     cabos: editingLancamentoCabos,
@@ -1093,7 +1123,7 @@ function closeDemandaModal() {
   modalDemanda?.close();
   demandaModalClosingFromApi = false;
   setDemandaModalScrollLock(false);
-  if (panels.esteira && !panels.esteira.hidden) renderBoard();
+  agendarRenderBoard();
   restorePageScroll(scrollSnap);
   restoreDashGeoListaIfNeeded();
 }
@@ -1198,6 +1228,44 @@ const HISTORICO_EDICAO_CAMPOS = [
     },
   },
 ];
+
+/** Histórico da liberação por bairros: liga/desliga, bairro novo ou removido e cada mudança de situação ou número. */
+function diffBairrosHistorico(prev, next) {
+  const out = [];
+  const usaA = prev?.liberacaoPorBairros === true;
+  const usaB = next?.liberacaoPorBairros === true;
+  if (usaA !== usaB) {
+    out.push({ campo: "liberacaoPorBairros", label: "Controle por bairros", de: usaA ? "Sim" : "Não", para: usaB ? "Sim" : "Não" });
+  }
+  const modoTxt = (m) => (m === "junto" ? "Todos juntos" : "Cada bairro separado");
+  if (usaA && usaB && normalizeBairrosModo(prev?.bairrosModo) !== normalizeBairrosModo(next?.bairrosModo)) {
+    out.push({ campo: "bairrosModo", label: "Entrega dos bairros", de: modoTxt(normalizeBairrosModo(prev?.bairrosModo)), para: modoTxt(normalizeBairrosModo(next?.bairrosModo)) });
+  }
+  const a = usaA ? normalizeBairros(prev?.bairros) : [];
+  const b = usaB ? normalizeBairros(next?.bairros) : [];
+  const resumo = (x) => {
+    const partes = [BAIRRO_SITUACAO_LABEL[x.situacao]];
+    if (x.situacao === "liberado" && x.liberadoEm) partes[0] += ` em ${formatDataCurta(x.liberadoEm)}`;
+    if (x.portas !== "") partes.push(`${x.portas} portas`);
+    if (x.ctos !== "") partes.push(`${x.ctos} CTOs`);
+    if (x.valor !== "") partes.push(formatBRL(x.valor));
+    return partes.join(" · ");
+  };
+  const porId = new Map(a.map((x) => [x.id, x]));
+  for (const x of b) {
+    const antes = porId.get(x.id);
+    porId.delete(x.id);
+    const label = `Bairro ${x.nome || "sem nome"}`;
+    if (!antes) {
+      out.push({ campo: "bairros", label, de: "—", para: resumo(x) });
+      continue;
+    }
+    const mudou = ["nome", "portas", "ctos", "valor", "situacao", "liberadoEm", "previsao", "inicio"].some((k) => String(antes[k]) !== String(x[k]));
+    if (mudou) out.push({ campo: "bairros", label, de: `${antes.nome !== x.nome ? `${antes.nome}: ` : ""}${resumo(antes)}`, para: resumo(x) });
+  }
+  for (const x of porId.values()) out.push({ campo: "bairros", label: `Bairro ${x.nome || "sem nome"}`, de: resumo(x), para: "removido" });
+  return out;
+}
 
 function shortText(v) {
   const s = String(v ?? "").trim();
@@ -1353,6 +1421,7 @@ function diffEditTracked(prev, next) {
       para: `${histNext.length} fase(s)`,
     });
   }
+  out.push(...diffBairrosHistorico(prev, next));
   const custoPrev = JSON.stringify(prev?.custo || null);
   const custoNext = JSON.stringify(next?.custo || null);
   if (custoPrev !== custoNext) {

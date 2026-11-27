@@ -96,7 +96,7 @@ function initDemandaModalScrollLock() {
     editingDemandaBaselineUpdatedAt = "";
     hideDemandaModalAlerts();
     setDemandaModalScrollLock(false);
-    if (panels.esteira && !panels.esteira.hidden) renderBoard();
+    agendarRenderBoard();
     restorePageScroll(scrollSnap);
     restoreDashGeoListaIfNeeded();
   });

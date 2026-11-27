@@ -6,6 +6,7 @@ const CAL_MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "
 const CAL_DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const CAL_MAX_NO_DIA = 3;
 const CAL_LISTA_DIAS = 60;
+const CAL_TIPO_ROTULO = { projeto: "Prazo do projeto", atividade: "Atividade", bairro: "Liberação de bairro" };
 
 const calEstado = { ano: 0, mes: 0, dia: "", modo: "", ligado: false };
 
@@ -33,6 +34,7 @@ function calFiltros() {
     projetista: v("calFiltroProjetista")?.value || "",
     projetos: v("calMostrarProjetos")?.checked !== false,
     atividades: v("calMostrarAtividades")?.checked !== false,
+    bairros: v("calMostrarBairros")?.checked !== false,
     concluidos: v("calMostrarConcluidos")?.checked === true,
   };
 }
@@ -68,6 +70,37 @@ function calEventos(f = calFiltros()) {
           concluido: encerrada,
           atrasado: !encerrada && prazo < hoje,
           tipoDemanda: d.tipo,
+        });
+      }
+    }
+
+    // Bairros: a previsão de liberação dos que faltam; com «concluídos», também o dia em que cada um foi liberado.
+    if (f.bairros && daPessoa && demandaUsaBairros(d)) {
+      const rb = demandaBairrosResumo(d);
+      // Entrega de todos juntos: um evento só, com os bairros somados.
+      const lista =
+        rb?.modo === "junto"
+          ? [{ ...d.bairros[0], nome: `${rb.n} bairro${rb.n > 1 ? "s" : ""} (todos juntos)`, portas: rb.portas, ctos: rb.ctos }]
+          : d.bairros || [];
+      for (const b of lista) {
+        const liberado = b.situacao === "liberado";
+        const data = liberado ? b.liberadoEm : b.previsao;
+        if (!data || (liberado && !f.concluidos)) continue;
+        out.push({
+          tipo: "bairro",
+          data,
+          id: d.id,
+          titulo: `${b.nome} · ${d.titulo}`,
+          sub: [
+            liberado ? "Liberado" : `Previsão de liberação · ${BAIRRO_SITUACAO_LABEL[b.situacao]}`,
+            b.portas !== "" ? `${b.portas} portas` : "",
+            b.ctos !== "" ? `${b.ctos} CTOs` : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          nota: "",
+          concluido: liberado,
+          atrasado: !liberado && data < hoje,
         });
       }
     }
@@ -109,7 +142,7 @@ function calEstadoTexto(ev) {
 
 function calChipHtml(ev) {
   const estado = calEstadoTexto(ev);
-  const rotulo = `${ev.tipo === "projeto" ? "Prazo do projeto" : "Atividade"}: ${ev.titulo}${estado ? ` (${estado})` : ""}`;
+  const rotulo = `${CAL_TIPO_ROTULO[ev.tipo]}: ${ev.titulo}${estado ? ` (${estado})` : ""}`;
   return (
     `<button type="button" class="${calClasseEvento(ev)}" data-cal-abrir="${escapeHtml(ev.id)}" title="${escapeHtml(`${rotulo} — ${ev.sub}`)}" aria-label="${escapeHtml(rotulo)}">` +
     `<span class="cal-ev__ponto" aria-hidden="true"></span><span class="cal-ev__txt">${escapeHtml(ev.titulo)}</span></button>`
@@ -120,7 +153,7 @@ function calItemHtml(ev) {
   const estado = calEstadoTexto(ev);
   return (
     `<li><button type="button" class="cal-item ${calClasseEvento(ev).replace("cal-ev ", "")}" data-cal-abrir="${escapeHtml(ev.id)}">` +
-    `<span class="cal-item__tipo">${ev.tipo === "projeto" ? "Prazo do projeto" : "Atividade"}</span>` +
+    `<span class="cal-item__tipo">${CAL_TIPO_ROTULO[ev.tipo]}</span>` +
     `<strong class="cal-item__titulo">${escapeHtml(ev.titulo)}</strong>` +
     `<span class="cal-item__sub">${escapeHtml(ev.sub)}</span>` +
     (ev.nota ? `<span class="cal-item__nota">${escapeHtml(ev.nota)}</span>` : "") +
@@ -307,7 +340,7 @@ function ligarCalendario() {
       renderCalendario();
     }),
   );
-  ["calFiltroEsteira", "calFiltroProjetista", "calMostrarProjetos", "calMostrarAtividades", "calMostrarConcluidos"].forEach((id) =>
+  ["calFiltroEsteira", "calFiltroProjetista", "calMostrarProjetos", "calMostrarAtividades", "calMostrarBairros", "calMostrarConcluidos"].forEach((id) =>
     document.getElementById(id)?.addEventListener("change", renderCalendario),
   );
   painel.addEventListener("click", (e) => {
