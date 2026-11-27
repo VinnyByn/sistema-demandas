@@ -252,6 +252,49 @@ test("Tema Neon: só aparece para quem o administrador liberar (e a tela inicial
   await expect(linhaNeon).toBeVisible();
 });
 
+test("Tema 93: só aparece para quem o administrador liberar, sem perder o Tema Miami", async ({ app: { page } }) => {
+  await abrirUsuarios(page);
+  const bia = linha(page, "bia.souza@x.com");
+  await bia.locator(".user-row-editar").click();
+  await bia.locator(".user-neon-select").selectOption("sim");
+  await bia.locator(".user-m93-select").selectOption("sim");
+  await bia.locator(".user-role-save").click();
+  await expect(bia.locator(".usuarios-row__sujo")).toBeHidden();
+  expect(await page.evaluate(() => DemandasRoles.getHomesMap()["bia.souza@x.com"])).toEqual({ neon: true, m93: true });
+  expect(await page.evaluate(() => [DemandasRoles.tema93Liberado("bia.souza@x.com"), DemandasRoles.tema93Liberado("matheus.costa@x.com")])).toEqual([true, false]);
+  // Tirar o 93 mantém o Miami.
+  await bia.locator(".user-row-editar").click();
+  await bia.locator(".user-m93-select").selectOption("nao");
+  await bia.locator(".user-role-save").click();
+  expect(await page.evaluate(() => DemandasRoles.getHomesMap()["bia.souza@x.com"])).toEqual({ neon: true });
+  await bia.locator(".user-row-editar").click();
+  await bia.locator(".user-m93-select").selectOption("sim");
+  await bia.locator(".user-role-save").click();
+  await page.evaluate(() => document.getElementById("panelUsuarios").close());
+
+  const cartao93 = page.locator('#contaTemas [data-tema="93"]');
+  const comoConta = (email) =>
+    page.evaluate((e) => {
+      DemandasAuth.currentUser = () => ({ email: e, displayName: "" });
+      window.getCurrentUserEmail = () => e;
+      localStorage.setItem("demandas-escuro", "93");
+      localStorage.removeItem("demandas-visual");
+      applyRoleUi();
+      showContaPane("perfil");
+      const dlg = document.getElementById("modalUserConta");
+      if (!dlg.open) dlg.showModal();
+      return [document.documentElement.getAttribute("data-escuro"), document.querySelector(".brand__logo").getAttribute("src")];
+    }, email);
+  // Sem liberação: o cartão não aparece, a tela fica no escuro normal e a escolha continua guardada.
+  expect(await comoConta("matheus.costa@x.com")).toEqual([null, "img/favicon.png"]);
+  await expect(cartao93).toBeHidden();
+  expect(await page.evaluate(() => escolherTema("93") ?? document.documentElement.getAttribute("data-escuro"))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("demandas-escuro"))).toBe("93");
+  // Liberada: o cartão aparece e o 93 guardado volta, com o logo.
+  expect(await comoConta("bia.souza@x.com")).toEqual(["93", "img/logo-93.svg"]);
+  await expect(cartao93).toBeVisible();
+});
+
 test("topo: alertas e menu do usuário nunca ficam abertos juntos (nos dois sentidos)", async ({ app: { page } }) => {
   const alertas = page.locator("#notifPanel");
   const usuario = page.locator("#userMenuPanel");

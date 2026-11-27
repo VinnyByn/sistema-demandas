@@ -200,7 +200,7 @@ window.DemandasRoles = (function () {
   /**
    * Preferências por conta que o administrador define (gravadas em `userHomes`):
    * `esteira` = tela inicial (só guarda quando não é a Esteira Projetos, o padrão) e
-   * `neon` = o Tema Neon está liberado para a conta. Só guarda o que difere do padrão.
+   * `neon` = o Tema Neon (Miami) está liberado para a conta e `m93` = o Tema 93 também. Só guarda o que difere do padrão.
    */
   function normalizeHomesMap(map) {
     const out = {};
@@ -212,6 +212,7 @@ window.DemandasRoles = (function () {
       const item = {};
       if (ESTEIRAS_INICIAIS.includes(esteira) && esteira !== "operacional") item.esteira = esteira;
       if (home?.neon === true) item.neon = true;
+      if (home?.m93 === true) item.m93 = true;
       if (Object.keys(item).length) out[e] = item;
     }
     return out;
@@ -223,6 +224,14 @@ window.DemandasRoles = (function () {
     if (!e) return false;
     if (isAdmin({ email: e })) return true;
     return homesMap[e]?.neon === true;
+  }
+
+  /** O administrador liberou o Tema 93 para esta conta? (Administradores sempre podem usar.) */
+  function tema93Liberado(email) {
+    const e = normalizeEmail(email);
+    if (!e) return false;
+    if (isAdmin({ email: e })) return true;
+    return homesMap[e]?.m93 === true;
   }
 
   function setHomesMap(map) {
@@ -440,6 +449,7 @@ window.DemandasRoles = (function () {
     getHomesMap,
     homeEsteiraForEmail,
     temaNeonLiberado,
+    tema93Liberado,
     isDisabled,
     isPurged,
     roleForEmail,

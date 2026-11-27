@@ -281,6 +281,7 @@ function syncTemaCards() {
 
 /** Escolha feita nos cartões: um tema por vez (clicar no que já está marcado não desmarca). */
 function escolherTema(tema) {
+  if (tema === "93" && !tema93Permitido()) return syncTemaCards();
   if (tema === "neon") {
     if (!temaNeonPermitido()) return syncTemaCards();
     if (variacaoEscuro()) aplicarVariacaoEscuro("");
@@ -341,6 +342,47 @@ function temaNeonPermitido() {
   return temaNeonPermissao() === "sim";
 }
 
+/** Igual ao Tema Miami: o administrador libera o Tema 93 por conta (aba Usuários). */
+function tema93Permissao() {
+  const email = typeof getCurrentUserEmail === "function" ? getCurrentUserEmail() : "";
+  if (!email || typeof DemandasRoles === "undefined") return "indefinido";
+  if (!Object.keys(DemandasRoles.getRolesMap?.() || {}).length) return "indefinido";
+  return DemandasRoles.tema93Liberado?.(email) === true ? "sim" : "nao";
+}
+
+function tema93Permitido() {
+  return tema93Permissao() === "sim";
+}
+
+function tema93Escolhido() {
+  try {
+    return localStorage.getItem("demandas-escuro") === "93";
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Mostra o cartão do 93 só para quem foi liberado. Sem liberação, a tela fica no escuro normal, mas a escolha
+ * continua guardada: se a liberação vier (ou os acessos terminarem de carregar), o 93 volta sozinho.
+ */
+function syncTema93Permissao() {
+  const permissao = tema93Permissao();
+  const pode = permissao === "sim";
+  const cartao = document.querySelector('#contaTemas [data-tema="93"]');
+  if (cartao) cartao.hidden = !pode;
+  if (permissao === "indefinido") return; // carregando: fica como está, sem piscar
+  const raiz = document.documentElement;
+  const deveMostrar = pode && tema93Escolhido() && currentTheme() !== "light";
+  if (deveMostrar === (raiz.getAttribute("data-escuro") === "93")) return;
+  if (deveMostrar) raiz.setAttribute("data-escuro", "93");
+  else raiz.removeAttribute("data-escuro");
+  trocarLogoTema(isVisualNeon());
+  syncTemaCards();
+  const dash = document.getElementById("panelDashboard");
+  if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
+}
+
 function temaNeonEscolhido() {
   try {
     return localStorage.getItem("demandas-visual") === "neon";
@@ -365,6 +407,7 @@ function aplicarVisualNeonNaTela(ligado) {
  * (a escolha fica guardada: se a liberação vier — ou os acessos terminarem de carregar — o neon volta).
  */
 function syncTemaNeonPermissao() {
+  syncTema93Permissao();
   const permissao = temaNeonPermissao();
   const pode = permissao === "sim";
   const linha = document.getElementById("neonToggle")?.closest(".conta-row");
