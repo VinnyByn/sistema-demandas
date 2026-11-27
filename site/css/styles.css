@@ -7925,7 +7925,7 @@ html[data-escuro="preto"]:not([data-theme="light"]):not([data-visual="neon"]) {
   --bloco-bairros: #34d399;
   --bloco-b2b: #f472b6;
 }
-html[data-escuro="preto"]:not([data-theme="light"]):not([data-visual="neon"]) {
+html:is([data-escuro="preto"], [data-escuro="93"]):not([data-theme="light"]):not([data-visual="neon"]) {
   & .dash-block { --bloco: var(--bloco-geral); border-color: color-mix(in srgb, var(--bloco) 28%, var(--border)); }
   & .dash-block[data-dash-block="tempo"] { --bloco: var(--bloco-tempo); }
   & .dash-block[data-dash-block="projetistas"] { --bloco: var(--bloco-projetistas); }
@@ -7972,3 +7972,94 @@ html[data-escuro="preto"]:not([data-theme="light"]):not([data-visual="neon"]) {
 .cor-avatar__op.is-ativa { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--cor, var(--accent)); }
 .cor-avatar__op:disabled { cursor: not-allowed; opacity: 0.5; }
 .cor-avatar__op:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* =====================================================================================================
+   Tema «93» — homenagem (variação do escuro, liberada pelo administrador como o Miami).
+   Vermelho é a cor principal; o laranja entra nos detalhes (linhas, marcadores, faixas). As colunas da esteira
+   vão do laranja (primeiras etapas) ao vermelho (conclusão). Alertas e prazos continuam com as cores de sempre.
+   ===================================================================================================== */
+html[data-escuro="93"]:not([data-theme="light"]):not([data-visual="neon"]) {
+  --m93-vermelho: #e10600;
+  --m93-laranja: #ff7a00;
+  --m93-faixa: linear-gradient(90deg, #ff7a00 0%, #e10600 40%, #b00000 100%);
+  --m93-botao: linear-gradient(90deg, #b00000 0%, #d40a00 70%, #c94a00 100%);
+  --bg: #0c0909;
+  --surface: #161010;
+  --surface2: #201616;
+  --border: #3a2626;
+  --text: #f7eeee;
+  --muted: #bda9a9;
+  --accent: #ff4433;
+  --accent-fill: #c40000;
+  --topbar-bg: #0c0909;
+  --form-segment-border: rgba(255, 68, 51, 0.3);
+  --form-segment-bg: rgba(255, 68, 51, 0.04);
+  --form-segment-title: #ffc4bd;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  /* Dashboard: blocos em tons de vermelho, com o laranja intercalado. */
+  --bloco-geral: #ff4433;
+  --bloco-tempo: #ff8a1f;
+  --bloco-projetistas: #ff6a5c;
+  --bloco-cidades: #ffa04d;
+  --bloco-b2c: #ff3b4e;
+  --bloco-bairros: #ff7a00;
+  --bloco-b2b: #ff8577;
+}
+html[data-escuro="93"]:not([data-theme="light"]):not([data-visual="neon"]) {
+  & ::selection { background: rgba(225, 6, 0, 0.5); color: #fff; }
+  /* Menu lateral: bandeira quadriculada no alto e uma linha laranja → vermelho na borda. */
+  & .sidebar::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; z-index: 1;
+    background: repeating-conic-gradient(#f5f5f5 0 25%, #111 0 50%) 0 0 / 12px 12px; opacity: 0.85;
+  }
+  & .sidebar::after {
+    content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, #ff7a00 0%, #e10600 45%, #8f0000 100%); opacity: 0.9;
+  }
+  & .topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--m93-faixa); }
+  /* Botões principais em vermelho; marcador laranja nos itens ativos. */
+  & .btn--primary, & .sidebar__item--primary.btn.btn--primary { background: var(--m93-botao); border-color: transparent; color: #fff; }
+  & .btn--primary:hover:not(:disabled) { background: var(--m93-botao); filter: brightness(1.12); }
+  & .sidebar__item.is-active, & .tabs__btn.is-active { box-shadow: inset 3px 0 0 var(--m93-laranja); }
+  /* Esteira: a faixa no alto de cada coluna vai do laranja (primeiras etapas) ao vermelho (últimas). */
+  & .column { position: relative; }
+  & .column::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; z-index: 3; pointer-events: none;
+    background: var(--m93-faixa); background-size: 700% 100%; background-position-x: var(--m93-pos, 0%);
+  }
+  & .column:nth-child(2) { --m93-pos: 16%; }
+  & .column:nth-child(3) { --m93-pos: 33%; }
+  & .column:nth-child(4) { --m93-pos: 50%; }
+  & .column:nth-child(5) { --m93-pos: 66%; }
+  & .column:nth-child(6) { --m93-pos: 83%; }
+  & .column:nth-child(n + 7), & .column:last-child:not(:first-child) { --m93-pos: 100%; }
+  & .column__title, & .column__head h3 { font-style: italic; letter-spacing: 0.02em; }
+  & .card:hover { border-color: color-mix(in srgb, var(--m93-laranja) 55%, var(--border)); }
+  /* Janela do projeto: linha laranja → vermelho embaixo do título; atalho atual com borda laranja. */
+  & .modal__head { position: relative; }
+  & .modal__head::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: var(--m93-faixa); }
+  & .dem-atalho.is-atual { border-color: var(--m93-laranja); background: color-mix(in srgb, var(--m93-vermelho) 16%, var(--surface2)); }
+  /* Calendário e seletores. */
+  & .cal-dia.is-hoje .cal-dia__num { background: var(--m93-botao); }
+  & .cal-modo button[aria-checked="true"], & .dash-seg button.is-active, & .dash-seg button[aria-checked="true"] { background: var(--m93-botao); color: #fff; }
+  /* O 93 ao fundo da esteira e do dashboard. Fica numa camada por cima em modo «screen»: só clareia o que é escuro
+     (fundos, colunas, blocos), não escurece textos e não pega cliques. Abaixo do topo, das janelas e dos menus. */
+  & main:has(> #panelEsteira.is-visible, > #panelDashboard.is-visible)::before {
+    content: ""; position: fixed; right: 1.5rem; bottom: 1rem; z-index: 4; pointer-events: none;
+    width: min(46rem, 52vw); aspect-ratio: 400 / 260;
+    background: url("../img/marca-93.svg") no-repeat center / contain; mix-blend-mode: screen;
+  }
+  /* O 93 grande no espaço livre do menu lateral (some com o menu recolhido). */
+  & .sidebar__nav::after {
+    content: "93"; position: absolute; left: 0; right: 0; bottom: 0.5rem; text-align: center; pointer-events: none;
+    font: italic 900 7.5rem/1 "Arial Black", system-ui, sans-serif; letter-spacing: -0.06em;
+    background: linear-gradient(180deg, #ff2a12 0%, #b00000 70%, #ff7a00 100%); -webkit-background-clip: text; background-clip: text; color: transparent; opacity: 0.2;
+  }
+  & .app--sidebar-collapsed .sidebar__nav::after { content: none; }
+  & .app-loader__spin { border-top-color: var(--m93-vermelho); border-right-color: var(--m93-laranja); }
+}
+.conta-tema__amostra--93 { background: #0c0909; }
+.conta-tema__amostra--93 i:nth-child(1) { background: #161010; box-shadow: 1px 0 0 #3a2626; }
+.conta-tema__amostra--93 i:nth-child(2) { background: linear-gradient(90deg, #ff7a00, #e10600 40%, #b00000); }
+.conta-tema__amostra--93 i:nth-child(3) { background: #201616; box-shadow: inset 0 0 0 1px #3a2626, inset 0 3px 0 #e10600; }
+.conta-tema__amostra--93 b { background: linear-gradient(90deg, #b00000, #d40a00 70%, #c94a00); }
