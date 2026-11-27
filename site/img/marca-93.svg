@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 260" width="400" height="260">
+  <!-- Tema «93»: o número ao fundo da esteira e do dashboard, no mesmo estilo do 93 do menu lateral (bem suave). -->
+  <defs>
+    <linearGradient id="v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff2a12"/>
+      <stop offset="0.7" stop-color="#b00000"/>
+      <stop offset="1" stop-color="#ff7a00"/>
+    </linearGradient>
+  </defs>
+  <text x="200" y="225" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="260" font-style="italic" font-weight="900" letter-spacing="-16" fill="url(#v)" opacity="0.09">93</text>
+</svg>

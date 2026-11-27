@@ -8042,6 +8042,13 @@ html[data-escuro="93"]:not([data-theme="light"]):not([data-visual="neon"]) {
   /* Calendário e seletores. */
   & .cal-dia.is-hoje .cal-dia__num { background: var(--m93-botao); }
   & .cal-modo button[aria-checked="true"], & .dash-seg button.is-active, & .dash-seg button[aria-checked="true"] { background: var(--m93-botao); color: #fff; }
+  /* O 93 ao fundo da esteira e do dashboard. Fica numa camada por cima em modo «screen»: só clareia o que é escuro
+     (fundos, colunas, blocos), não escurece textos e não pega cliques. Abaixo do topo, das janelas e dos menus. */
+  & main:has(> #panelEsteira.is-visible, > #panelDashboard.is-visible)::before {
+    content: ""; position: fixed; right: 1.5rem; bottom: 1rem; z-index: 4; pointer-events: none;
+    width: min(46rem, 52vw); aspect-ratio: 400 / 260;
+    background: url("../img/marca-93.svg") no-repeat center / contain; mix-blend-mode: screen;
+  }
   /* O 93 grande no espaço livre do menu lateral (some com o menu recolhido). */
   & .sidebar__nav::after {
     content: "93"; position: absolute; left: 0; right: 0; bottom: 0.5rem; text-align: center; pointer-events: none;
