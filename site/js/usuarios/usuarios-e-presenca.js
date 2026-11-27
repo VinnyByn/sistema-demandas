@@ -189,6 +189,7 @@ function updateUserMenuAvatar(email) {
   const el = document.getElementById("userMenuAvatar");
   const initials = userInitialsFromEmail(email);
   if (el) el.textContent = initials;
+  if (typeof syncCorAvatarDaConta === "function") syncCorAvatarDaConta();
   const btn = document.getElementById("btnUserMenu");
   if (btn) btn.title = email ? `${email} — Minha conta` : "Minha conta";
 }
@@ -498,6 +499,7 @@ function fillContaScreen() {
     const el = document.getElementById(id);
     if (el) el.textContent = initials;
   });
+  if (typeof syncCorAvatarDaConta === "function") syncCorAvatarDaConta();
   const situacao = document.getElementById("contaSituacao");
   if (situacao) {
     situacao.classList.remove("is-warn", "is-off");

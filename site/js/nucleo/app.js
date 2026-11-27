@@ -148,6 +148,7 @@ const panels = {
 ligarCalendario();
 ligarMapa();
 ligarBairrosForm();
+ligarCorAvatar();
 
 document.querySelectorAll(".tabs__btn[data-tab]").forEach((btn) => {
   if (btn.id === "btnTabEsteira") return;

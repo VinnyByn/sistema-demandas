@@ -223,6 +223,7 @@ function refreshAllViews() {
   syncDemAsanaUi();
   syncComentariosServidorNoModal();
   notificarAvisosAsanaNovos();
+  if (typeof syncCorAvatarDaConta === "function") syncCorAvatarDaConta();
 }
 
 /** Agrupa atualizações da nuvem para não recriar a UI várias vezes seguidas. */

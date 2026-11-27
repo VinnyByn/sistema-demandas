@@ -104,7 +104,7 @@ function atualizarMencaoAc(ta) {
     .map(
       (u, i) =>
         `<li role="option" data-idx="${i}" class="${i === mencaoAc.ativo ? "is-ativo" : ""}" aria-selected="${i === mencaoAc.ativo}">` +
-        `<span class="mencao-ac__av comment-avatar ${comentarioAvatarClass(u.nome)}">${escapeHtml(comentarioIniciais(u.nome))}</span>` +
+        `<span class="mencao-ac__av comment-avatar ${comentarioAvatarClass(u.nome)}"${corAvatarEstilo(u.nome)}>${escapeHtml(comentarioIniciais(u.nome))}</span>` +
         `<span class="mencao-ac__txt"><strong>${escapeHtml(u.nome)}</strong><small>${escapeHtml(u.email)}</small></span></li>`,
     )
     .join("");
@@ -289,7 +289,7 @@ function renderComentariosList() {
                   "</div>";
             return (
               '<article class="comment-row' + (meu ? " is-meu" : "") + (editando ? " is-editando" : "") + '">' +
-              '<div class="comment-avatar ' + comentarioAvatarClass(c.autor) + '" aria-hidden="true">' +
+              '<div class="comment-avatar ' + comentarioAvatarClass(c.autor) + '"' + corAvatarEstilo(c.autor) + ' aria-hidden="true">' +
               escapeHtml(comentarioIniciais(c.autor)) + "</div>" +
               '<div class="comment-body"><div class="comment-head"><strong>' + escapeHtml(c.autor) +
               (meu ? ' <span class="comment-voce">você</span>' : "") +
