@@ -7888,3 +7888,26 @@ html:not([data-theme="light"]) .mapa-tiles { filter: invert(1) hue-rotate(180deg
 .dem-atalho__ponto { width: 7px; height: 7px; border-radius: 999px; background: var(--tom, var(--muted)); }
 #btnExcluirDemanda.btn--danger-ghost { background: transparent; }
 html[data-theme="light"] .btn--danger-ghost { color: #b91c1c; border-color: rgba(185, 28, 28, 0.4); }
+
+/* ---------- Tema «Preto total»: variação do escuro com fundo preto puro (Minha conta → Aparência) ---------- */
+html[data-escuro="preto"]:not([data-theme="light"]):not([data-visual="neon"]) {
+  --bg: #000000;
+  --surface: #0b0b0c;
+  --surface2: #141416;
+  --border: #26262a;
+  --text: #f2f2f3;
+  --muted: #9c9ca3;
+  --accent: #3d8bfd;
+  --accent-fill: #2563eb;
+  --topbar-bg: #000000;
+  --form-segment-border: rgba(61, 139, 253, 0.28);
+  --form-segment-bg: rgba(61, 139, 253, 0.04);
+  --form-segment-title: #c6dcff;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+html[data-escuro="preto"]:not([data-theme="light"]):not([data-visual="neon"]) .modal::backdrop { background: rgba(0, 0, 0, 0.72); }
+.conta-tema__amostra--preto { background: #000; }
+.conta-tema__amostra--preto i:nth-child(1) { background: #0b0b0c; box-shadow: 1px 0 0 #26262a; }
+.conta-tema__amostra--preto i:nth-child(2) { background: #26262a; }
+.conta-tema__amostra--preto i:nth-child(3) { background: #141416; box-shadow: inset 0 0 0 1px #26262a; }
+.conta-tema__amostra--preto b { background: #3d8bfd; }

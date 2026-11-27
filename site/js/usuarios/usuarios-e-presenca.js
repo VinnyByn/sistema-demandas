@@ -204,8 +204,24 @@ function chartInk() {
     : { tick: "#94a3b8", label: "#cbd5e1", grid: "rgba(148, 163, 184, 0.12)" };
 }
 
+/** «Preto total»: variação do tema escuro com fundo preto puro (cada pessoa escolhe a sua). */
+function isEscuroPreto() {
+  return document.documentElement.getAttribute("data-escuro") === "preto";
+}
+
+function aplicarEscuroPreto(ligado) {
+  const raiz = document.documentElement;
+  if (ligado) raiz.setAttribute("data-escuro", "preto");
+  else raiz.removeAttribute("data-escuro");
+  try {
+    if (ligado) localStorage.setItem("demandas-escuro", "preto");
+    else localStorage.removeItem("demandas-escuro");
+  } catch (_) {}
+}
+
 function applyTheme(theme) {
   const t = theme === "light" ? "light" : "dark";
+  if (t === "light" && isEscuroPreto()) aplicarEscuroPreto(false);
   if (t === "light" && document.documentElement.getAttribute("data-visual") === "neon") {
     document.documentElement.removeAttribute("data-visual");
     trocarLogoTema(false);
@@ -231,12 +247,12 @@ function applyTheme(theme) {
   if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
 }
 
-/** Cartões de tema da conta (Escuro / Claro / Neon): marca o que está na tela. */
+/** Cartões de tema da conta (Escuro / Preto total / Claro / Miami): marca o que está na tela. */
 function syncTemaCards() {
   const neon = isVisualNeon();
   const claro = !neon && currentTheme() === "light";
-  const atual = neon ? "neon" : claro ? "claro" : "escuro";
-  const ids = { escuro: "temaEscuroToggle", claro: "themeToggle", neon: "neonToggle" };
+  const atual = neon ? "neon" : claro ? "claro" : isEscuroPreto() ? "preto" : "escuro";
+  const ids = { escuro: "temaEscuroToggle", preto: "temaPretoToggle", claro: "themeToggle", neon: "neonToggle" };
   document.querySelectorAll("#contaTemas [data-tema]").forEach((card) => {
     const on = card.dataset.tema === atual;
     card.classList.toggle("is-active", on);
@@ -249,10 +265,22 @@ function syncTemaCards() {
 function escolherTema(tema) {
   if (tema === "neon") {
     if (!temaNeonPermitido()) return syncTemaCards();
+    if (isEscuroPreto()) aplicarEscuroPreto(false);
     if (!isVisualNeon()) applyVisualNeon(true);
   } else {
     if (isVisualNeon()) applyVisualNeon(false);
+    const preto = tema === "preto";
+    if (preto !== isEscuroPreto()) {
+      const raiz = document.documentElement;
+      raiz.classList.add("trocando-tema");
+      aplicarEscuroPreto(preto);
+      requestAnimationFrame(() => requestAnimationFrame(() => raiz.classList.remove("trocando-tema")));
+    }
     if (currentTheme() !== (tema === "claro" ? "light" : "dark")) applyTheme(tema === "claro" ? "light" : "dark");
+    else {
+      const dash = document.getElementById("panelDashboard");
+      if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
+    }
   }
   syncTemaCards();
 }
