@@ -205,24 +205,40 @@ function chartInk() {
     : { tick: "#94a3b8", label: "#cbd5e1", grid: "rgba(148, 163, 184, 0.12)" };
 }
 
-/** «Escuro total»: variação do tema escuro com fundo preto puro (cada pessoa escolhe a sua). */
+/**
+ * Variações do tema escuro, escolhidas por pessoa: «Escuro total» (fundo preto) e «93» (homenagem com a
+ * trajetória de cores laranja → azul → vermelho). Ficam em data-escuro e no armazenamento do navegador.
+ */
+const VARIACOES_ESCURO = ["preto", "93"];
+
+function variacaoEscuro() {
+  const v = document.documentElement.getAttribute("data-escuro");
+  return VARIACOES_ESCURO.includes(v) ? v : "";
+}
+
 function isEscuroPreto() {
-  return document.documentElement.getAttribute("data-escuro") === "preto";
+  return variacaoEscuro() === "preto";
+}
+
+function aplicarVariacaoEscuro(valor) {
+  const raiz = document.documentElement;
+  const v = VARIACOES_ESCURO.includes(valor) ? valor : "";
+  if (v) raiz.setAttribute("data-escuro", v);
+  else raiz.removeAttribute("data-escuro");
+  try {
+    if (v) localStorage.setItem("demandas-escuro", v);
+    else localStorage.removeItem("demandas-escuro");
+  } catch (_) {}
+  trocarLogoTema(isVisualNeon());
 }
 
 function aplicarEscuroPreto(ligado) {
-  const raiz = document.documentElement;
-  if (ligado) raiz.setAttribute("data-escuro", "preto");
-  else raiz.removeAttribute("data-escuro");
-  try {
-    if (ligado) localStorage.setItem("demandas-escuro", "preto");
-    else localStorage.removeItem("demandas-escuro");
-  } catch (_) {}
+  aplicarVariacaoEscuro(ligado ? "preto" : "");
 }
 
 function applyTheme(theme) {
   const t = theme === "light" ? "light" : "dark";
-  if (t === "light" && isEscuroPreto()) aplicarEscuroPreto(false);
+  if (t === "light" && variacaoEscuro()) aplicarVariacaoEscuro("");
   if (t === "light" && document.documentElement.getAttribute("data-visual") === "neon") {
     document.documentElement.removeAttribute("data-visual");
     trocarLogoTema(false);
@@ -236,6 +252,7 @@ function applyTheme(theme) {
   const raiz = document.documentElement;
   raiz.classList.add("trocando-tema");
   raiz.setAttribute("data-theme", t);
+  trocarLogoTema(isVisualNeon()); // o logo do 93 depende do tema (escuro) e da variação
   void raiz.offsetHeight; // aplica as cores novas antes de religar as transições
   requestAnimationFrame(() => requestAnimationFrame(() => raiz.classList.remove("trocando-tema")));
   try {
@@ -252,8 +269,8 @@ function applyTheme(theme) {
 function syncTemaCards() {
   const neon = isVisualNeon();
   const claro = !neon && currentTheme() === "light";
-  const atual = neon ? "neon" : claro ? "claro" : isEscuroPreto() ? "preto" : "escuro";
-  const ids = { escuro: "temaEscuroToggle", preto: "temaPretoToggle", claro: "themeToggle", neon: "neonToggle" };
+  const atual = neon ? "neon" : claro ? "claro" : variacaoEscuro() || "escuro";
+  const ids = { escuro: "temaEscuroToggle", preto: "temaPretoToggle", 93: "tema93Toggle", claro: "themeToggle", neon: "neonToggle" };
   document.querySelectorAll("#contaTemas [data-tema]").forEach((card) => {
     const on = card.dataset.tema === atual;
     card.classList.toggle("is-active", on);
@@ -266,15 +283,15 @@ function syncTemaCards() {
 function escolherTema(tema) {
   if (tema === "neon") {
     if (!temaNeonPermitido()) return syncTemaCards();
-    if (isEscuroPreto()) aplicarEscuroPreto(false);
+    if (variacaoEscuro()) aplicarVariacaoEscuro("");
     if (!isVisualNeon()) applyVisualNeon(true);
   } else {
     if (isVisualNeon()) applyVisualNeon(false);
-    const preto = tema === "preto";
-    if (preto !== isEscuroPreto()) {
+    const variacao = VARIACOES_ESCURO.includes(tema) ? tema : "";
+    if (variacao !== variacaoEscuro()) {
       const raiz = document.documentElement;
       raiz.classList.add("trocando-tema");
-      aplicarEscuroPreto(preto);
+      aplicarVariacaoEscuro(variacao);
       requestAnimationFrame(() => requestAnimationFrame(() => raiz.classList.remove("trocando-tema")));
     }
     if (currentTheme() !== (tema === "claro" ? "light" : "dark")) applyTheme(tema === "claro" ? "light" : "dark");
@@ -293,17 +310,18 @@ function isVisualNeon() {
 
 const LOGO_PADRAO = "img/favicon.png";
 const LOGO_NEON = "img/logo-neon.svg";
+const LOGO_93 = "img/logo-93.svg";
 
 /** Troca a logo (barra lateral, login e ícone da aba) pela versão do tema. */
 function trocarLogoTema(neon) {
-  const src = neon ? LOGO_NEON : LOGO_PADRAO;
+  const src = neon ? LOGO_NEON : variacaoEscuro() === "93" && currentTheme() !== "light" ? LOGO_93 : LOGO_PADRAO;
   document.querySelectorAll("img.brand__logo, img.login-card__logo").forEach((img) => {
     if (img.getAttribute("src") !== src) img.setAttribute("src", src);
   });
   document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach((l) => {
     if (l.getAttribute("href") !== src) {
       l.setAttribute("href", src);
-      l.setAttribute("type", neon ? "image/svg+xml" : "image/png");
+      l.setAttribute("type", src.endsWith(".svg") ? "image/svg+xml" : "image/png");
     }
   });
 }
@@ -697,6 +715,7 @@ function initShellUi() {
     applyVisualNeon(e.target.checked);
   });
   syncTemaNeonPermissao();
+  trocarLogoTema(isVisualNeon()); // logo da variação do escuro escolhida (ex.: «93»)
   initAparenciaAcessivel();
   document.getElementById("btnSidebarToggle")?.addEventListener("click", () => {
     const app = document.getElementById("appRoot");

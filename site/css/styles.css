@@ -7925,7 +7925,7 @@ html[data-escuro="preto"]:not([data-theme="light"]):not([data-visual="neon"]) {
   --bloco-bairros: #34d399;
   --bloco-b2b: #f472b6;
 }
-html[data-escuro="preto"]:not([data-theme="light"]):not([data-visual="neon"]) {
+html:is([data-escuro="preto"], [data-escuro="93"]):not([data-theme="light"]):not([data-visual="neon"]) {
   & .dash-block { --bloco: var(--bloco-geral); border-color: color-mix(in srgb, var(--bloco) 28%, var(--border)); }
   & .dash-block[data-dash-block="tempo"] { --bloco: var(--bloco-tempo); }
   & .dash-block[data-dash-block="projetistas"] { --bloco: var(--bloco-projetistas); }
@@ -7972,3 +7972,91 @@ html[data-escuro="preto"]:not([data-theme="light"]):not([data-visual="neon"]) {
 .cor-avatar__op.is-ativa { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--cor, var(--accent)); }
 .cor-avatar__op:disabled { cursor: not-allowed; opacity: 0.5; }
 .cor-avatar__op:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* =====================================================================================================
+   Tema «93» — homenagem (variação do escuro, Minha conta → Aparência).
+   A trajetória de cores laranja → azul-celeste → vermelho passa por todas as telas: as colunas da esteira vão
+   do laranja (primeiras etapas) ao vermelho (conclusão), os blocos do dashboard seguem a mesma ordem, e os
+   detalhes (logo com a formiga, faixa quadriculada, botões, atalhos) usam a trajetória inteira.
+   Alertas (atraso, prazo) e cores dos tipos continuam os de sempre.
+   ===================================================================================================== */
+html[data-escuro="93"]:not([data-theme="light"]):not([data-visual="neon"]) {
+  --m93-laranja: #ff6b00;
+  --m93-azul: #35b8f0;
+  --m93-vermelho: #ff2d2d;
+  --m93-amarelo: #ffd200;
+  --m93-trajetoria: linear-gradient(90deg, #ff6b00 0%, #ff9a2e 18%, #35b8f0 50%, #e10600 82%, #b80000 100%);
+  --m93-trajetoria-escura: linear-gradient(90deg, #c94a00 0%, #126f9e 50%, #b80000 100%);
+  --bg: #0b0a0c;
+  --surface: #151317;
+  --surface2: #1e1b21;
+  --border: #322c35;
+  --text: #f6f1ee;
+  --muted: #b6aab0;
+  --accent: #ff7a1a;
+  --accent-fill: #c94a00;
+  --topbar-bg: #0b0a0c;
+  --form-segment-border: rgba(255, 122, 26, 0.3);
+  --form-segment-bg: rgba(255, 122, 26, 0.04);
+  --form-segment-title: #ffd0ad;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  /* Dashboard: os blocos seguem a trajetória de cima para baixo. */
+  --bloco-geral: #ff6b00;
+  --bloco-tempo: #ffa040;
+  --bloco-projetistas: #35b8f0;
+  --bloco-cidades: #5cc8f5;
+  --bloco-b2c: #ff5a5a;
+  --bloco-bairros: #ff2d2d;
+  --bloco-b2b: #ff7a7a;
+}
+html[data-escuro="93"]:not([data-theme="light"]):not([data-visual="neon"]) {
+  & ::selection { background: rgba(255, 107, 0, 0.45); color: #fff; }
+  /* Menu lateral: bandeira quadriculada no alto e a trajetória na borda. */
+  & .sidebar::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; z-index: 1;
+    background: repeating-conic-gradient(#f5f5f5 0 25%, #111 0 50%) 0 0 / 12px 12px; opacity: 0.85;
+  }
+  & .sidebar::after {
+    content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, #ff6b00 0%, #35b8f0 50%, #e10600 100%); opacity: 0.9;
+  }
+  & .topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--m93-trajetoria); }
+  /* Botões principais e itens ativos com a trajetória. */
+  & .btn--primary, & .sidebar__item--primary.btn.btn--primary { background: var(--m93-trajetoria-escura); border-color: transparent; color: #fff; }
+  & .btn--primary:hover:not(:disabled) { background: var(--m93-trajetoria-escura); filter: brightness(1.12); }
+  & .sidebar__item.is-active, & .tabs__btn.is-active { box-shadow: inset 3px 0 0 var(--m93-laranja); }
+  /* Esteira: cada coluna mostra o trecho da trajetória que corresponde à sua posição (laranja → azul → vermelho). */
+  & .column { position: relative; }
+  & .column::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; z-index: 3; pointer-events: none;
+    background: var(--m93-trajetoria); background-size: 700% 100%; background-position-x: var(--m93-pos, 0%);
+  }
+  & .column:nth-child(2) { --m93-pos: 16%; }
+  & .column:nth-child(3) { --m93-pos: 33%; }
+  & .column:nth-child(4) { --m93-pos: 50%; }
+  & .column:nth-child(5) { --m93-pos: 66%; }
+  & .column:nth-child(6) { --m93-pos: 83%; }
+  & .column:nth-child(n + 7), & .column:last-child:not(:first-child) { --m93-pos: 100%; }
+  & .column__title, & .column__head h3 { font-style: italic; letter-spacing: 0.02em; }
+  & .card:hover { border-color: color-mix(in srgb, var(--m93-laranja) 55%, var(--border)); }
+  /* Janela do projeto: linha da trajetória no topo e atalhos. */
+  & .modal__head { position: relative; }
+  & .modal__head::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: var(--m93-trajetoria); }
+  & .dem-atalho.is-atual { border-color: var(--m93-laranja); background: color-mix(in srgb, var(--m93-laranja) 16%, var(--surface2)); }
+  /* Calendário e mapa: destaques do azul (o meio da trajetória). */
+  & .cal-dia.is-hoje .cal-dia__num { background: var(--m93-trajetoria-escura); }
+  & .cal-modo button[aria-checked="true"], & .dash-seg button.is-active, & .dash-seg button[aria-checked="true"] { background: var(--m93-trajetoria-escura); color: #fff; }
+  /* O 93 grande no espaço livre do menu lateral (some com o menu recolhido). */
+  & .sidebar__nav::after {
+    content: "93"; position: absolute; left: 0; right: 0; bottom: 0.5rem; text-align: center; pointer-events: none;
+    font: italic 900 7.5rem/1 "Arial Black", system-ui, sans-serif; letter-spacing: -0.06em;
+    background: linear-gradient(90deg, #ff6b00, #35b8f0 55%, #e10600); -webkit-background-clip: text; background-clip: text; color: transparent; opacity: 0.16;
+  }
+  & .app--sidebar-collapsed .sidebar__nav::after { content: none; }
+  & .app-loader__spin { border-top-color: var(--m93-laranja); border-right-color: var(--m93-azul); border-bottom-color: var(--m93-vermelho); }
+}
+.conta-tema__amostra--93 { background: #0b0a0c; }
+.conta-tema__amostra--93 i:nth-child(1) { background: #151317; box-shadow: 1px 0 0 #322c35; }
+.conta-tema__amostra--93 i:nth-child(2) { background: linear-gradient(90deg, #ff6b00, #35b8f0, #e10600); }
+.conta-tema__amostra--93 i:nth-child(3) { background: #1e1b21; box-shadow: inset 0 0 0 1px #322c35, inset 0 3px 0 #ff6b00; }
+.conta-tema__amostra--93 b { background: linear-gradient(90deg, #c94a00, #126f9e, #b80000); }

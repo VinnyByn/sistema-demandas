@@ -295,7 +295,19 @@ test("minha conta: cartões de tema, resumo que leva à esteira e força da senh
   // Escolher o claro desliga o escuro total; voltar ao escuro normal também.
   await page.locator('#contaTemas [data-tema="claro"] .conta-tema__alvo').click();
   expect(await page.evaluate(() => [document.documentElement.getAttribute("data-escuro"), localStorage.getItem("demandas-escuro")])).toEqual([null, null]);
+  // 93: outra variação do escuro, com o logo próprio; trocar para o escuro total troca a variação.
+  await page.locator('#contaTemas [data-tema="93"] .conta-tema__alvo').click();
+  expect(await ativo()).toEqual(["93"]);
+  expect(
+    await page.evaluate(() => [
+      document.documentElement.getAttribute("data-escuro"),
+      localStorage.getItem("demandas-escuro"),
+      document.querySelector(".brand__logo").getAttribute("src"),
+    ]),
+  ).toEqual(["93", "93", "img/logo-93.svg"]);
   await page.locator('#contaTemas [data-tema="preto"] .conta-tema__alvo').click();
+  expect(await ativo()).toEqual(["preto"]);
+  expect(await page.evaluate(() => [document.documentElement.getAttribute("data-escuro"), document.querySelector(".brand__logo").getAttribute("src").includes("93")])).toEqual(["preto", false]);
   await page.locator('#contaTemas [data-tema="escuro"] .conta-tema__alvo').click();
   expect(await page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
   expect(await page.evaluate(() => document.documentElement.getAttribute("data-escuro"))).toBeNull();

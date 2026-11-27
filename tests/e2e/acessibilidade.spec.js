@@ -19,10 +19,10 @@ async function violacoes(page, contexto) {
   }, contexto);
 }
 
-for (const tema of ["dark", "light", "neon", "preto"]) {
-  test(`acessibilidade sem violações · tema ${{ dark: "escuro", light: "claro", neon: "neon", preto: "escuro total" }[tema]}`, async ({ app: { page } }) => {
+for (const tema of ["dark", "light", "neon", "preto", "93"]) {
+  test(`acessibilidade sem violações · tema ${{ dark: "escuro", light: "claro", neon: "neon", preto: "escuro total", 93: "93" }[tema]}`, async ({ app: { page } }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.evaluate((t) => (t === "neon" ? applyVisualNeon(true) : t === "preto" ? escolherTema("preto") : applyTheme(t)), tema);
+    await page.evaluate((t) => (t === "neon" ? applyVisualNeon(true) : t === "preto" || t === "93" ? escolherTema(t) : applyTheme(t)), tema);
     expect(await violacoes(page), "esteira").toEqual([]);
 
     await page.evaluate(() => openDemandaModal("p1"));
