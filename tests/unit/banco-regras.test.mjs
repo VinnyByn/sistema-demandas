@@ -240,6 +240,11 @@ test("salvar demanda: chave com ponto (e-mail) é uma chave só, e merge cria a 
   liberado(await bia.rpc("meta_salvar", { p_campos: { filtrosSalvos: { "bia@x.com": { a: 1 } } } }));
   liberado(await bia.rpc("meta_salvar", { p_campos: { filtrosSalvos: { "ana@x.com": { b: 2 } } } }));
   assert.deepEqual((await banco.lerMeta()).filtrosSalvos, { "bia@x.com": { a: 1 }, "ana@x.com": { b: 2 } });
+  // Cor do avatar: cada um grava a sua chave; null volta para a automática.
+  liberado(await bia.rpc("meta_salvar", { p_campos: { coresAvatar: { "bia@x,com": 145 } } }));
+  liberado(await bia.rpc("meta_salvar", { p_campos: { coresAvatar: { "ana@x,com": 24 } } }));
+  liberado(await bia.rpc("meta_salvar", { p_campos: { coresAvatar: { "bia@x,com": null } } }));
+  assert.deepEqual((await banco.lerMeta()).coresAvatar, { "bia@x,com": null, "ana@x,com": 24 });
   liberado(await bia.rpc("demanda_salvar", { p_id: "nova", p_campos: { titulo: "Nova", apagar: 1 }, p_remover: [["apagar"]] }));
   assert.deepEqual(await banco.lerDemanda("nova"), { titulo: "Nova" });
 });

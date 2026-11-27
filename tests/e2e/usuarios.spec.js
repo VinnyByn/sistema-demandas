@@ -281,7 +281,7 @@ test("minha conta: cartões de tema, resumo que leva à esteira e força da senh
   expect(await ativo()).toEqual(["claro"]);
   await page.locator('#contaTemas [data-tema="claro"] .conta-tema__alvo').click();
   expect(await page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
-  // Preto total: variação do escuro, guardada para a próxima vez.
+  // Escuro total: variação do escuro, guardada para a próxima vez.
   await page.locator('#contaTemas [data-tema="preto"] .conta-tema__alvo').click();
   expect(await ativo()).toEqual(["preto"]);
   expect(
@@ -292,7 +292,7 @@ test("minha conta: cartões de tema, resumo que leva à esteira e força da senh
       getComputedStyle(document.body).backgroundColor,
     ]),
   ).toEqual(["dark", "preto", "preto", "rgb(0, 0, 0)"]);
-  // Escolher o claro desliga o preto total; voltar ao escuro normal também.
+  // Escolher o claro desliga o escuro total; voltar ao escuro normal também.
   await page.locator('#contaTemas [data-tema="claro"] .conta-tema__alvo').click();
   expect(await page.evaluate(() => [document.documentElement.getAttribute("data-escuro"), localStorage.getItem("demandas-escuro")])).toEqual([null, null]);
   await page.locator('#contaTemas [data-tema="preto"] .conta-tema__alvo').click();
@@ -322,4 +322,40 @@ test("minha conta: cartões de tema, resumo que leva à esteira e força da senh
   await page.fill("#userSenhaNova2", "NovaSenha2026!");
   await expect(page.locator("#userSenhaForca")).toHaveAttribute("data-nivel", "4");
   await expect(page.locator("#userSenhaRegras li.is-ok")).toHaveCount(4);
+});
+
+test("minha conta: cor do avatar escolhida vale nos cards e nos comentários; automática volta ao padrão", async ({ app: { page } }) => {
+  await page.evaluate(() => {
+    DemandasRoles.setRolesMap({ "vinicius.morais@soumaster.com.br": "admin", "matheus.costa@x.com": "projetista" });
+    const d = state.demandas.find((x) => x.id === "p1");
+    d.comentarios = [{ id: "c1", autor: "Vinicius Morais", texto: "oi", createdAt: new Date().toISOString() }];
+    delete d.__isMigrated;
+    renderBoard();
+  });
+  const hueDoCard = () => page.evaluate(() => getComputedStyle(document.querySelector('.card[data-id="p1"] .card__avatar')).getPropertyValue("--avatar-h").trim());
+  const automatica = await hueDoCard();
+
+  await page.click("#btnUserMenu");
+  await page.click('[data-user-modal="modalUserConta"]');
+  const ops = page.locator("#contaCorAvatar [data-cor-avatar]");
+  await expect(ops).toHaveCount(13);
+  await expect(page.locator('#contaCorAvatar [data-cor-avatar=""]')).toHaveAttribute("aria-checked", "true");
+  await page.click('#contaCorAvatar [data-cor-avatar="145"]');
+  await expect(page.locator('#contaCorAvatar [data-cor-avatar="145"]')).toHaveAttribute("aria-checked", "true");
+
+  // Foi para o doc meta, só na chave desta conta (sem pontos no e-mail).
+  const salvo = await page.evaluate(() => window.__salvos.filter((s) => s.metaFields?.coresAvatar).at(-1));
+  expect(salvo).toEqual({ metaFields: { coresAvatar: { "vinicius,morais@soumaster,com,br": 145 } } });
+  expect(await page.evaluate(() => document.getElementById("contaPerfilAvatar").style.background)).toContain("rgb(34, 195, 101)"); // hsl(145 70% 45%)
+
+  await page.keyboard.press("Escape");
+  await expect.poll(hueDoCard).toBe("145");
+  await page.evaluate(() => openDemandaModal("p1"));
+  expect(await page.evaluate(() => document.querySelector("#demComentariosList .comment-avatar").getAttribute("style") || "")).toContain("hsl(145");
+  await page.evaluate(() => closeDemandaModal());
+
+  // Automática: volta para a cor calculada pelo nome (o valor nulo apaga a escolha no banco).
+  await page.evaluate(() => escolherCorAvatar(""));
+  expect(await page.evaluate(() => window.__salvos.at(-1))).toEqual({ metaFields: { coresAvatar: { "vinicius,morais@soumaster,com,br": null } } });
+  await expect.poll(hueDoCard).toBe(automatica);
 });

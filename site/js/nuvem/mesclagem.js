@@ -3,7 +3,7 @@
  * `emEnvio` traz o que este navegador acabou de enviar e o servidor ainda pode não ter refletido: { demandaIds, meta }.
  */
 const DemandasMesclagem = (function () {
-  const CHAVES_EXTRAS_DO_META = ["metasEtapa", "filtrosSalvos"];
+  const CHAVES_EXTRAS_DO_META = ["metasEtapa", "filtrosSalvos", "coresAvatar"];
   const NADA_EM_ENVIO = { demandaIds: new Set(), meta: null };
 
   function extrasDoMeta(origem) {

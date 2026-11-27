@@ -189,6 +189,7 @@ function updateUserMenuAvatar(email) {
   const el = document.getElementById("userMenuAvatar");
   const initials = userInitialsFromEmail(email);
   if (el) el.textContent = initials;
+  if (typeof syncCorAvatarDaConta === "function") syncCorAvatarDaConta();
   const btn = document.getElementById("btnUserMenu");
   if (btn) btn.title = email ? `${email} — Minha conta` : "Minha conta";
 }
@@ -204,7 +205,7 @@ function chartInk() {
     : { tick: "#94a3b8", label: "#cbd5e1", grid: "rgba(148, 163, 184, 0.12)" };
 }
 
-/** «Preto total»: variação do tema escuro com fundo preto puro (cada pessoa escolhe a sua). */
+/** «Escuro total»: variação do tema escuro com fundo preto puro (cada pessoa escolhe a sua). */
 function isEscuroPreto() {
   return document.documentElement.getAttribute("data-escuro") === "preto";
 }
@@ -247,7 +248,7 @@ function applyTheme(theme) {
   if (dash && !dash.hidden && typeof renderDashboard === "function") renderDashboard();
 }
 
-/** Cartões de tema da conta (Escuro / Preto total / Claro / Miami): marca o que está na tela. */
+/** Cartões de tema da conta (Escuro / Escuro total / Claro / Miami): marca o que está na tela. */
 function syncTemaCards() {
   const neon = isVisualNeon();
   const claro = !neon && currentTheme() === "light";
@@ -498,6 +499,7 @@ function fillContaScreen() {
     const el = document.getElementById(id);
     if (el) el.textContent = initials;
   });
+  if (typeof syncCorAvatarDaConta === "function") syncCorAvatarDaConta();
   const situacao = document.getElementById("contaSituacao");
   if (situacao) {
     situacao.classList.remove("is-warn", "is-off");

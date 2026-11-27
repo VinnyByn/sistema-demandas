@@ -1418,6 +1418,9 @@ function cardAvatarIniciais(nome) {
 
 /** Matiz estável por nome — o mesmo projetista mantém a mesma cor em todos os cards. */
 function cardAvatarHue(nome) {
+  // Cor escolhida pela própria pessoa (Minha conta → Perfil) vale mais que a automática.
+  const escolhida = typeof corAvatarDoNome === "function" ? corAvatarDoNome(nome) : null;
+  if (escolhida != null) return escolhida;
   let h = 0;
   for (const ch of String(nome || "")) h = (h * 31 + ch.codePointAt(0)) % 360;
   return h;
